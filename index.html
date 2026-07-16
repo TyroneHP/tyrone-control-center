@@ -7,6 +7,23 @@
     <title>Tyrone Control Center</title>
   </head>
   <body>
+    <script>
+      ;(function restoreGitHubPagesRoute(location) {
+        if (location.search.startsWith('?/')) {
+          const restoredPath = location.search
+            .slice(2)
+            .split('&')
+            .map((part) => part.replace(/~and~/g, '&'))
+            .join('?')
+
+          window.history.replaceState(
+            null,
+            '',
+            location.pathname + restoredPath + location.hash,
+          )
+        }
+      })(window.location)
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
