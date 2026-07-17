@@ -1,0 +1,67 @@
+.reload-prompt {
+  position: fixed;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  z-index: 80;
+  display: flex;
+  width: min(31rem, calc(100vw - 2rem));
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid rgba(131, 181, 255, 0.3);
+  border-radius: var(--radius-card);
+  padding: 1rem;
+  background: rgba(12, 37, 69, 0.97);
+  box-shadow: 0 20px 55px rgba(0, 5, 15, 0.42);
+  backdrop-filter: blur(18px);
+}
+
+.reload-prompt > div:first-child {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.reload-prompt strong {
+  font-size: 0.95rem;
+}
+
+.reload-prompt span {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.reload-prompt__actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.5rem;
+}
+
+.reload-prompt button {
+  min-height: 40px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  padding: 0.55rem 0.8rem;
+  background: var(--color-primary);
+  color: var(--color-text);
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.reload-prompt button.reload-prompt__later {
+  border-color: var(--color-border);
+  background: var(--color-surface-soft);
+}
+
+@media (max-width: 767px) {
+  .reload-prompt {
+    right: 1rem;
+    bottom: calc(5.75rem + env(safe-area-inset-bottom));
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .reload-prompt__actions {
+    justify-content: flex-end;
+  }
+}

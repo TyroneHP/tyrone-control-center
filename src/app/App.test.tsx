@@ -7,6 +7,14 @@ import type { Database } from '../lib/supabase/database.types'
 import { App } from './App'
 import { appRoutes } from '../routes/router'
 
+vi.mock('virtual:pwa-register/react', () => ({
+  useRegisterSW: () => ({
+    needRefresh: [false, vi.fn()],
+    offlineReady: [false, vi.fn()],
+    updateServiceWorker: vi.fn(),
+  }),
+}))
+
 describe('App', () => {
   it('renders the routed application providers', async () => {
     const client = {

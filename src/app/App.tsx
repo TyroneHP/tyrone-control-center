@@ -6,6 +6,7 @@ import type { Database } from '../lib/supabase/database.types'
 import { AuthProvider } from '../features/auth'
 import { appQueryClient } from './queryClient'
 import { appRouter } from '../routes/router'
+import { ReloadPrompt } from '../pwa/ReloadPrompt'
 
 export interface AppProps {
   authClient?: SupabaseClient<Database>
@@ -19,10 +20,13 @@ export function App({
   router = appRouter,
 }: AppProps) {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider client={authClient}>
-        <RouterProvider router={router} />
-      </AuthProvider>
-    </QueryClientProvider>
+    <>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider client={authClient}>
+          <RouterProvider router={router} />
+        </AuthProvider>
+      </QueryClientProvider>
+      <ReloadPrompt />
+    </>
   )
 }
