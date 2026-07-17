@@ -194,7 +194,12 @@ export function toSafeError(error: unknown): SafeError {
       : typeof error === 'object' && error && 'code' in error
         ? String(error.code)
         : ''
-  const message = error instanceof Error ? error.message : String(error)
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'object' && error && 'message' in error
+        ? String(error.message)
+        : String(error)
   const knownCode = Object.keys(safeErrors).find(
     (code) => code === errorCode || message.includes(code),
   )

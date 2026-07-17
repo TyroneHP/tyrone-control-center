@@ -15,4 +15,17 @@ describe('Playwright configuration', () => {
     expect(config).toContain("devices['iPhone 13']")
     expect(config).toContain("browserName: 'webkit'")
   })
+
+  it('keeps public signup disabled while allowing invited e-mail logins', () => {
+    const config = readFileSync(
+      resolve(process.cwd(), 'supabase/config.toml'),
+      'utf8',
+    )
+    const auth = config.match(/\[auth\]\s*([\s\S]*?)\n\[/)?.[1] ?? ''
+    const email =
+      config.match(/\[auth\.email\]\s*([\s\S]*?)\n\[/)?.[1] ?? ''
+
+    expect(auth).toMatch(/enable_signup\s*=\s*false/)
+    expect(email).toMatch(/enable_signup\s*=\s*true/)
+  })
 })

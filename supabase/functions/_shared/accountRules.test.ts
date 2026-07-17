@@ -160,6 +160,16 @@ Deno.test('redacts unknown service errors and preserves safe account codes', () 
   assertEquals(capacity.status, 409, 'capacity status')
 })
 
+Deno.test('preserves safe codes from Supabase service error objects', () => {
+  const capacity = toSafeError({
+    code: 'P0001',
+    message: 'ACCOUNT_CAPACITY_REACHED',
+  })
+
+  assertEquals(capacity.code, 'ACCOUNT_CAPACITY_REACHED', 'capacity code')
+  assertEquals(capacity.status, 409, 'capacity status')
+})
+
 Deno.test('creates separated service and caller clients without persisted sessions', () => {
   const calls: Array<{
     key: string

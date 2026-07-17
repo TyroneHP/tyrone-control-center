@@ -17,8 +17,20 @@ ins Repository. Es wird keine Produktionsdatenbank automatisch erstellt.
 
 3. Für lokale Edge Functions eine nicht eingecheckte
    `supabase/functions/.env` aus den passenden Platzhaltern in `.env.example`
-   anlegen. Supabase lädt diese Datei bei `supabase start` automatisch. Sie muss
-   lokal bleiben.
+   anlegen. Sie muss lokal bleiben. Für den lokalen Auth-E2E-Lauf muss die
+   Einladung zur lokalen Vite-App zurückführen:
+
+   ```dotenv
+   BOOTSTRAP_ADMIN_EMAIL=admin@example.test
+   APP_ORIGIN=http://127.0.0.1:5173/
+   ALLOWED_ORIGINS=http://127.0.0.1:5173,http://localhost:5173
+   CLEANUP_CRON_SECRET=<lokaler-nur-serverseitiger-wert>
+   ```
+
+   Supabase stellt `SUPABASE_URL`, `SUPABASE_ANON_KEY` und
+   `SUPABASE_SERVICE_ROLE_KEY` dem lokalen Function Runtime bereit; diese Werte
+   nicht in die Datei kopieren. Die Produktions-`APP_ORIGIN` bleibt die
+   GitHub-Pages-Adresse.
 4. Lokalen Stack prüfen:
 
    ```bash
@@ -28,6 +40,12 @@ ins Repository. Es wird keine Produktionsdatenbank automatisch erstellt.
 Mailpit ist mit dieser Repository-Konfiguration unter
 `http://127.0.0.1:54324` erreichbar. Die lokale API verwendet
 `http://127.0.0.1:54321`.
+
+Die lokale Auth-Konfiguration hält die öffentliche Registrierung mit
+`[auth] enable_signup = false` geschlossen und lässt gleichzeitig den
+E-Mail-Provider für eingeladene Konten aktiv (`[auth.email] enable_signup = true`).
+Unreservierte Konten werden zusätzlich vom Datenbank-Trigger mit
+`INVITATION_REQUIRED` abgewiesen.
 
 ## 2. Gehostetes Supabase-Projekt
 
@@ -121,6 +139,14 @@ Vor diesem Lauf muss die Datenbank frisch zurückgesetzt sein und die lokale
 Function-Umgebung dieselbe Administratoradresse verwenden. Den von
 `npx supabase status -o env` ausgegebenen lokalen öffentlichen Schlüssel nur in
 der aktuellen Shell setzen, nicht committen.
+
+In einer separaten Shell die Functions mit der lokalen Redirect-Konfiguration
+starten und während des Tests laufen lassen:
+
+```bash
+npx supabase db reset
+npx supabase functions serve --env-file supabase/functions/.env
+```
 
 PowerShell-Beispiel mit Platzhaltern:
 

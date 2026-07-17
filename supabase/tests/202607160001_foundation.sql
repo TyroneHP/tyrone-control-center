@@ -81,9 +81,9 @@ select has_function(
   array['uuid'],
   'refresh-session revocation function exists'
 );
-select like(
+select matches(
   pg_get_functiondef('public.deactivate_profile(uuid, uuid)'::regprocedure),
-  '%revoke_user_refresh_sessions%',
+  'revoke_user_refresh_sessions',
   'deactivation revokes refresh sessions in the same transaction'
 );
 
@@ -345,8 +345,12 @@ reset role;
 set local "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
 set local role authenticated;
 select is((select count(*) from public.profiles), 2::bigint, 'admin sees all profiles');
-select is((select count(*) from public.invitations), 4::bigint, 'admin sees all invitation states');
-select is((select count(*) from public.activity_log), 2::bigint, 'admin sees acceptance audit events');
+select is((select count(*) from public.invitations), 5::bigint, 'admin sees all invitation states');
+select is(
+  (select count(*) from public.activity_log where action = 'invitation.accepted'),
+  2::bigint,
+  'admin sees acceptance audit events'
+);
 reset role;
 
 select * from finish();

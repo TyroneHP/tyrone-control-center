@@ -50,4 +50,14 @@ describe('Foundation documentation', () => {
       expect(setup).toContain(requiredText)
     }
   })
+
+  it('documents the local Function redirect required by the auth E2E test', () => {
+    const setup = read('docs/setup-supabase.md')
+
+    expect(setup).toContain('APP_ORIGIN=http://127.0.0.1:5173/')
+    expect(setup).toContain(
+      'supabase functions serve --env-file supabase/functions/.env',
+    )
+    expect(setup).toContain('E-Mail-Provider für eingeladene Konten aktiv')
+  })
 })
