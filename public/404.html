@@ -5,28 +5,28 @@
     <title>Tyrone Control Center</title>
     <script>
       const pathSegmentsToKeep = 1
-      const location = window.location
+      const pageLocation = window.location
 
-      location.replace(
-        location.protocol +
+      pageLocation.replace(
+        pageLocation.protocol +
           '//' +
-          location.hostname +
-          (location.port ? ':' + location.port : '') +
-          location.pathname
+          pageLocation.hostname +
+          (pageLocation.port ? ':' + pageLocation.port : '') +
+          pageLocation.pathname
             .split('/')
             .slice(0, 1 + pathSegmentsToKeep)
             .join('/') +
           '/?/' +
-          location.pathname
+          pageLocation.pathname
             .slice(1)
             .split('/')
             .slice(pathSegmentsToKeep)
             .join('/')
             .replace(/&/g, '~and~') +
-          (location.search
-            ? '&' + location.search.slice(1).replace(/&/g, '~and~')
+          (pageLocation.search
+            ? '&' + pageLocation.search.slice(1).replace(/&/g, '~and~')
             : '') +
-          location.hash,
+          pageLocation.hash,
       )
     </script>
   </head>
