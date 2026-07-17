@@ -11,7 +11,7 @@ export function PlaceholderPage({
   return (
     <section className="placeholder-page">
       <header className="placeholder-page__header">
-        <p>Foundation</p>
+        <p>Grundlage</p>
         <h1>{title}</h1>
       </header>
       <Card>

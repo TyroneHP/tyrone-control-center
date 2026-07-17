@@ -9,7 +9,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [react(), VitePWA(pwaOptions)],
   test: {
     environment: 'jsdom',
-    exclude: ['node_modules/**', 'dist/**', 'supabase/**'],
+    exclude: ['node_modules/**', 'dist/**', 'supabase/**', 'tests/e2e/**'],
     globals: true,
     setupFiles: './src/test/setup.ts',
   },

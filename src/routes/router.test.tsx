@@ -86,6 +86,7 @@ describe('application routing', () => {
     expect(
       await screen.findByRole('heading', { name: 'Kalender' }),
     ).toBeInTheDocument()
+    expect(screen.getByText('Grundlage')).toBeInTheDocument()
     expect(
       screen.getByText('Dieses Modul wird in einem späteren Meilenstein aktiviert.'),
     ).toBeInTheDocument()
