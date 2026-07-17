@@ -54,7 +54,7 @@ export interface SettingsPageProps {
 
 export function SettingsPage({
   api = getSettingsApi(),
-  authApi = getAuthApi(),
+  authApi,
 }: SettingsPageProps) {
   const { profile } = useAuth()
   const queryClient = useQueryClient()
@@ -101,10 +101,11 @@ export function SettingsPage({
     setSessionError(false)
     setSessionPending(scope)
     try {
+      const sessionApi = authApi ?? getAuthApi()
       if (scope === 'all') {
-        await authApi.signOutAll()
+        await sessionApi.signOutAll()
       } else {
-        await authApi.signOutCurrent()
+        await sessionApi.signOutCurrent()
       }
     } catch {
       setSessionError(true)
