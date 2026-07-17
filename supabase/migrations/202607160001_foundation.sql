@@ -317,6 +317,23 @@ begin
 end;
 $$;
 
+create or replace function public.revoke_user_refresh_sessions(p_user_id uuid)
+returns bigint
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_deleted bigint;
+begin
+  delete from auth.sessions
+  where user_id = p_user_id;
+
+  get diagnostics v_deleted = row_count;
+  return v_deleted;
+end;
+$$;
+
 create or replace function public.deactivate_profile(
   p_user_id uuid,
   p_actor_id uuid
@@ -375,6 +392,8 @@ begin
     deletion_scheduled_at = now() + interval '30 days'
   where id = p_user_id
   returning * into v_profile;
+
+  perform public.revoke_user_refresh_sessions(p_user_id);
 
   update public.invitations
   set status = 'revoked', revoked_at = now()
@@ -537,6 +556,7 @@ revoke execute on function public.handle_new_auth_user() from public, anon, auth
 revoke execute on function public.deactivate_profile(uuid, uuid) from public, anon, authenticated;
 revoke execute on function public.restore_profile(uuid, uuid) from public, anon, authenticated;
 revoke execute on function public.list_cleanup_candidates() from public, anon, authenticated;
+revoke execute on function public.revoke_user_refresh_sessions(uuid) from public, anon, authenticated;
 
 grant execute on function public.current_user_role() to authenticated;
 grant execute on function public.current_user_is_active() to authenticated;
@@ -546,3 +566,4 @@ grant execute on function public.revoke_invitation(uuid) to service_role;
 grant execute on function public.deactivate_profile(uuid, uuid) to service_role;
 grant execute on function public.restore_profile(uuid, uuid) to service_role;
 grant execute on function public.list_cleanup_candidates() to service_role;
+grant execute on function public.revoke_user_refresh_sessions(uuid) to service_role;

@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(53);
+select plan(66);
 
 select has_type('public', 'app_role', 'app_role enum exists');
 select has_type('public', 'profile_status', 'profile_status enum exists');
@@ -74,6 +74,17 @@ select has_function(
   'list_cleanup_candidates',
   array[]::text[],
   'cleanup candidate function exists'
+);
+select has_function(
+  'public',
+  'revoke_user_refresh_sessions',
+  array['uuid'],
+  'refresh-session revocation function exists'
+);
+select like(
+  pg_get_functiondef('public.deactivate_profile(uuid, uuid)'::regprocedure),
+  '%revoke_user_refresh_sessions%',
+  'deactivation revokes refresh sessions in the same transaction'
 );
 
 select ok(
@@ -160,6 +171,14 @@ select ok(
 select ok(
   has_function_privilege('service_role', 'public.deactivate_profile(uuid, uuid)', 'execute'),
   'service role can deactivate profiles'
+);
+select ok(
+  not has_function_privilege('authenticated', 'public.revoke_user_refresh_sessions(uuid)', 'execute'),
+  'authenticated users cannot revoke refresh sessions directly'
+);
+select ok(
+  has_function_privilege('service_role', 'public.revoke_user_refresh_sessions(uuid)', 'execute'),
+  'service role can revoke refresh sessions'
 );
 
 select lives_ok(
@@ -249,10 +268,60 @@ select lives_ok(
   'member can accept the current invitation'
 );
 select throws_ok(
+  $$select public.deactivate_profile('11111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111111')$$,
+  'P0001',
+  'SELF_DEACTIVATION_FORBIDDEN',
+  'administrator cannot deactivate the own account'
+);
+select throws_ok(
   $$select public.deactivate_profile('11111111-1111-1111-1111-111111111111', null)$$,
   'P0001',
   'LAST_ACTIVE_ADMIN',
   'last active administrator cannot be deactivated'
+);
+select lives_ok(
+  $$select public.deactivate_profile('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111')$$,
+  'administrator can deactivate a member'
+);
+select is(
+  (select status from public.profiles where id = '22222222-2222-2222-2222-222222222222'),
+  'deactivated'::public.profile_status,
+  'deactivation changes profile status immediately'
+);
+select ok(
+  (select
+    deactivated_at is not null
+    and deletion_scheduled_at >= deactivated_at + interval '30 days'
+   from public.profiles
+   where id = '22222222-2222-2222-2222-222222222222'),
+  'deactivation schedules deletion after the grace period'
+);
+select lives_ok(
+  $$select public.reserve_invitation('replacement@example.test', 'member', '11111111-1111-1111-1111-111111111111', now() + interval '7 days')$$,
+  'deactivation frees an account slot immediately'
+);
+select throws_ok(
+  $$select public.restore_profile('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111')$$,
+  'P0001',
+  'ACCOUNT_CAPACITY_REACHED',
+  'restore consumes a free slot transactionally'
+);
+select lives_ok(
+  $$select public.revoke_invitation((select id from public.invitations where email = 'replacement@example.test'))$$,
+  'replacement reservation can be released'
+);
+select lives_ok(
+  $$select public.restore_profile('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111')$$,
+  'administrator can restore a member when a slot is free'
+);
+select ok(
+  (select
+    status = 'active'
+    and deactivated_at is null
+    and deletion_scheduled_at is null
+   from public.profiles
+   where id = '22222222-2222-2222-2222-222222222222'),
+  'restore clears all grace-period fields'
 );
 
 set local role authenticated;

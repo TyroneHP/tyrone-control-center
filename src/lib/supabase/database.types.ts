@@ -156,6 +156,10 @@ export type Database = {
         }
         Returns: string
       }
+      revoke_user_refresh_sessions: {
+        Args: { p_user_id: string }
+        Returns: number
+      }
       restore_profile: {
         Args: { p_actor_id: string; p_user_id: string }
         Returns: Database['public']['Tables']['profiles']['Row']

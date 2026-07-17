@@ -6,6 +6,7 @@ import {
   SetupPage,
   UpdatePasswordPage,
 } from '../features/auth'
+import { SettingsPage } from '../features/settings/SettingsPage'
 import { PlaceholderPage } from './PlaceholderPage'
 import { ProtectedShell } from './ProtectedShell'
 
@@ -34,7 +35,7 @@ export const appRoutes: RouteObject[] = [
           { path: 'ai', element: <PlaceholderPage title="KI-Chat" /> },
           {
             path: 'settings',
-            element: <PlaceholderPage title="Einstellungen" />,
+            element: <SettingsPage />,
           },
         ],
       },

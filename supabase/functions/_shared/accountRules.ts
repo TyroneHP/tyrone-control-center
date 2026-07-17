@@ -33,8 +33,16 @@ const safeErrors: Record<string, Omit<SafeError, 'code'>> = {
     message: 'Die Anwendung ist noch nicht vollständig konfiguriert.',
     status: 500,
   },
+  CRON_AUTHENTICATION_REQUIRED: {
+    message: 'Der Bereinigungsaufruf ist nicht autorisiert.',
+    status: 401,
+  },
   INVALID_EMAIL: {
     message: 'Bitte gib eine gültige E-Mail-Adresse ein.',
+    status: 400,
+  },
+  INVALID_MANAGE_REQUEST: {
+    message: 'Die Kontoverwaltungsanfrage ist ungültig.',
     status: 400,
   },
   INVITATION_ALREADY_PENDING: {
@@ -45,9 +53,21 @@ const safeErrors: Record<string, Omit<SafeError, 'code'>> = {
     message: 'Diese Anfragemethode wird nicht unterstützt.',
     status: 405,
   },
+  LAST_ACTIVE_ADMIN: {
+    message: 'Das letzte aktive Administratorkonto kann nicht deaktiviert werden.',
+    status: 409,
+  },
   ORIGIN_NOT_ALLOWED: {
     message: 'Diese Anfragequelle ist nicht freigegeben.',
     status: 403,
+  },
+  PROFILE_NOT_FOUND: {
+    message: 'Das ausgewählte Konto wurde nicht gefunden.',
+    status: 404,
+  },
+  SELF_DEACTIVATION_FORBIDDEN: {
+    message: 'Du kannst dein eigenes Administratorkonto nicht deaktivieren.',
+    status: 409,
   },
 }
 
@@ -73,6 +93,38 @@ export function parseInvitationRequest(input: unknown): { email: string } {
   }
 
   return { email }
+}
+
+export type ManageUserRequest =
+  | { action: 'deactivate'; userId: string }
+  | { action: 'restore'; userId: string }
+
+export function parseManageUserRequest(input: unknown): ManageUserRequest {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new AccountRuleError('INVALID_MANAGE_REQUEST')
+  }
+
+  const record = input as Record<string, unknown>
+  const keys = Object.keys(record).sort()
+  const action = record.action
+  const userId = record.userId
+  const validUuid =
+    typeof userId === 'string' &&
+    /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(
+      userId,
+    )
+
+  if (
+    keys.length !== 2 ||
+    keys[0] !== 'action' ||
+    keys[1] !== 'userId' ||
+    (action !== 'deactivate' && action !== 'restore') ||
+    !validUuid
+  ) {
+    throw new AccountRuleError('INVALID_MANAGE_REQUEST')
+  }
+
+  return { action, userId }
 }
 
 function parseHttpUrl(value: string) {

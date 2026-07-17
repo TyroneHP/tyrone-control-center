@@ -385,6 +385,9 @@ deno_version = 2
 [functions.bootstrap-admin]
 verify_jwt = false
 
+[functions.cleanup-deactivated-users]
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
