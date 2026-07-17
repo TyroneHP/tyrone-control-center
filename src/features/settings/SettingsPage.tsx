@@ -92,10 +92,9 @@ export function SettingsPage({
     () => pendingReservations(data?.invitations ?? []),
     [data?.invitations],
   )
-  const occupiedSlots =
-    (data?.profiles.filter((item) => item.status !== 'deactivated').length ??
-      0) + reservations.length
-  const capacityReached = occupiedSlots >= 4
+  const occupiedSlots = data?.capacity.occupiedSlots ?? 0
+  const maximumSlots = data?.capacity.maximumSlots ?? 0
+  const capacityReached = data !== undefined && occupiedSlots >= maximumSlots
 
   async function endSessions(scope: 'all' | 'current') {
     setSessionError(false)
@@ -178,11 +177,12 @@ export function SettingsPage({
           <p className="settings-page__eyebrow">Einstellungen</p>
           <h1>Kontoverwaltung</h1>
           <p>
-            Einladungen, Zugänge und die feste Grenze von vier Konten verwalten.
+            Einladungen, Zugänge und die feste Grenze von {maximumSlots} Konten
+            verwalten.
           </p>
         </div>
         <div className="settings-capacity" aria-live="polite">
-          <strong>{occupiedSlots} von 4</strong>
+          <strong>{occupiedSlots} von {maximumSlots}</strong>
           <span>Kontoplätzen belegt oder reserviert</span>
         </div>
       </header>
@@ -192,7 +192,10 @@ export function SettingsPage({
       <form className="settings-card settings-invite" onSubmit={submitInvitation}>
         <div>
           <h2>Mitglied einladen</h2>
-          <p>Die Einladung reserviert sofort einen der vier Kontoplätze.</p>
+          <p>
+            Die Einladung reserviert sofort einen der {maximumSlots}{' '}
+            Kontoplätze.
+          </p>
         </div>
         <label>
           E-Mail-Adresse
@@ -214,7 +217,7 @@ export function SettingsPage({
         </button>
         {capacityReached ? (
           <p className="settings-message">
-            Alle vier Kontoplätze sind belegt oder reserviert.
+            Alle {maximumSlots} Kontoplätze sind belegt oder reserviert.
           </p>
         ) : null}
         {inviteMutation.isError ? (

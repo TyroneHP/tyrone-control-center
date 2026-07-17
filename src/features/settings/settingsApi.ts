@@ -9,7 +9,13 @@ export type ManageUserRequest =
   | { action: 'deactivate'; userId: string }
   | { action: 'restore'; userId: string }
 
+export interface AccountCapacity {
+  maximumSlots: number
+  occupiedSlots: number
+}
+
 export interface AccountManagement {
+  capacity: AccountCapacity
   invitations: Invitation[]
   profiles: Profile[]
 }
@@ -61,13 +67,20 @@ export function createSettingsApi(
 ): SettingsApi {
   return {
     async listAccounts() {
-      const [profilesResult, invitationsResult] = await Promise.all([
+      const [profilesResult, invitationsResult, capacityResult] =
+        await Promise.all([
         client.from('profiles').select('*').order('created_at'),
         client.from('invitations').select('*').order('created_at'),
+        client.rpc('get_account_capacity').single(),
       ])
       if (profilesResult.error) throw profilesResult.error
       if (invitationsResult.error) throw invitationsResult.error
+      if (capacityResult.error) throw capacityResult.error
       return {
+        capacity: {
+          maximumSlots: capacityResult.data.maximum_slots,
+          occupiedSlots: capacityResult.data.occupied_slots,
+        },
         invitations: invitationsResult.data,
         profiles: profilesResult.data,
       }
