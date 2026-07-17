@@ -1,0 +1,1 @@
+-- Foundation intentionally has no seed users. Accounts are created through invitations only.

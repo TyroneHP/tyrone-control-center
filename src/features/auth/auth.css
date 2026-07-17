@@ -1,0 +1,113 @@
+.auth-page {
+  display: grid;
+  min-height: 100vh;
+  grid-template-columns: minmax(0, 1.1fr) minmax(20rem, 30rem);
+  align-items: center;
+  gap: clamp(2rem, 7vw, 7rem);
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: clamp(1.25rem, 5vw, 4rem);
+}
+
+.auth-page__intro {
+  max-width: 38rem;
+}
+
+.auth-page__mark {
+  display: grid;
+  width: 3.4rem;
+  height: 3.4rem;
+  place-items: center;
+  border-radius: 15px;
+  background: linear-gradient(145deg, var(--color-primary-hover), var(--color-primary));
+  box-shadow: 0 14px 36px rgba(50, 106, 193, 0.32);
+  font-weight: 850;
+}
+
+.auth-page__eyebrow {
+  margin: 1.5rem 0 0.65rem;
+  color: #7fb0fb;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.auth-page__intro h1 {
+  max-width: 16ch;
+  margin: 0;
+  font-size: clamp(2.35rem, 6vw, 4.7rem);
+  line-height: 0.98;
+  letter-spacing: -0.055em;
+}
+
+.auth-page__intro > p:last-child {
+  max-width: 36rem;
+  margin: 1.35rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.auth-card {
+  display: grid;
+  gap: 1.2rem;
+  width: 100%;
+}
+
+.auth-card h2,
+.auth-card p {
+  margin: 0;
+}
+
+.auth-card__copy,
+.auth-card__footer {
+  color: var(--color-text-muted);
+  line-height: 1.55;
+}
+
+.auth-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.auth-input {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: rgba(7, 21, 38, 0.7);
+  color: var(--color-text);
+  padding: 0.75rem 0.85rem;
+}
+
+.auth-input::placeholder {
+  color: #77889c;
+}
+
+.auth-card__links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.auth-card__links a,
+.auth-card__footer a {
+  color: #8bb9ff;
+}
+
+@media (max-width: 800px) {
+  .auth-page {
+    grid-template-columns: 1fr;
+    align-content: center;
+    gap: 2rem;
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  }
+
+  .auth-page__intro h1 {
+    max-width: none;
+    font-size: clamp(2.2rem, 12vw, 3.5rem);
+  }
+}

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Tyrone Control Center</title>
+  <defs>
+    <linearGradient id="background" x1="64" y1="48" x2="448" y2="464" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#193458" />
+      <stop offset="1" stop-color="#071526" />
+    </linearGradient>
+    <linearGradient id="accent" x1="152" y1="132" x2="374" y2="376" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#83b5ff" />
+      <stop offset="1" stop-color="#326ac1" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#background)" />
+  <rect x="42" y="42" width="428" height="428" rx="86" fill="none" stroke="#83b5ff" stroke-opacity=".2" stroke-width="8" />
+  <path d="M128 152h256v64h-94v176h-68V216h-94z" fill="url(#accent)" />
+  <path d="M352 304c0-45 31-78 78-78 19 0 35 5 48 14v62c-12-12-25-18-40-18-17 0-28 10-28 25s11 25 28 25c15 0 28-6 40-18v62c-13 9-29 14-48 14-47 0-78-33-78-78z" fill="#f4f7fb" />
+</svg>

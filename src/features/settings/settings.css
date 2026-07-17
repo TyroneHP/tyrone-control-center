@@ -1,0 +1,318 @@
+.settings-page {
+  display: grid;
+  gap: 1.25rem;
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+.settings-page h1,
+.settings-page h2,
+.settings-page p {
+  margin: 0;
+}
+
+.settings-page__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.settings-page__header h1 {
+  margin-top: 0.35rem;
+  font-size: clamp(2rem, 5vw, 3.75rem);
+  letter-spacing: -0.045em;
+}
+
+.settings-page__header > div > p:last-child,
+.settings-card p,
+.account-row__identity span,
+.account-row__state > span:not(.status-badge),
+.account-row__actions > span {
+  color: var(--color-text-muted);
+}
+
+.settings-page__header > div > p:last-child {
+  max-width: 42rem;
+  margin-top: 0.6rem;
+  line-height: 1.55;
+}
+
+.settings-page__eyebrow {
+  color: #83b5ff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.settings-capacity {
+  display: grid;
+  min-width: 13rem;
+  gap: 0.2rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 1rem 1.15rem;
+  background: rgba(18, 45, 79, 0.72);
+}
+
+.settings-capacity strong {
+  font-size: 1.35rem;
+}
+
+.settings-capacity span {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.settings-card {
+  display: grid;
+  gap: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: clamp(1rem, 2vw, 1.5rem);
+  background: linear-gradient(
+    145deg,
+    rgba(25, 52, 88, 0.92),
+    rgba(12, 37, 69, 0.88)
+  );
+  box-shadow: 0 18px 44px rgba(0, 8, 20, 0.2);
+}
+
+.settings-card--notice {
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+.settings-invite {
+  grid-template-columns: minmax(14rem, 1fr) minmax(14rem, 1fr) auto;
+  align-items: end;
+}
+
+.settings-invite > div,
+.settings-invite label {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.settings-invite label {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.settings-invite input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  padding: 0.7rem 0.85rem;
+  background: rgba(7, 21, 38, 0.75);
+  color: var(--color-text);
+}
+
+.settings-invite button,
+.button-secondary,
+.button-danger {
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  padding: 0.65rem 1rem;
+  background: var(--color-primary);
+  color: var(--color-text);
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.settings-invite button:disabled,
+.button-secondary:disabled,
+.button-danger:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.button-secondary {
+  border-color: var(--color-border);
+  background: var(--color-surface-soft);
+}
+
+.button-danger {
+  border-color: rgba(241, 123, 140, 0.35);
+  background: rgba(241, 123, 140, 0.12);
+  color: #ffd8de;
+}
+
+.settings-message {
+  grid-column: 1 / -1;
+  font-size: 0.9rem;
+}
+
+.settings-message--error {
+  color: #ffc0ca;
+}
+
+.settings-card__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings-card__heading span {
+  display: grid;
+  min-width: 2rem;
+  min-height: 2rem;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(50, 106, 193, 0.2);
+  color: #b8d4ff;
+  font-weight: 800;
+}
+
+.account-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.account-row {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1.5fr) minmax(11rem, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  padding: 0.9rem;
+  background: rgba(7, 21, 38, 0.35);
+}
+
+.account-row__identity,
+.account-row__state,
+.account-row__actions,
+.invitation-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.7rem;
+}
+
+.account-row__identity {
+  display: grid;
+  gap: 0.2rem;
+  overflow-wrap: anywhere;
+}
+
+.account-row__identity span,
+.account-row__state,
+.account-row__actions {
+  font-size: 0.82rem;
+}
+
+.account-row__actions {
+  justify-content: flex-end;
+}
+
+.status-badge,
+.invitation-state > span {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 0.25rem 0.55rem;
+  background: rgba(131, 181, 255, 0.12);
+  color: #b8d4ff;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.status-badge--active {
+  background: rgba(91, 208, 164, 0.12);
+  color: #9af0cf;
+}
+
+.status-badge--deactivated {
+  background: rgba(241, 123, 140, 0.12);
+  color: #ffc0ca;
+}
+
+.confirmation-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(2, 10, 22, 0.78);
+  backdrop-filter: blur(8px);
+}
+
+.confirmation-dialog {
+  display: grid;
+  width: min(100%, 32rem);
+  gap: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: clamp(1.25rem, 4vw, 2rem);
+  background: var(--color-bg-elevated);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+}
+
+.confirmation-dialog p {
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+.confirmation-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+@media (max-width: 900px) {
+  .settings-invite {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .settings-invite > div {
+    grid-column: 1 / -1;
+  }
+
+  .account-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .account-row__state {
+    justify-content: flex-end;
+  }
+
+  .account-row__actions {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 600px) {
+  .settings-page__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settings-capacity,
+  .settings-invite {
+    min-width: 0;
+  }
+
+  .settings-invite,
+  .account-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-invite > div,
+  .account-row__actions {
+    grid-column: auto;
+  }
+
+  .account-row__state,
+  .account-row__actions {
+    justify-content: flex-start;
+  }
+
+  .confirmation-dialog__actions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+}

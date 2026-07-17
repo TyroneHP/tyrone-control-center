@@ -1,0 +1,40 @@
+.placeholder-page {
+  display: grid;
+  gap: clamp(1.5rem, 3vw, 2.5rem);
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+.placeholder-page__header p,
+.placeholder-page__header h1,
+.placeholder-page .card p {
+  margin: 0;
+}
+
+.placeholder-page__header p,
+.placeholder-page__status {
+  color: #83b5ff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.placeholder-page__header h1 {
+  margin-top: 0.35rem;
+  font-size: clamp(2rem, 5vw, 3.75rem);
+  letter-spacing: -0.045em;
+}
+
+.placeholder-page .card {
+  display: grid;
+  min-height: 13rem;
+  align-content: center;
+  gap: 0.75rem;
+}
+
+.placeholder-page .card > p:last-child {
+  color: var(--color-text-muted);
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
