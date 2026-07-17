@@ -6,6 +6,7 @@ import {
   type ManageUserRequest,
 } from '../_shared/accountRules.ts'
 import { jsonResponse, optionsResponse } from '../_shared/http.ts'
+import { enforceRateLimit } from '../_shared/rateLimit.ts'
 import { edgeConfiguration } from '../_shared/runtime.ts'
 import {
   createAdminClient,
@@ -14,6 +15,7 @@ import {
 
 export interface ManageUserDependencies {
   allowedOrigins: readonly string[]
+  enforceRateLimit: (actorId: string) => Promise<void>
   loadProfile: (userId: string) => Promise<{ role: string; status: string }>
   manageUser: (
     request: ManageUserRequest,
@@ -28,6 +30,8 @@ function runtimeDependencies(): ManageUserDependencies {
 
   return {
     allowedOrigins: config.allowedOrigins,
+    enforceRateLimit: (actorId) =>
+      enforceRateLimit(admin, 'manage-user', actorId, 20, 600),
     verifyCaller: async (authorization) => {
       const userClient = createUserClient({
         authorization,
@@ -89,6 +93,7 @@ export function createManageUserHandler(
       if (profile.role !== 'admin' || profile.status !== 'active') {
         throw new AccountRuleError('ADMIN_REQUIRED')
       }
+      await dependencies.enforceRateLimit(actorId)
 
       const management = parseManageUserRequest(await request.json())
       if (

@@ -4,7 +4,12 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { Profile } from '../auth/authContextValue'
 import { AuthContext } from '../auth/authContextValue'
-import type { AccountManagement, SettingsApi } from './settingsApi'
+import type { AuthApi } from '../auth/authApi'
+import {
+  AccountFunctionError,
+  type AccountManagement,
+  type SettingsApi,
+} from './settingsApi'
 import { SettingsPage } from './SettingsPage'
 
 const adminId = '11111111-1111-1111-1111-111111111111'
@@ -17,6 +22,7 @@ function profile(
 ): Profile {
   return {
     created_at: '2026-07-17T00:00:00Z',
+    cleanup_claimed_at: null,
     deactivated_at: status === 'deactivated' ? '2026-07-17T00:00:00Z' : null,
     deletion_scheduled_at:
       status === 'deactivated' ? '2026-08-16T00:00:00Z' : null,
@@ -36,6 +42,7 @@ function renderPage(
   currentProfile: Profile,
   data: AccountManagement,
   api: SettingsApi,
+  authApi?: AuthApi,
 ) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -53,7 +60,7 @@ function renderPage(
           status: 'authenticated',
         }}
       >
-        <SettingsPage api={api} />
+        <SettingsPage api={api} authApi={authApi} />
       </AuthContext.Provider>
     </QueryClientProvider>,
   )
@@ -64,6 +71,18 @@ function api(data: AccountManagement): SettingsApi {
     inviteUser: vi.fn().mockResolvedValue(undefined),
     listAccounts: vi.fn().mockResolvedValue(data),
     manageUser: vi.fn().mockResolvedValue(undefined),
+  }
+}
+
+function sessionApi(): AuthApi {
+  return {
+    acceptInvitation: vi.fn(),
+    bootstrapAdmin: vi.fn(),
+    requestPasswordReset: vi.fn(),
+    signIn: vi.fn(),
+    signOutAll: vi.fn().mockResolvedValue(undefined),
+    signOutCurrent: vi.fn().mockResolvedValue(undefined),
+    updatePassword: vi.fn(),
   }
 }
 
@@ -184,5 +203,93 @@ describe('SettingsPage', () => {
       action: 'deactivate',
       userId: member.id,
     })
+  })
+
+  it('lets every active user end the current or all sessions', async () => {
+    const member = profile(
+      '22222222-2222-2222-2222-222222222222',
+      'member@example.test',
+      'active',
+    )
+    const settingsApi = api({ invitations: [], profiles: [] })
+    const authApi = sessionApi()
+    renderPage(
+      member,
+      { invitations: [], profiles: [] },
+      settingsApi,
+      authApi,
+    )
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Auf diesem Gerät abmelden' }),
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Auf allen Geräten abmelden' }),
+    )
+
+    expect(authApi.signOutCurrent).toHaveBeenCalledOnce()
+    expect(authApi.signOutAll).toHaveBeenCalledOnce()
+  })
+
+  it('shows the server capacity code when a stale view allows a fifth invite', async () => {
+    const data = { invitations: [], profiles: [admin] }
+    const settingsApi = api(data)
+    vi.mocked(settingsApi.inviteUser).mockRejectedValue(
+      new AccountFunctionError(
+        'ACCOUNT_CAPACITY_REACHED',
+        'Alle vier Kontoplätze sind bereits belegt oder reserviert.',
+      ),
+    )
+    renderPage(admin, data, settingsApi)
+
+    await userEvent.type(
+      await screen.findByLabelText('E-Mail-Adresse'),
+      'fifth@example.test',
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Einladung senden' }),
+    )
+
+    expect(
+      await screen.findByText(
+        'Alle vier Kontoplätze sind bereits belegt oder reserviert.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('does not restore a deactivated profile whose invitation was never accepted', async () => {
+    const cancelled = {
+      ...profile(
+        '22222222-2222-2222-2222-222222222222',
+        'cancelled@example.test',
+        'deactivated',
+      ),
+      invitation_id: '55555555-5555-5555-5555-555555555555',
+    }
+    const data: AccountManagement = {
+      profiles: [admin, cancelled],
+      invitations: [
+        {
+          accepted_at: null,
+          auth_user_id: cancelled.id,
+          created_at: '2026-07-17T00:00:00Z',
+          email: cancelled.email,
+          expires_at: '2026-07-24T00:00:00Z',
+          id: cancelled.invitation_id,
+          invited_by: admin.id,
+          revoked_at: '2026-07-17T01:00:00Z',
+          role: 'member',
+          status: 'revoked',
+          updated_at: '2026-07-17T01:00:00Z',
+        },
+      ],
+    }
+    renderPage(admin, data, api(data))
+    const row = (await screen.findByText('cancelled@example.test')).closest(
+      '.account-row',
+    )
+
+    expect(row).not.toBeNull()
+    expect(row).not.toHaveTextContent('Wiederherstellen')
   })
 })

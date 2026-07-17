@@ -30,6 +30,7 @@ describe('createAuthApi', () => {
     await api.requestPasswordReset('user@example.test')
     await api.updatePassword('mindestens-12')
     await api.signOutCurrent()
+    await api.signOutAll()
     await api.acceptInvitation()
     await api.bootstrapAdmin('admin@example.test')
 
@@ -47,7 +48,8 @@ describe('createAuthApi', () => {
     expect(client.auth.updateUser).toHaveBeenCalledWith({
       password: 'mindestens-12',
     })
-    expect(client.auth.signOut).toHaveBeenCalledWith({ scope: 'local' })
+    expect(client.auth.signOut).toHaveBeenNthCalledWith(1, { scope: 'local' })
+    expect(client.auth.signOut).toHaveBeenNthCalledWith(2, { scope: 'global' })
     expect(client.rpc).toHaveBeenCalledWith('accept_current_invitation')
     expect(client.functions.invoke).toHaveBeenCalledWith('bootstrap-admin', {
       body: { email: 'admin@example.test' },

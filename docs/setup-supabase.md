@@ -11,8 +11,10 @@ ins Repository. Es wird keine Produktionsdatenbank automatisch erstellt.
 
    ```bash
    npm ci
+   npx supabase start
    npx supabase db reset
    npx supabase test db
+   npx deno@2.9.3 test supabase/functions
    ```
 
 3. Für lokale Edge Functions eine nicht eingecheckte
@@ -53,7 +55,10 @@ Unreservierte Konten werden zusätzlich vom Datenbank-Trigger mit
    Dateien dieses Repositories kopieren.
 2. Unter **Authentication → Providers → Email** Public signup beziehungsweise
    „Allow new users to sign up“ deaktivieren. E-Mail-Bestätigung aktiv lassen
-   und eine Mindestlänge von zwölf Zeichen für Passwörter verwenden.
+   und eine Mindestlänge von zwölf Zeichen für Passwörter verwenden. Die
+   Gültigkeit der E-Mail-OTP beziehungsweise Einladungslinks auf `604800`
+   Sekunden (sieben Tage) setzen. Dieser Wert muss zur siebentägigen
+   Datenbankreservierung passen.
 3. Als Site URL die veröffentlichte Pages-Adresse konfigurieren:
    `https://tyronehp.github.io/tyrone-control-center/`.
 4. Folgende Redirect URLs erlauben:
@@ -129,6 +134,11 @@ beiden Buildwerte fehlt.
 2. Exakt die in `BOOTSTRAP_ADMIN_EMAIL` konfigurierte Adresse eingeben.
 3. Einladung aus dem Postfach annehmen und ein Passwort mit mindestens zwölf
    Zeichen setzen.
+   Eine abgelaufene Bootstrap-Einladung kann ausschließlich mit derselben
+   konfigurierten Adresse erneut über `/setup` angefordert werden. Die Function
+   entfernt dabei nur das noch nicht aktivierte, abgelaufene Bootstrap-Konto
+   und stellt anschließend eine neue Einladung aus. Ein aktives
+   Administratorkonto schließt die Ersteinrichtung dauerhaft.
 4. Danach weitere Nutzer ausschließlich in **Einstellungen → Kontoverwaltung**
    einladen. Der vierte belegte oder reservierte Slot sperrt weitere
    Einladungen serverseitig und im Frontend.

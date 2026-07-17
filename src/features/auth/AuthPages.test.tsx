@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import type { AuthApi } from './authApi'
+import { AuthContext } from './authContextValue'
 import { ForgotPasswordPage } from './ForgotPasswordPage'
 import { LoginPage } from './LoginPage'
 import { SetupPage } from './SetupPage'
@@ -14,6 +15,7 @@ function createApi(): AuthApi {
     bootstrapAdmin: vi.fn().mockResolvedValue(undefined),
     requestPasswordReset: vi.fn(),
     signIn: vi.fn().mockResolvedValue(undefined),
+    signOutAll: vi.fn(),
     signOutCurrent: vi.fn(),
     updatePassword: vi.fn().mockResolvedValue(undefined),
   }
@@ -24,7 +26,16 @@ describe('authentication pages', () => {
     const user = userEvent.setup()
     render(
       <MemoryRouter>
-        <LoginPage api={createApi()} />
+        <AuthContext.Provider
+          value={{
+            error: null,
+            profile: null,
+            session: null,
+            status: 'unauthenticated',
+          }}
+        >
+          <LoginPage api={createApi()} />
+        </AuthContext.Provider>
       </MemoryRouter>,
     )
 
@@ -34,6 +45,27 @@ describe('authentication pages', () => {
       await screen.findByText('Bitte gib eine gültige E-Mail-Adresse ein.'),
     ).toBeInTheDocument()
     expect(screen.getByText('Bitte gib dein Passwort ein.')).toBeInTheDocument()
+  })
+
+  it('shows a rejected session reason on the login page', () => {
+    render(
+      <MemoryRouter>
+        <AuthContext.Provider
+          value={{
+            error: 'Die Einladung ist ungültig oder abgelaufen.',
+            profile: null,
+            session: null,
+            status: 'unauthenticated',
+          }}
+        >
+          <LoginPage api={createApi()} />
+        </AuthContext.Provider>
+      </MemoryRouter>,
+    )
+
+    expect(
+      screen.getByText('Die Einladung ist ungültig oder abgelaufen.'),
+    ).toBeInTheDocument()
   })
 
   it('submits a valid normalized bootstrap address', async () => {

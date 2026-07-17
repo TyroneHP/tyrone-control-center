@@ -14,6 +14,8 @@ Meilenstein nur als deaktivierte Platzhalter vorhanden.
 - npm
 - Docker Desktop für die lokale Supabase-Umgebung
 - Supabase CLI über die lokale npm-Abhängigkeit
+- Deno 2.9.3 für die Edge-Function-Tests (alternativ über den unten gepinnten
+  `npx`-Aufruf)
 - Chromium und WebKit für die Playwright-Prüfungen
 
 ## Lokaler Start
@@ -54,7 +56,7 @@ Mit laufendem Docker Desktop und lokaler Supabase-Umgebung zusätzlich:
 ```bash
 npx supabase db reset
 npx supabase test db
-npx deno test supabase/functions/_shared/accountRules.test.ts
+npx deno@2.9.3 test supabase/functions
 npm run test:e2e
 ```
 

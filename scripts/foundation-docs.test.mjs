@@ -42,6 +42,8 @@ describe('Foundation documentation', () => {
       'invite-user',
       'manage-user',
       'cleanup-deactivated-users',
+      'sieben Tage',
+      'abgelaufene Bootstrap-Einladung',
       'VITE_SUPABASE_URL',
       'VITE_SUPABASE_PUBLISHABLE_KEY',
       'GitHub Actions',
@@ -59,5 +61,15 @@ describe('Foundation documentation', () => {
       'supabase functions serve --env-file supabase/functions/.env',
     )
     expect(setup).toContain('E-Mail-Provider für eingeladene Konten aktiv')
+    expect(setup).toContain('npx deno@2.9.3 test supabase/functions')
+  })
+
+  it('starts Supabase before resetting a fresh local database', () => {
+    const setup = read('docs/setup-supabase.md')
+    const start = setup.indexOf('npx supabase start')
+    const reset = setup.indexOf('npx supabase db reset')
+
+    expect(start).toBeGreaterThan(-1)
+    expect(reset).toBeGreaterThan(start)
   })
 })

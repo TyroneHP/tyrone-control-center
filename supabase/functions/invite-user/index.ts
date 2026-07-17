@@ -6,6 +6,7 @@ import {
   toSafeError,
 } from '../_shared/accountRules.ts'
 import { jsonResponse, optionsResponse } from '../_shared/http.ts'
+import { enforceRateLimit } from '../_shared/rateLimit.ts'
 import { edgeConfiguration } from '../_shared/runtime.ts'
 import {
   createAdminClient,
@@ -15,12 +16,12 @@ import {
 export interface InviteUserDependencies {
   allowedOrigins: readonly string[]
   appOrigin: string
+  enforceRateLimit: (actorId: string) => Promise<void>
   loadProfile: (userId: string) => Promise<{ role: string; status: string }>
   reserveInvitation: (email: string, actorId: string) => Promise<string>
   revokeInvitation: (invitationId: string) => Promise<void>
   sendInvite: (email: string, redirectTo: string) => Promise<void>
   verifyCaller: (authorization: string) => Promise<string>
-  writeAudit: (invitationId: string, actorId: string) => Promise<void>
 }
 
 function runtimeDependencies(): InviteUserDependencies {
@@ -30,6 +31,8 @@ function runtimeDependencies(): InviteUserDependencies {
   return {
     allowedOrigins: config.allowedOrigins,
     appOrigin: config.appOrigin,
+    enforceRateLimit: (actorId) =>
+      enforceRateLimit(admin, 'invite-user', actorId, 10, 600),
     verifyCaller: async (authorization) => {
       const userClient = createUserClient({
         authorization,
@@ -72,16 +75,6 @@ function runtimeDependencies(): InviteUserDependencies {
       })
       if (error) throw error
     },
-    writeAudit: async (invitationId, actorId) => {
-      const { error } = await admin.from('activity_log').insert({
-        action: 'invitation.created',
-        actor_id: actorId,
-        metadata: { role: 'member' },
-        object_id: invitationId,
-        object_type: 'invitation',
-      })
-      if (error) throw error
-    },
   }
 }
 
@@ -110,6 +103,7 @@ export function createInviteUserHandler(
       if (profile.role !== 'admin' || profile.status !== 'active') {
         throw new AccountRuleError('ADMIN_REQUIRED')
       }
+      await dependencies.enforceRateLimit(actorId)
 
       const { email } = parseInvitationRequest(await request.json())
       const redirectTo = createPasswordRedirectUrl(
@@ -125,7 +119,6 @@ export function createInviteUserHandler(
         throw error
       }
 
-      await dependencies.writeAudit(invitationId, actorId)
       return jsonResponse(
         { invitationId, status: 'sent' },
         201,

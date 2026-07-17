@@ -5,10 +5,12 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Button, FormField, InlineAlert } from '../../design-system'
 import { AuthPageLayout } from './AuthPageLayout'
 import { getAuthApi, type AuthApi } from './authApi'
+import { useAuth } from './authContextValue'
 import { loginSchema, type LoginValues } from './schemas'
 
 export function LoginPage({ api }: { api?: AuthApi }) {
   const navigate = useNavigate()
+  const { error: sessionError } = useAuth()
   const [serverError, setServerError] = useState<string | null>(null)
   const form = useForm<LoginValues>({ resolver: zodResolver(loginSchema) })
 
@@ -29,7 +31,9 @@ export function LoginPage({ api }: { api?: AuthApi }) {
     >
       <h2>Anmelden</h2>
       <p className="auth-card__copy">Melde dich mit deinem eingeladenen Konto an.</p>
-      {serverError ? <InlineAlert variant="error">{serverError}</InlineAlert> : null}
+      {serverError ?? sessionError ? (
+        <InlineAlert variant="error">{serverError ?? sessionError}</InlineAlert>
+      ) : null}
       <form className="auth-form" onSubmit={form.handleSubmit(submit)} noValidate>
         <FormField
           error={form.formState.errors.email?.message}

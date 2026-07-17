@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(66);
+select plan(112);
 
 select has_type('public', 'app_role', 'app_role enum exists');
 select has_type('public', 'profile_status', 'profile_status enum exists');
@@ -11,13 +11,15 @@ select has_type('public', 'invitation_status', 'invitation_status enum exists');
 select has_table('public', 'profiles', 'profiles table exists');
 select has_table('public', 'invitations', 'invitations table exists');
 select has_table('public', 'activity_log', 'activity_log table exists');
+select has_table('public', 'function_rate_limits', 'server rate-limit table exists');
 
 select columns_are(
   'public',
   'profiles',
   array[
     'id', 'email', 'display_name', 'role', 'status', 'invitation_id',
-    'deactivated_at', 'deletion_scheduled_at', 'created_at', 'updated_at'
+    'deactivated_at', 'deletion_scheduled_at', 'cleanup_claimed_at',
+    'created_at', 'updated_at'
   ],
   'profiles exposes only foundation columns'
 );
@@ -33,8 +35,17 @@ select columns_are(
 select columns_are(
   'public',
   'activity_log',
-  array['id', 'actor_id', 'action', 'object_type', 'object_id', 'metadata', 'created_at'],
-  'activity_log exposes only audit columns'
+    array[
+      'id', 'actor_id', 'actor_subject_id', 'action', 'object_type', 'object_id',
+      'metadata', 'created_at'
+    ],
+    'activity_log exposes only audit columns'
+  );
+select columns_are(
+  'public',
+  'function_rate_limits',
+  array['key_hash', 'bucket_started_at', 'request_count', 'updated_at'],
+  'rate-limit table contains only server-side bucket fields'
 );
 
 select has_function('public', 'current_user_role', array[]::text[], 'role helper exists');
@@ -77,9 +88,51 @@ select has_function(
 );
 select has_function(
   'public',
+  'claim_cleanup_candidate',
+  array['uuid'],
+  'cleanup claim function exists'
+);
+select has_function(
+  'public',
+  'release_cleanup_claim',
+  array['uuid'],
+  'cleanup claim release function exists'
+);
+select has_function(
+  'public',
   'revoke_user_refresh_sessions',
   array['uuid'],
   'refresh-session revocation function exists'
+);
+select has_function(
+  'public',
+  'consume_function_rate_limit',
+  array['text', 'integer', 'integer'],
+  'transactional rate-limit function exists'
+);
+select has_function(
+  'public',
+  'set_activity_actor_subject',
+  array[]::text[],
+  'immutable audit actor snapshot function exists'
+);
+select has_function(
+  'public',
+  'audit_profile_deletion',
+  array[]::text[],
+  'final profile-deletion audit function exists'
+);
+select has_trigger(
+  'public',
+  'activity_log',
+  'activity_log_set_actor_subject',
+  'activity audit snapshots actor identity'
+);
+select has_trigger(
+  'public',
+  'profiles',
+  'profiles_audit_final_deletion',
+  'profile final deletion is audited transactionally'
 );
 select matches(
   pg_get_functiondef('public.deactivate_profile(uuid, uuid)'::regprocedure),
@@ -99,6 +152,10 @@ select ok(
   (select relrowsecurity from pg_class where oid = 'public.activity_log'::regclass),
   'activity_log has RLS enabled'
 );
+select ok(
+  (select relrowsecurity from pg_class where oid = 'public.function_rate_limits'::regclass),
+  'function_rate_limits has RLS enabled'
+);
 
 select policies_are(
   'public',
@@ -117,6 +174,12 @@ select policies_are(
   'activity_log',
   array['activity_log_select_actor_or_admin'],
   'activity_log has exact foundation policies'
+);
+select policies_are(
+  'public',
+  'function_rate_limits',
+  array[]::text[],
+  'function_rate_limits has no client policies'
 );
 
 select ok(
@@ -142,6 +205,14 @@ select ok(
 select ok(
   has_table_privilege('authenticated', 'public.activity_log', 'select'),
   'authenticated users can select allowed audit events through RLS'
+);
+select ok(
+  not has_table_privilege('authenticated', 'public.function_rate_limits', 'select'),
+  'authenticated users cannot inspect rate-limit buckets'
+);
+select ok(
+  has_table_privilege('service_role', 'public.function_rate_limits', 'select'),
+  'service role can inspect rate-limit buckets'
 );
 
 select ok(
@@ -179,6 +250,62 @@ select ok(
 select ok(
   has_function_privilege('service_role', 'public.revoke_user_refresh_sessions(uuid)', 'execute'),
   'service role can revoke refresh sessions'
+);
+select ok(
+  not has_function_privilege('authenticated', 'public.claim_cleanup_candidate(uuid)', 'execute'),
+  'authenticated users cannot claim cleanup candidates'
+);
+select ok(
+  not has_function_privilege('authenticated', 'public.release_cleanup_claim(uuid)', 'execute'),
+  'authenticated users cannot release cleanup claims'
+);
+select ok(
+  has_function_privilege('service_role', 'public.claim_cleanup_candidate(uuid)', 'execute'),
+  'service role can claim cleanup candidates'
+);
+select ok(
+  has_function_privilege('service_role', 'public.release_cleanup_claim(uuid)', 'execute'),
+  'service role can release cleanup claims'
+);
+select ok(
+  not has_function_privilege(
+    'authenticated',
+    'public.consume_function_rate_limit(text, integer, integer)',
+    'execute'
+  ),
+  'authenticated users cannot consume rate limits directly'
+);
+select ok(
+  has_function_privilege(
+    'service_role',
+    'public.consume_function_rate_limit(text, integer, integer)',
+    'execute'
+  ),
+  'service role can consume rate limits'
+);
+select ok(
+  not has_function_privilege('authenticated', 'public.set_activity_actor_subject()', 'execute'),
+  'authenticated users cannot invoke the audit snapshot trigger function'
+);
+select ok(
+  not has_function_privilege('authenticated', 'public.audit_profile_deletion()', 'execute'),
+  'authenticated users cannot invoke final deletion auditing'
+);
+
+select is(
+  public.consume_function_rate_limit('test-rate-key', 2, 60),
+  true,
+  'first request consumes an available rate-limit slot'
+);
+select is(
+  public.consume_function_rate_limit('test-rate-key', 2, 60),
+  true,
+  'second request consumes the final available rate-limit slot'
+);
+select is(
+  public.consume_function_rate_limit('test-rate-key', 2, 60),
+  false,
+  'request above the configured limit is rejected'
 );
 
 select lives_ok(
@@ -224,6 +351,11 @@ select lives_ok(
 select lives_ok(
   $$select public.reserve_invitation('member3@example.test', 'member', '11111111-1111-1111-1111-111111111111', now() + interval '7 days')$$,
   'third member slot can be reserved'
+);
+select is(
+  (select count(*) from public.activity_log where action = 'invitation.created'),
+  4::bigint,
+  'every successful reservation is audited in its database transaction'
 );
 select throws_ok(
   $$select public.reserve_invitation('member4@example.test', 'member', '11111111-1111-1111-1111-111111111111', now() + interval '7 days')$$,
@@ -310,6 +442,11 @@ select lives_ok(
   $$select public.revoke_invitation((select id from public.invitations where email = 'replacement@example.test'))$$,
   'replacement reservation can be released'
 );
+select is(
+  (select count(*) from public.activity_log where action = 'invitation.revoked'),
+  1::bigint,
+  'reservation compensation is audited transactionally'
+);
 select lives_ok(
   $$select public.restore_profile('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111')$$,
   'administrator can restore a member when a slot is free'
@@ -322,6 +459,111 @@ select ok(
    from public.profiles
    where id = '22222222-2222-2222-2222-222222222222'),
   'restore clears all grace-period fields'
+);
+
+select lives_ok(
+  $setup$
+    do $$
+    begin
+      perform public.deactivate_profile(
+        '22222222-2222-2222-2222-222222222222',
+        '11111111-1111-1111-1111-111111111111'
+      );
+      update public.profiles
+      set deletion_scheduled_at = now() - interval '1 minute'
+      where id = '22222222-2222-2222-2222-222222222222';
+    end
+    $$
+  $setup$,
+  'a due deactivated profile can be prepared for cleanup'
+);
+select is(
+  public.claim_cleanup_candidate('22222222-2222-2222-2222-222222222222'),
+  true,
+  'cleanup claims a still-due deactivated profile atomically'
+);
+select throws_ok(
+  $$select public.restore_profile('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111')$$,
+  'P0001',
+  'CLEANUP_IN_PROGRESS',
+  'restore cannot race an active cleanup claim'
+);
+select lives_ok(
+  $$update public.profiles set cleanup_claimed_at = now() - interval '16 minutes' where id = '22222222-2222-2222-2222-222222222222'$$,
+  'a stale cleanup claim can be simulated'
+);
+select lives_ok(
+  $$select public.restore_profile('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111')$$,
+  'a stale cleanup claim does not block restoration indefinitely'
+);
+select lives_ok(
+  $setup$
+    do $$
+    begin
+      perform public.deactivate_profile(
+        '22222222-2222-2222-2222-222222222222',
+        '11111111-1111-1111-1111-111111111111'
+      );
+      update public.profiles
+      set deletion_scheduled_at = now() - interval '1 minute'
+      where id = '22222222-2222-2222-2222-222222222222';
+    end
+    $$
+  $setup$,
+  'a retryable cleanup candidate can be prepared'
+);
+select is(
+  public.claim_cleanup_candidate('22222222-2222-2222-2222-222222222222'),
+  true,
+  'retryable cleanup candidate is claimed'
+);
+select is(
+  public.release_cleanup_claim('22222222-2222-2222-2222-222222222222'),
+  true,
+  'a failed auth deletion can release the cleanup claim'
+);
+select is(
+  (select count(*) from public.activity_log where action = 'profile.cleanup_started'),
+  2::bigint,
+  'every claimed final-deletion attempt is audited transactionally'
+);
+select is(
+  (select count(*) from public.activity_log where action = 'profile.cleanup_failed'),
+  1::bigint,
+  'a released cleanup claim records a durable failure event'
+);
+select lives_ok(
+  $$select public.restore_profile('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111')$$,
+  'a released cleanup claim allows restoration'
+);
+
+select lives_ok(
+  $$
+    insert into auth.users (
+      instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+      raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+    ) values (
+      '00000000-0000-0000-0000-000000000000',
+      '33333333-3333-3333-3333-333333333333',
+      'authenticated', 'authenticated', 'member2@example.test', '', now(),
+      '{}'::jsonb, '{}'::jsonb, now(), now()
+    )
+  $$,
+  'a second reserved member can reach invited profile state'
+);
+select lives_ok(
+  $$select public.deactivate_profile('33333333-3333-3333-3333-333333333333', '11111111-1111-1111-1111-111111111111')$$,
+  'administrator can cancel an invited profile through deactivation'
+);
+select throws_ok(
+  $$select public.restore_profile('33333333-3333-3333-3333-333333333333', '11111111-1111-1111-1111-111111111111')$$,
+  'P0001',
+  'PROFILE_NOT_RESTORABLE',
+  'an invitation that was never accepted cannot be restored as active'
+);
+select lives_ok(
+  $$delete from auth.users where id = '33333333-3333-3333-3333-333333333333'$$,
+  'cancelled invited auth user can be removed'
 );
 
 set local role authenticated;
@@ -352,6 +594,51 @@ select is(
   'admin sees acceptance audit events'
 );
 reset role;
+
+select is(
+  (
+    select count(*)
+    from public.activity_log
+    where action = 'invitation.accepted'
+      and actor_subject_id = actor_id
+  ),
+  2::bigint,
+  'audit events retain an immutable actor subject snapshot'
+);
+select lives_ok(
+  $$delete from auth.users where id = '22222222-2222-2222-2222-222222222222'$$,
+  'final Auth deletion cascades through the profile'
+);
+select is(
+  (
+    select actor_id
+    from public.activity_log
+    where action = 'invitation.accepted'
+      and actor_subject_id = '22222222-2222-2222-2222-222222222222'
+  ),
+  null::uuid,
+  'deleted actors no longer retain a live profile foreign key'
+);
+select is(
+  (
+    select count(*)
+    from public.activity_log
+    where actor_subject_id = '22222222-2222-2222-2222-222222222222'
+      and action = 'invitation.accepted'
+  ),
+  1::bigint,
+  'deleted actors retain immutable historical attribution'
+);
+select is(
+  (
+    select count(*)
+    from public.activity_log
+    where action = 'profile.deleted'
+      and object_id = '22222222-2222-2222-2222-222222222222'
+  ),
+  1::bigint,
+  'scheduled profile deletion writes a durable audit event'
+);
 
 select * from finish();
 rollback;

@@ -13,9 +13,11 @@ function createDependencies(
   overrides: Partial<CleanupDependencies> = {},
 ): CleanupDependencies {
   return {
+    claimDueUser: async () => true,
     cronSecret: 'cron-secret-placeholder',
     deleteAuthUser: async () => undefined,
     listDueUserIds: async () => [userId],
+    releaseClaim: async () => undefined,
     ...overrides,
   }
 }
@@ -44,11 +46,15 @@ Deno.test('cleanup rejects a missing or invalid cron secret', async () => {
 
 Deno.test('cleanup processes due users and returns counts without e-mail addresses', async () => {
   const secondId = '33333333-3333-3333-3333-333333333333'
+  const released: string[] = []
   const response = await createCleanupHandler(
     createDependencies({
       listDueUserIds: async () => [userId, secondId],
       deleteAuthUser: async (candidateId) => {
         if (candidateId === secondId) throw new Error('temporary failure')
+      },
+      releaseClaim: async (candidateId) => {
+        released.push(candidateId)
       },
     }),
   )(request('cron-secret-placeholder'))
@@ -60,6 +66,29 @@ Deno.test('cleanup processes due users and returns counts without e-mail address
     'cleanup must return aggregate counts',
   )
   assert(!body.includes('@'), 'cleanup response must not expose e-mail addresses')
+  assert(
+    JSON.stringify(released) === JSON.stringify([secondId]),
+    'a failed deletion must release its claim for retry',
+  )
+})
+
+Deno.test('cleanup does not delete a user restored before the cleanup claim', async () => {
+  let deleted = false
+  const response = await createCleanupHandler(
+    createDependencies({
+      claimDueUser: async () => false,
+      deleteAuthUser: async () => {
+        deleted = true
+      },
+    }),
+  )(request('cron-secret-placeholder'))
+
+  assert(!deleted, 'an unclaimed candidate must never be deleted')
+  assert(
+    (await response.text()) ===
+      JSON.stringify({ processed: 0, deleted: 0, failed: 0 }),
+    'a restored candidate must be skipped',
+  )
 })
 
 Deno.test('cleanup is idempotent when no due profiles remain', async () => {

@@ -28,6 +28,9 @@ export function createAuthApi(client: AuthApiClient, appBaseUrl: string) {
     async signOutCurrent() {
       throwIfError(await client.auth.signOut({ scope: 'local' }))
     },
+    async signOutAll() {
+      throwIfError(await client.auth.signOut({ scope: 'global' }))
+    },
     async acceptInvitation() {
       throwIfError(await client.rpc('accept_current_invitation'))
     },

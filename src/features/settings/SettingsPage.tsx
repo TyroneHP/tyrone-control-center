@@ -1,8 +1,10 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../auth/authContextValue'
+import { getAuthApi, type AuthApi } from '../auth/authApi'
 import {
   getSettingsApi,
+  AccountFunctionError,
   type Invitation,
   type ManageUserRequest,
   type Profile,
@@ -41,15 +43,27 @@ function pendingReservations(invitations: Invitation[]) {
   )
 }
 
-export interface SettingsPageProps {
-  api?: SettingsApi
+function accountErrorMessage(error: unknown, fallback: string) {
+  return error instanceof AccountFunctionError ? error.message : fallback
 }
 
-export function SettingsPage({ api = getSettingsApi() }: SettingsPageProps) {
+export interface SettingsPageProps {
+  api?: SettingsApi
+  authApi?: AuthApi
+}
+
+export function SettingsPage({
+  api = getSettingsApi(),
+  authApi = getAuthApi(),
+}: SettingsPageProps) {
   const { profile } = useAuth()
   const queryClient = useQueryClient()
   const [email, setEmail] = useState('')
   const [confirmation, setConfirmation] = useState<Profile | null>(null)
+  const [sessionPending, setSessionPending] = useState<'all' | 'current' | null>(
+    null,
+  )
+  const [sessionError, setSessionError] = useState(false)
   const isAdmin = profile?.role === 'admin' && profile.status === 'active'
   const accountsQuery = useQuery({
     enabled: isAdmin,
@@ -83,11 +97,66 @@ export function SettingsPage({ api = getSettingsApi() }: SettingsPageProps) {
       0) + reservations.length
   const capacityReached = occupiedSlots >= 4
 
+  async function endSessions(scope: 'all' | 'current') {
+    setSessionError(false)
+    setSessionPending(scope)
+    try {
+      if (scope === 'all') {
+        await authApi.signOutAll()
+      } else {
+        await authApi.signOutCurrent()
+      }
+    } catch {
+      setSessionError(true)
+    } finally {
+      setSessionPending(null)
+    }
+  }
+
+  const sessionControls = (
+    <div className="settings-card">
+      <div className="settings-card__heading">
+        <div>
+          <h2>Sitzungen</h2>
+          <p>Beende den Zugang auf diesem oder auf allen angemeldeten Geräten.</p>
+        </div>
+      </div>
+      <div className="confirmation-dialog__actions">
+        <button
+          className="button-secondary"
+          disabled={sessionPending !== null}
+          onClick={() => void endSessions('current')}
+          type="button"
+        >
+          {sessionPending === 'current'
+            ? 'Abmeldung läuft …'
+            : 'Auf diesem Gerät abmelden'}
+        </button>
+        <button
+          className="button-secondary"
+          disabled={sessionPending !== null}
+          onClick={() => void endSessions('all')}
+          type="button"
+        >
+          {sessionPending === 'all'
+            ? 'Abmeldung läuft …'
+            : 'Auf allen Geräten abmelden'}
+        </button>
+      </div>
+      {sessionError ? (
+        <p className="settings-message settings-message--error" role="alert">
+          Die Abmeldung konnte nicht abgeschlossen werden. Bitte versuche es erneut.
+        </p>
+      ) : null}
+    </div>
+  )
+
   if (!isAdmin) {
     return (
       <section className="settings-page">
         <p className="settings-page__eyebrow">Einstellungen</p>
         <h1>Kontoverwaltung</h1>
+        {sessionControls}
         <div className="settings-card settings-card--notice">
           Diese Kontoverwaltung ist nur für Administratoren verfügbar.
         </div>
@@ -116,6 +185,8 @@ export function SettingsPage({ api = getSettingsApi() }: SettingsPageProps) {
           <span>Kontoplätzen belegt oder reserviert</span>
         </div>
       </header>
+
+      {sessionControls}
 
       <form className="settings-card settings-invite" onSubmit={submitInvitation}>
         <div>
@@ -147,7 +218,10 @@ export function SettingsPage({ api = getSettingsApi() }: SettingsPageProps) {
         ) : null}
         {inviteMutation.isError ? (
           <p className="settings-message settings-message--error" role="alert">
-            Die Einladung konnte nicht gesendet werden. Bitte versuche es erneut.
+            {accountErrorMessage(
+              inviteMutation.error,
+              'Die Einladung konnte nicht gesendet werden. Bitte versuche es erneut.',
+            )}
           </p>
         ) : null}
       </form>
@@ -208,7 +282,8 @@ export function SettingsPage({ api = getSettingsApi() }: SettingsPageProps) {
                         Deaktivieren
                       </button>
                     ) : null}
-                    {item.status === 'deactivated' ? (
+                    {item.status === 'deactivated' &&
+                    invitation?.status === 'accepted' ? (
                       <button
                         className="button-secondary"
                         disabled={capacityReached || manageMutation.isPending}
@@ -255,7 +330,10 @@ export function SettingsPage({ api = getSettingsApi() }: SettingsPageProps) {
 
       {manageMutation.isError ? (
         <p className="settings-message settings-message--error" role="alert">
-          Die Kontoänderung konnte nicht gespeichert werden. Bitte versuche es erneut.
+          {accountErrorMessage(
+            manageMutation.error,
+            'Die Kontoänderung konnte nicht gespeichert werden. Bitte versuche es erneut.',
+          )}
         </p>
       ) : null}
 

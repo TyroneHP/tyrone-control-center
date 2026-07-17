@@ -13,12 +13,12 @@ function createDependencies(
   return {
     allowedOrigins: ['http://localhost:5173'],
     appOrigin: 'http://localhost:5173/',
+    enforceRateLimit: async () => undefined,
     loadProfile: async () => ({ role: 'admin', status: 'active' }),
     reserveInvitation: async () => '22222222-2222-2222-2222-222222222222',
     revokeInvitation: async () => undefined,
     sendInvite: async () => undefined,
     verifyCaller: async () => '11111111-1111-1111-1111-111111111111',
-    writeAudit: async () => undefined,
     ...overrides,
   }
 }
@@ -76,7 +76,7 @@ Deno.test('invite-user maps the fifth reservation to a safe conflict', async () 
   )
 })
 
-Deno.test('invite-user sends and audits an administrator invitation', async () => {
+Deno.test('invite-user sends a transactionally audited administrator invitation', async () => {
   const operations: string[] = []
   const response = await createInviteUserHandler(
     createDependencies({
@@ -87,15 +87,50 @@ Deno.test('invite-user sends and audits an administrator invitation', async () =
       sendInvite: async () => {
         operations.push('send')
       },
-      writeAudit: async () => {
-        operations.push('audit')
-      },
     }),
   )(request('Bearer caller-token-placeholder'))
 
   assert(response.status === 201, 'invite must return created')
   assert(
-    JSON.stringify(operations) === JSON.stringify(['reserve', 'send', 'audit']),
+    JSON.stringify(operations) === JSON.stringify(['reserve', 'send']),
     'invite operations must run in order',
   )
+})
+
+Deno.test('invite-user revokes its transactional reservation when delivery fails', async () => {
+  let revoked = ''
+  const response = await createInviteUserHandler(
+    createDependencies({
+      sendInvite: async () => {
+        throw new Error('mail delivery failed')
+      },
+      revokeInvitation: async (invitationId) => {
+        revoked = invitationId
+      },
+    }),
+  )(request('Bearer caller-token-placeholder'))
+
+  assert(response.status === 500, 'delivery failure must be safely redacted')
+  assert(
+    revoked === '22222222-2222-2222-2222-222222222222',
+    'failed delivery must revoke the reserved slot',
+  )
+})
+
+Deno.test('invite-user applies a per-administrator rate limit before reservation', async () => {
+  let reserved = false
+  const response = await createInviteUserHandler(
+    createDependencies({
+      enforceRateLimit: async () => {
+        throw new Error('RATE_LIMIT_EXCEEDED')
+      },
+      reserveInvitation: async () => {
+        reserved = true
+        return 'unreachable'
+      },
+    }),
+  )(request('Bearer caller-token-placeholder'))
+
+  assert(response.status === 429, 'rate limit must return too many requests')
+  assert(!reserved, 'rate-limited invite must not reserve a slot')
 })

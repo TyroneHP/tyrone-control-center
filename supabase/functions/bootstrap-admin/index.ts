@@ -7,18 +7,26 @@ import {
   toSafeError,
 } from '../_shared/accountRules.ts'
 import { jsonResponse, optionsResponse } from '../_shared/http.ts'
+import {
+  enforceRateLimit,
+  requestClientAddress,
+} from '../_shared/rateLimit.ts'
 import { edgeConfiguration, requiredEnv } from '../_shared/runtime.ts'
 import { createAdminClient } from '../_shared/supabaseClients.ts'
 
 export interface BootstrapAdminDependencies {
-  adminExists: () => Promise<boolean>
   allowedOrigins: readonly string[]
   appOrigin: string
   bootstrapAdminEmail: string
+  deleteStaleAuthUser: (userId: string) => Promise<void>
+  enforceRateLimit: (request: Request) => Promise<void>
+  loadBootstrapState: () => Promise<
+    | { status: 'active' | 'open' | 'pending' }
+    | { status: 'stale'; userId: string }
+  >
   reserveInvitation: (email: string) => Promise<string>
   revokeInvitation: (invitationId: string) => Promise<void>
   sendInvite: (email: string, redirectTo: string) => Promise<void>
-  writeAudit: (invitationId: string) => Promise<void>
 }
 
 function runtimeDependencies(): BootstrapAdminDependencies {
@@ -29,14 +37,45 @@ function runtimeDependencies(): BootstrapAdminDependencies {
     allowedOrigins: config.allowedOrigins,
     appOrigin: config.appOrigin,
     bootstrapAdminEmail: requiredEnv('BOOTSTRAP_ADMIN_EMAIL'),
-    adminExists: async () => {
-      const { count, error } = await admin
+    enforceRateLimit: (request) =>
+      enforceRateLimit(
+        admin,
+        'bootstrap-admin',
+        requestClientAddress(request),
+        5,
+        3600,
+      ),
+    loadBootstrapState: async () => {
+      const { data: profile, error } = await admin
         .from('profiles')
-        .select('id', { count: 'exact', head: true })
+        .select('id, invitation_id, status')
         .eq('role', 'admin')
         .in('status', ['invited', 'active'])
+        .maybeSingle()
       if (error) throw error
-      return (count ?? 0) > 0
+      if (!profile) return { status: 'open' }
+      if (profile.status === 'active') return { status: 'active' }
+      if (!profile.invitation_id) {
+        return { status: 'stale', userId: String(profile.id) }
+      }
+
+      const { data: invitation, error: invitationError } = await admin
+        .from('invitations')
+        .select('expires_at, status')
+        .eq('id', profile.invitation_id)
+        .maybeSingle()
+      if (invitationError) throw invitationError
+      if (
+        invitation?.status === 'pending' &&
+        new Date(invitation.expires_at).getTime() > Date.now()
+      ) {
+        return { status: 'pending' }
+      }
+      return { status: 'stale', userId: String(profile.id) }
+    },
+    deleteStaleAuthUser: async (userId) => {
+      const { error } = await admin.auth.admin.deleteUser(userId)
+      if (error && error.status !== 404) throw error
     },
     reserveInvitation: async (email) => {
       const { data, error } = await admin.rpc('reserve_invitation', {
@@ -59,16 +98,6 @@ function runtimeDependencies(): BootstrapAdminDependencies {
       })
       if (error) throw error
     },
-    writeAudit: async (invitationId) => {
-      const { error } = await admin.from('activity_log').insert({
-        action: 'invitation.created',
-        actor_id: null,
-        metadata: { bootstrap: true, role: 'admin' },
-        object_id: invitationId,
-        object_type: 'invitation',
-      })
-      if (error) throw error
-    },
   }
 }
 
@@ -87,12 +116,28 @@ export function createBootstrapAdminHandler(
         throw new AccountRuleError('METHOD_NOT_ALLOWED')
       }
 
+      await dependencies.enforceRateLimit(request)
+
       const { email } = parseInvitationRequest(await request.json())
       if (email !== normalizeEmail(dependencies.bootstrapAdminEmail)) {
-        throw new AccountRuleError('BOOTSTRAP_EMAIL_MISMATCH')
+        return jsonResponse(
+          { status: 'accepted' },
+          202,
+          requestOrigin,
+          dependencies.allowedOrigins,
+        )
       }
-      if (await dependencies.adminExists()) {
-        throw new AccountRuleError('BOOTSTRAP_CLOSED')
+      const bootstrapState = await dependencies.loadBootstrapState()
+      if (bootstrapState.status === 'active' || bootstrapState.status === 'pending') {
+        return jsonResponse(
+          { status: 'accepted' },
+          202,
+          requestOrigin,
+          dependencies.allowedOrigins,
+        )
+      }
+      if (bootstrapState.status === 'stale') {
+        await dependencies.deleteStaleAuthUser(bootstrapState.userId)
       }
 
       const redirectTo = createPasswordRedirectUrl(
@@ -108,10 +153,9 @@ export function createBootstrapAdminHandler(
         throw error
       }
 
-      await dependencies.writeAudit(invitationId)
       return jsonResponse(
-        { invitationId, status: 'sent' },
-        201,
+        { status: 'accepted' },
+        202,
         requestOrigin,
         dependencies.allowedOrigins,
       )
@@ -125,6 +169,18 @@ export function createBootstrapAdminHandler(
         )
       } catch {
         // A rejected origin must never be reflected in response headers.
+      }
+      if (
+        ['ACCOUNT_ALREADY_EXISTS', 'BOOTSTRAP_CLOSED', 'INVITATION_ALREADY_PENDING'].includes(
+          safeError.code,
+        )
+      ) {
+        return jsonResponse(
+          { status: 'accepted' },
+          202,
+          safeOrigin,
+          dependencies.allowedOrigins,
+        )
       }
       return jsonResponse(
         { code: safeError.code, message: safeError.message },

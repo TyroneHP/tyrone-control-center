@@ -29,6 +29,7 @@ function activeClient() {
   }
   const profile = {
     created_at: '2026-07-17T00:00:00Z',
+    cleanup_claimed_at: null,
     deactivated_at: null,
     deletion_scheduled_at: null,
     display_name: 'Tyrone',

@@ -19,6 +19,7 @@ const session = {
 function profile(status: Profile['status']): Profile {
   return {
     created_at: '2026-07-17T00:00:00Z',
+    cleanup_claimed_at: null,
     deactivated_at: status === 'deactivated' ? '2026-07-17T00:00:00Z' : null,
     deletion_scheduled_at:
       status === 'deactivated' ? '2026-08-16T00:00:00Z' : null,
@@ -32,8 +33,18 @@ function profile(status: Profile['status']): Profile {
   }
 }
 
-function createClient(initialProfile: Profile) {
-  const single = vi.fn().mockResolvedValue({ data: initialProfile, error: null })
+function createClient(
+  initialProfile: Profile,
+  acceptanceResult: { data: Profile | null; error: Error | null } = {
+    data: profile('active'),
+    error: null,
+  },
+  profileError: Error | null = null,
+) {
+  const single = vi.fn().mockResolvedValue({
+    data: profileError ? null : initialProfile,
+    error: profileError,
+  })
   const eq = vi.fn().mockReturnValue({ single })
   const select = vi.fn().mockReturnValue({ eq })
   let authCallback: ((event: string, nextSession: typeof session | null) => void) | undefined
@@ -50,7 +61,7 @@ function createClient(initialProfile: Profile) {
       signOut: vi.fn().mockResolvedValue({ error: null }),
     },
     from: vi.fn().mockReturnValue({ select }),
-    rpc: vi.fn().mockResolvedValue({ data: profile('active'), error: null }),
+    rpc: vi.fn().mockResolvedValue(acceptanceResult),
   }
 
   return { client, emit: () => authCallback?.('SIGNED_IN', session) }
@@ -87,5 +98,60 @@ describe('AuthProvider', () => {
 
     await screen.findByText('unauthenticated:none')
     expect(client.auth.signOut).toHaveBeenCalledWith({ scope: 'local' })
+  })
+
+  it('signs out when an invitation cannot be accepted', async () => {
+    const { client } = createClient(profile('invited'), {
+      data: null,
+      error: new Error('INVITATION_INVALID_OR_EXPIRED'),
+    })
+
+    render(
+      <AuthProvider client={client as unknown as SupabaseClient<Database>}>
+        <Probe />
+      </AuthProvider>,
+    )
+
+    await screen.findByText('unauthenticated:none')
+    expect(client.auth.signOut).toHaveBeenCalledWith({ scope: 'local' })
+  })
+
+  it('retains a verified active profile for an offline app-shell reload', async () => {
+    localStorage.clear()
+    const verified = createClient(profile('active'))
+    const onlineRender = render(
+      <AuthProvider
+        client={verified.client as unknown as SupabaseClient<Database>}
+      >
+        <Probe />
+      </AuthProvider>,
+    )
+    await screen.findByText('authenticated:active')
+    onlineRender.unmount()
+
+    Object.defineProperty(navigator, 'onLine', {
+      configurable: true,
+      value: false,
+    })
+    const offline = createClient(
+      profile('active'),
+      { data: profile('active'), error: null },
+      new Error('network unavailable'),
+    )
+
+    render(
+      <AuthProvider client={offline.client as unknown as SupabaseClient<Database>}>
+        <Probe />
+      </AuthProvider>,
+    )
+
+    await screen.findByText('authenticated:active')
+    expect(offline.client.auth.signOut).not.toHaveBeenCalled()
+
+    Object.defineProperty(navigator, 'onLine', {
+      configurable: true,
+      value: true,
+    })
+    localStorage.clear()
   })
 })

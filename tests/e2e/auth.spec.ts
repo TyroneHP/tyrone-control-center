@@ -135,7 +135,7 @@ test.describe('local Supabase invitation lifecycle', () => {
         ),
         page.getByRole('button', { name: 'Einladung anfordern' }).click(),
       ])
-      expect(response.status()).toBe(201)
+      expect(response.status()).toBe(202)
       await expect(
         page.getByText('Die Einladungs-E-Mail wurde versendet.'),
       ).toBeVisible()
@@ -207,29 +207,38 @@ test.describe('local Supabase invitation lifecycle', () => {
           code: 'ADMIN_REQUIRED',
         })
       })
+
+      await test.step('deactivate, deny the live session, and restore the member', async () => {
+        await page.goto('/settings')
+        const memberRow = page
+          .locator('.account-row')
+          .filter({ hasText: memberEmails[0] })
+        await memberRow
+          .getByRole('button', {
+            name: `Konto von ${memberEmails[0]} deaktivieren`,
+          })
+          .click()
+        await page
+          .getByRole('button', { name: 'Deaktivierung bestätigen' })
+          .click()
+        await expect(memberRow.getByText('Deaktiviert')).toBeVisible()
+
+        await memberPage.reload()
+        await expect(
+          memberPage.getByText('Dieses Benutzerkonto ist deaktiviert.'),
+        ).toBeVisible()
+        await expect(
+          memberPage.getByRole('heading', { name: 'Anmelden' }),
+        ).toBeVisible()
+
+        await memberRow
+          .getByRole('button', { name: 'Wiederherstellen' })
+          .click()
+        await expect(memberRow.getByText('Aktiv')).toBeVisible()
+        await login(memberPage, memberEmails[0])
+      })
     } finally {
       await memberContext.close()
     }
-
-    await test.step('deactivate and restore the member', async () => {
-      await page.goto('/settings')
-      const memberRow = page
-        .locator('.account-row')
-        .filter({ hasText: memberEmails[0] })
-      await memberRow
-        .getByRole('button', {
-          name: `Konto von ${memberEmails[0]} deaktivieren`,
-        })
-        .click()
-      await page
-        .getByRole('button', { name: 'Deaktivierung bestätigen' })
-        .click()
-      await expect(memberRow.getByText('Deaktiviert')).toBeVisible()
-
-      await memberRow
-        .getByRole('button', { name: 'Wiederherstellen' })
-        .click()
-      await expect(memberRow.getByText('Aktiv')).toBeVisible()
-    })
   })
 })

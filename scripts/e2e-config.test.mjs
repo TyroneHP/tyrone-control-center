@@ -27,5 +27,6 @@ describe('Playwright configuration', () => {
 
     expect(auth).toMatch(/enable_signup\s*=\s*false/)
     expect(email).toMatch(/enable_signup\s*=\s*true/)
+    expect(email).toMatch(/otp_expiry\s*=\s*604800/)
   })
 })

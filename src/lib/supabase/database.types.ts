@@ -13,6 +13,7 @@ export type Database = {
         Row: {
           action: string
           actor_id: string | null
+          actor_subject_id: string | null
           created_at: string
           id: string
           metadata: Json
@@ -22,6 +23,7 @@ export type Database = {
         Insert: {
           action: string
           actor_id?: string | null
+          actor_subject_id?: string | null
           created_at?: string
           id?: string
           metadata?: Json
@@ -31,6 +33,7 @@ export type Database = {
         Update: {
           action?: string
           actor_id?: string | null
+          actor_subject_id?: string | null
           created_at?: string
           id?: string
           metadata?: Json
@@ -81,9 +84,31 @@ export type Database = {
         }
         Relationships: []
       }
+      function_rate_limits: {
+        Row: {
+          bucket_started_at: string
+          key_hash: string
+          request_count: number
+          updated_at: string
+        }
+        Insert: {
+          bucket_started_at?: string
+          key_hash: string
+          request_count?: number
+          updated_at?: string
+        }
+        Update: {
+          bucket_started_at?: string
+          key_hash?: string
+          request_count?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
+          cleanup_claimed_at: string | null
           deactivated_at: string | null
           deletion_scheduled_at: string | null
           display_name: string | null
@@ -96,6 +121,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          cleanup_claimed_at?: string | null
           deactivated_at?: string | null
           deletion_scheduled_at?: string | null
           display_name?: string | null
@@ -108,6 +134,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          cleanup_claimed_at?: string | null
           deactivated_at?: string | null
           deletion_scheduled_at?: string | null
           display_name?: string | null
@@ -131,9 +158,21 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }
+      claim_cleanup_candidate: {
+        Args: { p_user_id: string }
+        Returns: boolean
+      }
       current_user_role: {
         Args: Record<PropertyKey, never>
         Returns: Database['public']['Enums']['app_role'] | null
+      }
+      consume_function_rate_limit: {
+        Args: {
+          p_key_hash: string
+          p_limit: number
+          p_window_seconds: number
+        }
+        Returns: boolean
       }
       deactivate_profile: {
         Args: { p_actor_id: string; p_user_id: string }
@@ -155,6 +194,10 @@ export type Database = {
           p_role?: Database['public']['Enums']['app_role']
         }
         Returns: string
+      }
+      release_cleanup_claim: {
+        Args: { p_user_id: string }
+        Returns: boolean
       }
       revoke_user_refresh_sessions: {
         Args: { p_user_id: string }

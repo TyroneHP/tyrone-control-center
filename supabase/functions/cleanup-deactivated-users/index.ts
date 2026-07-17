@@ -2,9 +2,11 @@ import { AccountRuleError, toSafeError } from '../_shared/accountRules.ts'
 import { requiredEnv, runtimeAdminClient } from '../_shared/runtime.ts'
 
 export interface CleanupDependencies {
+  claimDueUser: (userId: string) => Promise<boolean>
   cronSecret: string
   deleteAuthUser: (userId: string) => Promise<void>
   listDueUserIds: () => Promise<string[]>
+  releaseClaim: (userId: string) => Promise<void>
 }
 
 function runtimeDependencies(): CleanupDependencies {
@@ -12,6 +14,13 @@ function runtimeDependencies(): CleanupDependencies {
 
   return {
     cronSecret: requiredEnv('CLEANUP_CRON_SECRET'),
+    claimDueUser: async (userId) => {
+      const { data, error } = await admin.rpc('claim_cleanup_candidate', {
+        p_user_id: userId,
+      })
+      if (error) throw error
+      return data === true
+    },
     listDueUserIds: async () => {
       const { data, error } = await admin.rpc('list_cleanup_candidates')
       if (error) throw error
@@ -22,6 +31,12 @@ function runtimeDependencies(): CleanupDependencies {
     deleteAuthUser: async (userId) => {
       const { error } = await admin.auth.admin.deleteUser(userId)
       if (error && error.status !== 404) throw error
+    },
+    releaseClaim: async (userId) => {
+      const { error } = await admin.rpc('release_cleanup_claim', {
+        p_user_id: userId,
+      })
+      if (error) throw error
     },
   }
 }
@@ -67,19 +82,27 @@ export function createCleanupHandler(
       }
 
       const userIds = await dependencies.listDueUserIds()
+      let processed = 0
       let deleted = 0
       let failed = 0
 
       for (const userId of userIds) {
+        if (!(await dependencies.claimDueUser(userId))) continue
+        processed += 1
         try {
           await dependencies.deleteAuthUser(userId)
           deleted += 1
         } catch {
           failed += 1
+          try {
+            await dependencies.releaseClaim(userId)
+          } catch {
+            // A stale claim becomes retryable automatically after 15 minutes.
+          }
         }
       }
 
-      return response({ processed: userIds.length, deleted, failed }, 200)
+      return response({ processed, deleted, failed }, 200)
     } catch (error) {
       const safeError = toSafeError(error)
       return response(

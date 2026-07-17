@@ -19,6 +19,45 @@ export interface AuthProviderProps {
   client?: SupabaseClient<Database>
 }
 
+const profileCachePrefix = 'tyrone-control-center:active-profile:'
+
+function cacheKey(userId: string) {
+  return `${profileCachePrefix}${userId}`
+}
+
+function readCachedProfile(userId: string): Profile | null {
+  try {
+    const value = localStorage.getItem(cacheKey(userId))
+    if (!value) return null
+    const profile = JSON.parse(value) as Profile
+    return profile.id === userId && profile.status === 'active' ? profile : null
+  } catch {
+    return null
+  }
+}
+
+function writeCachedProfile(profile: Profile) {
+  try {
+    localStorage.setItem(cacheKey(profile.id), JSON.stringify(profile))
+  } catch {
+    // The verified online profile remains usable if browser storage is unavailable.
+  }
+}
+
+function removeCachedProfiles(userId?: string) {
+  try {
+    if (userId) {
+      localStorage.removeItem(cacheKey(userId))
+      return
+    }
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith(profileCachePrefix)) localStorage.removeItem(key)
+    }
+  } catch {
+    // Session state still remains authoritative when browser storage is unavailable.
+  }
+}
+
 export function AuthProvider({ children, client }: AuthProviderProps) {
   const supabase = client ?? getSupabaseClient()
   const [session, setSession] = useState<Session | null>(null)
@@ -35,6 +74,7 @@ export function AuthProvider({ children, client }: AuthProviderProps) {
       setError(null)
 
       if (!nextSession) {
+        removeCachedProfiles()
         setSession(null)
         setProfile(null)
         setStatus('unauthenticated')
@@ -52,8 +92,19 @@ export function AuthProvider({ children, client }: AuthProviderProps) {
 
       if (!active) return
       if (profileError || !loadedProfile) {
+        const cachedProfile =
+          navigator.onLine === false
+            ? readCachedProfile(nextSession.user.id)
+            : null
+        if (cachedProfile) {
+          setProfile(cachedProfile)
+          setError('Offline-Modus: Es werden zuletzt bestätigte Kontodaten verwendet.')
+          setStatus('authenticated')
+          return
+        }
         await supabase.auth.signOut({ scope: 'local' })
         if (!active) return
+        removeCachedProfiles(nextSession.user.id)
         setSession(null)
         setProfile(null)
         setError('Das Benutzerprofil konnte nicht geladen werden.')
@@ -72,6 +123,10 @@ export function AuthProvider({ children, client }: AuthProviderProps) {
           )
           if (!active) return
           if (acceptanceError || !data) {
+            await supabase.auth.signOut({ scope: 'local' })
+            if (!active) return
+            removeCachedProfiles(nextSession.user.id)
+            setSession(null)
             setProfile(null)
             setError('Die Einladung ist ungültig oder abgelaufen.')
             setStatus('unauthenticated')
@@ -85,6 +140,7 @@ export function AuthProvider({ children, client }: AuthProviderProps) {
       if (authorizedProfile.status !== 'active') {
         await supabase.auth.signOut({ scope: 'local' })
         if (!active) return
+        removeCachedProfiles(nextSession.user.id)
         setSession(null)
         setProfile(null)
         setError('Dieses Benutzerkonto ist deaktiviert.')
@@ -92,6 +148,7 @@ export function AuthProvider({ children, client }: AuthProviderProps) {
         return
       }
 
+      writeCachedProfile(authorizedProfile)
       setProfile(authorizedProfile)
       setStatus('authenticated')
     }

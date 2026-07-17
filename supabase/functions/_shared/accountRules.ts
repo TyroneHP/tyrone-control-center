@@ -25,13 +25,13 @@ const safeErrors: Record<string, Omit<SafeError, 'code'>> = {
     message: 'Das erste Administratorkonto wurde bereits eingerichtet.',
     status: 409,
   },
-  BOOTSTRAP_EMAIL_MISMATCH: {
-    message: 'Diese E-Mail-Adresse ist nicht für die Ersteinrichtung freigegeben.',
-    status: 403,
-  },
   CONFIGURATION_ERROR: {
     message: 'Die Anwendung ist noch nicht vollständig konfiguriert.',
     status: 500,
+  },
+  CLEANUP_IN_PROGRESS: {
+    message: 'Dieses Konto wird gerade endgültig gelöscht.',
+    status: 409,
   },
   CRON_AUTHENTICATION_REQUIRED: {
     message: 'Der Bereinigungsaufruf ist nicht autorisiert.',
@@ -64,6 +64,14 @@ const safeErrors: Record<string, Omit<SafeError, 'code'>> = {
   PROFILE_NOT_FOUND: {
     message: 'Das ausgewählte Konto wurde nicht gefunden.',
     status: 404,
+  },
+  PROFILE_NOT_RESTORABLE: {
+    message: 'Dieses Konto hat die Einladung noch nicht abgeschlossen und kann nicht wiederhergestellt werden.',
+    status: 409,
+  },
+  RATE_LIMIT_EXCEEDED: {
+    message: 'Zu viele Anfragen. Bitte versuche es später erneut.',
+    status: 429,
   },
   SELF_DEACTIVATION_FORBIDDEN: {
     message: 'Du kannst dein eigenes Administratorkonto nicht deaktivieren.',

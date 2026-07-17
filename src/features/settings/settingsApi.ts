@@ -20,6 +20,42 @@ export interface SettingsApi {
   manageUser: (request: ManageUserRequest) => Promise<void>
 }
 
+export class AccountFunctionError extends Error {
+  constructor(
+    readonly code: string,
+    message: string,
+  ) {
+    super(message)
+    this.name = 'AccountFunctionError'
+  }
+}
+
+async function throwFunctionError(error: unknown): Promise<never> {
+  const context =
+    typeof error === 'object' && error && 'context' in error
+      ? error.context
+      : null
+  if (context instanceof Response) {
+    try {
+      const payload = (await context.clone().json()) as {
+        code?: unknown
+        message?: unknown
+      }
+      if (
+        typeof payload.code === 'string' &&
+        typeof payload.message === 'string'
+      ) {
+        throw new AccountFunctionError(payload.code, payload.message)
+      }
+    } catch (responseError) {
+      if (responseError instanceof AccountFunctionError) throw responseError
+    }
+  }
+
+  if (error instanceof Error) throw error
+  throw new Error('Die Kontoanfrage ist fehlgeschlagen.')
+}
+
 export function createSettingsApi(
   client: SupabaseClient<Database>,
 ): SettingsApi {
@@ -40,13 +76,13 @@ export function createSettingsApi(
       const { error } = await client.functions.invoke('invite-user', {
         body: { email },
       })
-      if (error) throw error
+      if (error) await throwFunctionError(error)
     },
     async manageUser(request) {
       const { error } = await client.functions.invoke('manage-user', {
         body: request,
       })
-      if (error) throw error
+      if (error) await throwFunctionError(error)
     },
   }
 }

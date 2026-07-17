@@ -15,6 +15,7 @@ function createDependencies(
 ): ManageUserDependencies {
   return {
     allowedOrigins: ['http://localhost:5173'],
+    enforceRateLimit: async () => undefined,
     loadProfile: async () => ({ role: 'admin', status: 'active' }),
     manageUser: async (management) => ({
       status: management.action === 'restore' ? 'active' : 'deactivated',
@@ -106,4 +107,22 @@ Deno.test('manage-user delegates restore to the transactional database operation
 
   assert(response.status === 200, 'restore must succeed')
   assert(receivedAction === 'restore', 'restore must be delegated')
+})
+
+Deno.test('manage-user applies a per-administrator rate limit before mutation', async () => {
+  let mutated = false
+  const response = await createManageUserHandler(
+    createDependencies({
+      enforceRateLimit: async () => {
+        throw new Error('RATE_LIMIT_EXCEEDED')
+      },
+      manageUser: async () => {
+        mutated = true
+        return { status: 'deactivated' }
+      },
+    }),
+  )(request({ action: 'deactivate', userId: memberId }))
+
+  assert(response.status === 429, 'rate limit must return too many requests')
+  assert(!mutated, 'rate-limited management must not mutate an account')
 })
