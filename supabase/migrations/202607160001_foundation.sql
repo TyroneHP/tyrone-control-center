@@ -148,6 +148,24 @@ begin
     and expires_at <= now()
     and auth_user_id is null;
 
+  if p_role = 'admin' and (
+    exists (
+      select 1
+      from public.profiles
+      where role = 'admin'
+        and status in ('invited', 'active')
+    )
+    or exists (
+      select 1
+      from public.invitations
+      where role = 'admin'
+        and status = 'pending'
+        and expires_at > now()
+    )
+  ) then
+    raise exception using errcode = 'P0001', message = 'BOOTSTRAP_CLOSED';
+  end if;
+
   if exists (
     select 1
     from public.profiles

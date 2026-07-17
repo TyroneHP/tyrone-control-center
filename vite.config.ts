@@ -7,6 +7,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [react()],
   test: {
     environment: 'jsdom',
+    exclude: ['node_modules/**', 'dist/**', 'supabase/**'],
     globals: true,
     setupFiles: './src/test/setup.ts',
   },

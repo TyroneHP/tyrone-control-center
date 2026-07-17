@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(52);
+select plan(53);
 
 select has_type('public', 'app_role', 'app_role enum exists');
 select has_type('public', 'profile_status', 'profile_status enum exists');
@@ -186,6 +186,12 @@ set local "request.jwt.claim.role" = 'authenticated';
 select lives_ok(
   $$select public.accept_current_invitation()$$,
   'administrator can accept the current invitation'
+);
+select throws_ok(
+  $$select public.reserve_invitation('second-admin@example.test', 'admin', null, now() + interval '7 days')$$,
+  'P0001',
+  'BOOTSTRAP_CLOSED',
+  'a second bootstrap administrator reservation is rejected'
 );
 
 select lives_ok(
