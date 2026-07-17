@@ -2,7 +2,7 @@
 
 Das Repository enthält den Foundation-Meilenstein des Tyrone Control Center: eine
 deutsche, responsive Slate-PWA mit E-Mail-/Passwort-Anmeldung, ausschließlich
-administrativen Einladungen, maximal vier reservierten oder aktiven Konten und
+administrativen Einladungen, maximal zehn reservierten oder aktiven Konten und
 einer Supabase-Sicherheitsbasis mit Row Level Security.
 
 Kalender, Aufgaben, KI-Anbieter, Dateien und Push-Versand sind in diesem
@@ -38,7 +38,8 @@ Meilenstein nur als deaktivierte Platzhalter vorhanden.
 Die App ist anschließend unter `http://127.0.0.1:5173/` erreichbar. Keine öffentliche Registrierung.
 Das erste Administratorkonto wird nur über
 `BOOTSTRAP_ADMIN_EMAIL` angefordert; weitere Konten entstehen nur durch eine
-Admin-Einladung. Insgesamt sind maximal vier Konten aktiv oder reserviert.
+Admin-Einladung. Insgesamt sind maximal zehn Konten aktiv oder reserviert: das
+Administratorkonto und bis zu neun weitere Nutzer.
 
 ## Prüfungen
 

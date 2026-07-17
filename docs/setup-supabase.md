@@ -140,8 +140,9 @@ beiden Buildwerte fehlt.
    und stellt anschließend eine neue Einladung aus. Ein aktives
    Administratorkonto schließt die Ersteinrichtung dauerhaft.
 4. Danach weitere Nutzer ausschließlich in **Einstellungen → Kontoverwaltung**
-   einladen. Der vierte belegte oder reservierte Slot sperrt weitere
-   Einladungen serverseitig und im Frontend.
+   einladen. Das Administratorkonto und bis zu neun weitere Nutzer belegen
+   maximal zehn aktive oder reservierte Kontoplätze. Der zehnte belegte oder
+   reservierte Platz sperrt weitere Einladungen serverseitig und im Frontend.
 
 ## 8. Vollständiger lokaler Auth-E2E-Lauf
 
@@ -170,9 +171,11 @@ npm run test:e2e -- --project=desktop-chromium tests/e2e/auth.spec.ts
 ```
 
 Der Test fordert das konfigurierte Administratorkonto an, liest die lokale
-Mailpit-Einladung, setzt das Passwort, lädt drei Mitglieder ein, prüft
-`ACCOUNT_CAPACITY_REACHED`, verweigert einem Mitglied die Admin-Funktion und
-deaktiviert beziehungsweise reaktiviert dieses Mitglied.
+Mailpit-Einladung, setzt das Passwort, lädt acht Mitglieder ein und sendet zwei
+weitere Einladungen parallel. Genau eine davon belegt den zehnten Platz; die
+andere wird mit `ACCOUNT_CAPACITY_REACHED` abgelehnt. Zusätzlich verweigert der
+Test einem Mitglied die Admin-Funktion und deaktiviert beziehungsweise
+reaktiviert dieses Mitglied.
 
 ## 9. Erforderliche Secrets – Namen, niemals Werte
 
