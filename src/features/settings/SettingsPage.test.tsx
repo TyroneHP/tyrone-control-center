@@ -202,6 +202,50 @@ describe('SettingsPage', () => {
     ).toBeEnabled()
   })
 
+  it('keeps capacity-dependent controls disabled while capacity is loading', () => {
+    const data: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 9 },
+      invitations: [],
+      profiles: [admin],
+    }
+    const settingsApi = api(data)
+    vi.mocked(settingsApi.listAccounts).mockReturnValue(
+      new Promise<AccountManagement>(() => undefined),
+    )
+
+    renderPage(admin, data, settingsApi)
+
+    expect(screen.getByLabelText('E-Mail-Adresse')).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Einladung senden' }),
+    ).toBeDisabled()
+    expect(screen.getByText('Kontostand wird geladen.')).toBeInTheDocument()
+    expect(screen.queryByText('0 von 0')).not.toBeInTheDocument()
+  })
+
+  it('keeps capacity-dependent controls disabled when capacity loading fails', async () => {
+    const data: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 9 },
+      invitations: [],
+      profiles: [admin],
+    }
+    const settingsApi = api(data)
+    vi.mocked(settingsApi.listAccounts).mockRejectedValue(
+      new Error('capacity unavailable'),
+    )
+
+    renderPage(admin, data, settingsApi)
+
+    expect(
+      await screen.findByText('Kontostand nicht verfügbar.'),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('E-Mail-Adresse')).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Einladung senden' }),
+    ).toBeDisabled()
+    expect(screen.queryByText('0 von 0')).not.toBeInTheDocument()
+  })
+
   it('requires explicit confirmation before deactivation', async () => {
     const member = profile(
       '22222222-2222-2222-2222-222222222222',
@@ -285,8 +329,9 @@ describe('SettingsPage', () => {
     )
     renderPage(admin, data, settingsApi)
 
+    expect(await screen.findByText('9 von 10')).toBeInTheDocument()
     await userEvent.type(
-      await screen.findByLabelText('E-Mail-Adresse'),
+      screen.getByLabelText('E-Mail-Adresse'),
       'eleventh@example.test',
     )
     await userEvent.click(

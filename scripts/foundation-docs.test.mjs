@@ -44,6 +44,7 @@ describe('Foundation documentation', () => {
       'Maximum accounts: four',
       'fifth reservation',
       'fifth account reservation',
+      'fifth slot',
     ]) {
       expect(currentDocs).not.toContain(obsoleteText)
     }
@@ -97,5 +98,32 @@ describe('Foundation documentation', () => {
 
     expect(start).toBeGreaterThan(-1)
     expect(reset).toBeGreaterThan(start)
+  })
+
+  it('documents the safe upgrade order for an existing deployment', () => {
+    const setup = read('docs/setup-supabase.md')
+    const upgrade = setup.indexOf(
+      '### Bestehende Installation auf zehn Konten aktualisieren',
+    )
+    const migration = setup.indexOf('npx supabase db push', upgrade)
+    const inviteFunction = setup.indexOf(
+      'npx supabase functions deploy invite-user',
+      upgrade,
+    )
+    const manageFunction = setup.indexOf(
+      'npx supabase functions deploy manage-user',
+      upgrade,
+    )
+    const pages = setup.indexOf(
+      'Erst danach den Pull Request nach `main` mergen',
+      upgrade,
+    )
+
+    expect(upgrade).toBeGreaterThan(-1)
+    expect(migration).toBeGreaterThan(upgrade)
+    expect(inviteFunction).toBeGreaterThan(migration)
+    expect(manageFunction).toBeGreaterThan(inviteFunction)
+    expect(pages).toBeGreaterThan(manageFunction)
+    expect(setup).toContain('keine bestehenden Konten oder Einladungen')
   })
 })

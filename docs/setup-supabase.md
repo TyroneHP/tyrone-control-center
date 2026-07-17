@@ -112,6 +112,40 @@ täglichen HTTP-Aufruf dieser Function einrichten und den Wert sicher aus Vault
 beziehungsweise der geschützten Cron-Konfiguration beziehen. Die Function ist
 idempotent, gibt nur Zähler zurück und versendet keine E-Mails.
 
+### Bestehende Installation auf zehn Konten aktualisieren
+
+Bei einer bereits veröffentlichten Installation muss das Upgrade nach
+erfolgreichem Review unmittelbar vor dem Merge in dieser Reihenfolge erfolgen:
+
+1. Zuerst die additive Datenbankmigration anwenden und ihren Status prüfen:
+
+   ```bash
+   npx supabase db push
+   npx supabase migration list
+   ```
+
+   Die Migration ersetzt ausschließlich Datenbankfunktionen und legt die
+   Kapazitätsabfrage an. Sie schreibt keine bestehenden Konten oder Einladungen
+   um und verändert weder Rollen noch Einladungszustände.
+2. Danach die Functions neu deployen, deren gebündelte Fehlerbehandlung von der
+   Kapazitätsänderung betroffen ist:
+
+   ```bash
+   npx supabase functions deploy bootstrap-admin
+   npx supabase functions deploy invite-user
+   npx supabase functions deploy manage-user
+   npx supabase functions list
+   ```
+
+3. Erst danach den Pull Request nach `main` mergen. Der Push auf `main` startet
+   automatisch das GitHub-Pages-Deployment mit dem Frontend, das
+   `get_account_capacity()` verwendet.
+
+Diese Reihenfolge verhindert, dass das neue Frontend vor der benötigten RPC
+veröffentlicht wird. Es sind dafür keine neuen Secrets erforderlich und es
+dürfen keine Secret-Werte in Befehle, Logs oder Repository-Dateien übernommen
+werden.
+
 ## 6. GitHub Pages konfigurieren
 
 Im GitHub-Repository unter **Settings → Secrets and variables → Actions** diese

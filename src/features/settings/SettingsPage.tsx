@@ -94,7 +94,9 @@ export function SettingsPage({
   )
   const occupiedSlots = data?.capacity.occupiedSlots ?? 0
   const maximumSlots = data?.capacity.maximumSlots ?? 0
-  const capacityReached = data !== undefined && occupiedSlots >= maximumSlots
+  const capacityKnown = data !== undefined
+  const capacityReached = capacityKnown && occupiedSlots >= maximumSlots
+  const capacityControlsDisabled = !capacityKnown || capacityReached
 
   async function endSessions(scope: 'all' | 'current') {
     setSessionError(false)
@@ -166,7 +168,7 @@ export function SettingsPage({
 
   function submitInvitation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!email.trim() || capacityReached) return
+    if (!email.trim() || capacityControlsDisabled) return
     inviteMutation.mutate(email.trim())
   }
 
@@ -176,14 +178,19 @@ export function SettingsPage({
         <div>
           <p className="settings-page__eyebrow">Einstellungen</p>
           <h1>Kontoverwaltung</h1>
-          <p>
-            Einladungen, Zugänge und die feste Grenze von {maximumSlots} Konten
-            verwalten.
-          </p>
+          <p>Einladungen, Zugänge und die serverseitige Kontogrenze verwalten.</p>
         </div>
         <div className="settings-capacity" aria-live="polite">
-          <strong>{occupiedSlots} von {maximumSlots}</strong>
-          <span>Kontoplätzen belegt oder reserviert</span>
+          <strong>
+            {capacityKnown ? `${occupiedSlots} von ${maximumSlots}` : '–'}
+          </strong>
+          <span>
+            {capacityKnown
+              ? 'Kontoplätzen belegt oder reserviert'
+              : accountsQuery.isError
+                ? 'Kontostand nicht verfügbar.'
+                : 'Kontostand wird geladen.'}
+          </span>
         </div>
       </header>
 
@@ -193,15 +200,16 @@ export function SettingsPage({
         <div>
           <h2>Mitglied einladen</h2>
           <p>
-            Die Einladung reserviert sofort einen der {maximumSlots}{' '}
-            Kontoplätze.
+            {capacityKnown
+              ? `Die Einladung reserviert sofort einen der ${maximumSlots} Kontoplätze.`
+              : 'Die verfügbaren Kontoplätze werden zuerst geladen.'}
           </p>
         </div>
         <label>
           E-Mail-Adresse
           <input
             autoComplete="email"
-            disabled={capacityReached || inviteMutation.isPending}
+            disabled={capacityControlsDisabled || inviteMutation.isPending}
             onChange={(event) => setEmail(event.target.value)}
             placeholder="name@beispiel.de"
             required
@@ -210,7 +218,7 @@ export function SettingsPage({
           />
         </label>
         <button
-          disabled={capacityReached || inviteMutation.isPending}
+          disabled={capacityControlsDisabled || inviteMutation.isPending}
           type="submit"
         >
           {inviteMutation.isPending ? 'Einladung wird gesendet …' : 'Einladung senden'}
@@ -290,7 +298,9 @@ export function SettingsPage({
                     invitation?.status === 'accepted' ? (
                       <button
                         className="button-secondary"
-                        disabled={capacityReached || manageMutation.isPending}
+                        disabled={
+                          capacityControlsDisabled || manageMutation.isPending
+                        }
                         onClick={() =>
                           manageMutation.mutate({
                             action: 'restore',

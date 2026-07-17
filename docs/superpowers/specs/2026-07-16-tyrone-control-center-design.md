@@ -885,7 +885,7 @@ Using a test Supabase project/local stack:
 ### 18.4 End-to-end tests
 
 - first admin signup
-- invite three users and reject fifth slot
+- fill ten occupied or reserved slots and reject the eleventh slot
 - create school task and observe all synchronized views
 - drag calendar item and verify audit
 - share item as viewer/editor
