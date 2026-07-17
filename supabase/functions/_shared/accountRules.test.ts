@@ -158,6 +158,11 @@ Deno.test('redacts unknown service errors and preserves safe account codes', () 
   assert(!unknown.message.includes('private-value'), 'unknown error must be redacted')
   assertEquals(capacity.code, 'ACCOUNT_CAPACITY_REACHED', 'capacity code')
   assertEquals(capacity.status, 409, 'capacity status')
+  assertEquals(
+    capacity.message,
+    'Alle verfügbaren Kontoplätze sind bereits belegt oder reserviert.',
+    'capacity message',
+  )
 })
 
 Deno.test('preserves safe codes from Supabase service error objects', () => {

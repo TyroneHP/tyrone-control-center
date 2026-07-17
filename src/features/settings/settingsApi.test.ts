@@ -41,7 +41,8 @@ describe('settings API errors', () => {
             context: new Response(
               JSON.stringify({
                 code: 'ACCOUNT_CAPACITY_REACHED',
-                message: 'Alle vier Kontoplätze sind belegt.',
+                message:
+                  'Alle verfügbaren Kontoplätze sind bereits belegt oder reserviert.',
               }),
               { status: 409 },
             ),

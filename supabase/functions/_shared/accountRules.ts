@@ -10,7 +10,7 @@ const safeErrors: Record<string, Omit<SafeError, 'code'>> = {
     status: 409,
   },
   ACCOUNT_CAPACITY_REACHED: {
-    message: 'Alle vier Kontoplätze sind bereits belegt oder reserviert.',
+    message: 'Alle verfügbaren Kontoplätze sind bereits belegt oder reserviert.',
     status: 409,
   },
   ADMIN_REQUIRED: {

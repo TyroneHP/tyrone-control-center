@@ -59,7 +59,7 @@ Deno.test('invite-user denies an active member', async () => {
   assert(!reserved, 'member must not reserve a slot')
 })
 
-Deno.test('invite-user maps the fifth reservation to a safe conflict', async () => {
+Deno.test('invite-user maps the eleventh reservation to a safe conflict', async () => {
   const response = await createInviteUserHandler(
     createDependencies({
       reserveInvitation: async () => {
@@ -73,6 +73,11 @@ Deno.test('invite-user maps the fifth reservation to a safe conflict', async () 
   assert(
     payload.code === 'ACCOUNT_CAPACITY_REACHED',
     'capacity code must be preserved',
+  )
+  assert(
+    payload.message ===
+      'Alle verfügbaren Kontoplätze sind bereits belegt oder reserviert.',
+    'capacity message must be safe and current',
   )
 })
 
