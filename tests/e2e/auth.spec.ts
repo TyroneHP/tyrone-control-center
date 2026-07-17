@@ -108,7 +108,7 @@ test.describe('local Supabase invitation lifecycle', () => {
     'Requires the local Supabase stack and E2E_LOCAL_SUPABASE=true.',
   )
 
-  test('bootstraps, enforces four slots, denies members, and restores a user', async ({
+  test('bootstraps, enforces ten slots concurrently, denies members, and restores a user', async ({
     browser,
     page,
     request,
@@ -117,13 +117,18 @@ test.describe('local Supabase invitation lifecycle', () => {
       testInfo.project.name !== 'desktop-chromium',
       'The full local account lifecycle runs once in desktop Chromium.',
     )
-    test.setTimeout(120_000)
+    test.setTimeout(180_000)
 
     const adminEmail = requiredEnv('E2E_ADMIN_EMAIL')
     const memberEmails = [
       'member-one@example.test',
       'member-two@example.test',
       'member-three@example.test',
+      'member-four@example.test',
+      'member-five@example.test',
+      'member-six@example.test',
+      'member-seven@example.test',
+      'member-eight@example.test',
     ]
 
     await test.step('bootstrap the configured administrator', async () => {
@@ -146,7 +151,7 @@ test.describe('local Supabase invitation lifecycle', () => {
       await login(page, adminEmail)
     })
 
-    await test.step('invite three members', async () => {
+    await test.step('invite eight members', async () => {
       await page.goto('/settings')
       for (const email of memberEmails) {
         await page.getByLabel('E-Mail-Adresse').fill(email)
@@ -160,24 +165,37 @@ test.describe('local Supabase invitation lifecycle', () => {
         await expect(page.getByText(email)).toBeVisible()
       }
 
-      await expect(page.getByText('4 von 4')).toBeVisible()
+      await expect(page.getByText('9 von 10')).toBeVisible()
+      await expect(
+        page.getByRole('button', { name: 'Einladung senden' }),
+      ).toBeEnabled()
+    })
+
+    await test.step('serialize simultaneous tenth and eleventh reservations', async () => {
+      const token = await accessToken(page)
+      const responses = await Promise.all([
+        invokeFunction(request, 'invite-user', token, {
+          email: 'member-nine-a@example.test',
+        }),
+        invokeFunction(request, 'invite-user', token, {
+          email: 'member-nine-b@example.test',
+        }),
+      ])
+
+      expect(
+        responses.map((response) => response.status()).sort((a, b) => a - b),
+      ).toEqual([201, 409])
+      const rejected = responses.find((response) => response.status() === 409)
+      expect(rejected).toBeDefined()
+      await expect(rejected!.json()).resolves.toMatchObject({
+        code: 'ACCOUNT_CAPACITY_REACHED',
+      })
+
+      await page.reload()
+      await expect(page.getByText('10 von 10')).toBeVisible()
       await expect(
         page.getByRole('button', { name: 'Einladung senden' }),
       ).toBeDisabled()
-    })
-
-    await test.step('reject a fifth reservation server-side', async () => {
-      const response = await invokeFunction(
-        request,
-        'invite-user',
-        await accessToken(page),
-        { email: 'fifth-account@example.test' },
-      )
-
-      expect(response.status()).toBe(409)
-      await expect(response.json()).resolves.toMatchObject({
-        code: 'ACCOUNT_CAPACITY_REACHED',
-      })
     })
 
     const memberContext = await browser.newContext({ baseURL: appOrigin })
