@@ -11,6 +11,7 @@
   --color-primary: #326ac1;
   --color-primary-hover: #3972ca;
   --color-on-primary: #ffffff;
+  --color-focus-ring: #75aaff;
   --color-accent-text: #8bb9ff;
   --color-primary-soft: rgba(50, 106, 193, 0.16);
   --color-text: #f4f7fb;
@@ -39,6 +40,7 @@
   --color-primary: #326ac1;
   --color-primary-hover: #2859a6;
   --color-on-primary: #ffffff;
+  --color-focus-ring: #2859a6;
   --color-accent-text: #2859a6;
   --color-primary-soft: rgba(50, 106, 193, 0.11);
   --color-text: #10243c;
@@ -101,6 +103,6 @@ a {
 }
 
 :focus-visible {
-  outline: 3px solid var(--color-primary-hover);
+  outline: 3px solid var(--color-focus-ring);
   outline-offset: 3px;
 }

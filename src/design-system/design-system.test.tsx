@@ -138,6 +138,43 @@ describe('design system', () => {
     )
   })
 
+  it('keeps focus indicators visible against every adjacent theme surface', () => {
+    const tokens = readFileSync(
+      resolve(process.cwd(), 'src/design-system/tokens.css'),
+      'utf8',
+    )
+    const designSystemStyles = readFileSync(
+      resolve(process.cwd(), 'src/design-system/styles.css'),
+      'utf8',
+    )
+    const globalFocusToken = tokens.match(
+      /:focus-visible\s*\{[\s\S]*?outline:\s*3px solid var\((--[^)]+)\)/,
+    )?.[1]
+    const themeSwitchFocusToken = designSystemStyles.match(
+      /\.theme-switch input:focus-visible \+ \.theme-switch__track\s*\{[\s\S]*?outline:\s*3px solid var\((--[^)]+)\)/,
+    )?.[1]
+
+    expect(globalFocusToken).toBeDefined()
+    expect(themeSwitchFocusToken).toBe(globalFocusToken)
+
+    const adjacentSurfaces = [
+      '--color-surface-soft',
+      '--color-surface',
+      '--color-bg-elevated',
+      '--color-bg',
+    ]
+    for (const theme of ['dark', 'light'] as const) {
+      const focusRing = themeToken(tokens, theme, globalFocusToken!)
+      for (const surface of adjacentSurfaces) {
+        const ratio = contrastRatio(focusRing, themeToken(tokens, theme, surface))
+        expect(
+          ratio,
+          `${theme} ${globalFocusToken} against ${surface}: ${ratio.toFixed(3)}:1`,
+        ).toBeGreaterThanOrEqual(3)
+      }
+    }
+  })
+
   it('provides accessible controls and feedback primitives', () => {
     render(
       <Card>
