@@ -4,7 +4,10 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DevicePreferencesProvider } from '../../preferences/DevicePreferencesProvider'
-import type { DevicePreferenceStorage } from '../../preferences/devicePreferences'
+import type {
+  DevicePreferenceStorage,
+  DevicePreferences,
+} from '../../preferences/devicePreferences'
 import { AppShell } from './AppShell'
 import { navigationItems } from './navigation'
 
@@ -12,11 +15,16 @@ const appShellCss = readFileSync('src/features/shell/AppShell.css', 'utf8')
 
 function storage(
   desktopSidebar: 'expanded' | 'collapsed' = 'expanded',
+  mobileTabs: DevicePreferences['mobileTabs'] = [
+    'calendar',
+    'tasks',
+    'training',
+  ],
 ): DevicePreferenceStorage {
   return {
     read: vi.fn(() => ({
       desktopSidebar,
-      mobileTabs: ['calendar', 'tasks', 'training'] as const,
+      mobileTabs,
       theme: 'dark' as const,
     })),
     write: vi.fn(() => true),
@@ -65,6 +73,16 @@ function renderShell(deviceStorage = storage()) {
       </DevicePreferencesProvider>
     </MemoryRouter>,
   )
+}
+
+function directMobileBarControls() {
+  const mobileNavigation = screen.getByRole('navigation', {
+    name: 'Mobile Navigation',
+  })
+  const bar = mobileNavigation.querySelector('.mobile-navigation__bar')
+
+  expect(bar).not.toBeNull()
+  return Array.from(bar!.children)
 }
 
 afterEach(() => {
@@ -161,5 +179,104 @@ describe('AppShell', () => {
     expect(appShellCss).toMatch(
       /padding:\s*calc\(1\.35rem \+ env\(safe-area-inset-top\)\)\s+calc\(1rem \+ env\(safe-area-inset-right\)\)\s+calc\(1\.35rem \+ env\(safe-area-inset-bottom\)\)\s+calc\(1rem \+ env\(safe-area-inset-left\)\);/,
     )
+  })
+
+  it('adds horizontal safe-area insets to the mobile navigation bar', () => {
+    const mobileRules = appShellCss.slice(
+      appShellCss.indexOf('@media (max-width: 767px)'),
+    )
+
+    expect(mobileRules).toMatch(
+      /\.mobile-navigation\s*\{[^}]*padding:\s*0\s+calc\(0\.5rem \+ env\(safe-area-inset-right\)\)\s+max\(0\.5rem, env\(safe-area-inset-bottom\)\)\s+calc\(0\.5rem \+ env\(safe-area-inset-left\)\);/,
+    )
+  })
+
+  it('renders Overview, three defaults, and More in exactly that order', () => {
+    installMatchMedia()
+    renderShell()
+
+    const controls = directMobileBarControls()
+    const labels = [
+      '\u00dcbersicht',
+      'Kalender',
+      'Aufgaben',
+      'Training',
+      'Mehr',
+    ]
+
+    expect(controls).toHaveLength(5)
+    expect(controls.map((control) => control.textContent)).toEqual(labels)
+    controls.forEach((control, index) => {
+      expect(control).toHaveAccessibleName(labels[index])
+    })
+  })
+
+  it('renders icons and labels for all five positions', () => {
+    installMatchMedia()
+    renderShell()
+
+    const controls = directMobileBarControls()
+
+    for (const control of controls) {
+      expect(control).toHaveAccessibleName()
+      expect(control.querySelector('svg')).not.toBeNull()
+    }
+  })
+
+  it('uses persisted configured tabs without duplicates', () => {
+    installMatchMedia()
+    renderShell(
+      storage(
+        'expanded',
+        ['files', 'files', 'settings'] as unknown as DevicePreferences['mobileTabs'],
+      ),
+    )
+
+    const controls = directMobileBarControls()
+    const configuredLabels = controls.slice(1, 4).map((control) => control.textContent)
+
+    expect(controls).toHaveLength(5)
+    expect(configuredLabels).toEqual(['Dateien', 'Einstellungen', 'Kalender'])
+    expect(new Set(configuredLabels)).toHaveProperty('size', 3)
+  })
+
+  it('opens a sheet containing all ten destinations including pinned entries', async () => {
+    installMatchMedia()
+    const user = userEvent.setup()
+    renderShell()
+
+    await user.click(screen.getByRole('button', { name: 'Mehr' }))
+
+    const sheet = screen.getByRole('dialog', { name: 'Alle Bereiche' })
+    const labels = within(sheet)
+      .getAllByRole('link')
+      .map((link) => link.textContent)
+
+    expect(labels).toHaveLength(10)
+    expect(labels).toEqual(
+      expect.arrayContaining([
+        '\u00dcbersicht',
+        'Kalender',
+        'Aufgaben',
+        'Training',
+        'Einstellungen',
+      ]),
+    )
+  })
+
+  it('closes the More sheet after destination navigation', async () => {
+    installMatchMedia()
+    const user = userEvent.setup()
+    renderShell()
+
+    await user.click(screen.getByRole('button', { name: 'Mehr' }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Alle Bereiche' })).getByRole(
+        'link',
+        { name: 'Technikerarbeit' },
+      ),
+    )
+
+    expect(screen.queryByRole('dialog', { name: 'Alle Bereiche' })).not.toBeInTheDocument()
   })
 })

@@ -30,7 +30,6 @@ export interface NavigationItem {
   id: NavigationId
   icon: LucideIcon
   label: string
-  mobilePrimary: boolean
   path: string
   pinnableOnMobile: boolean
 }
@@ -47,7 +46,6 @@ export const navigationItems: readonly NavigationItem[] = [
     id: 'overview',
     path: '/',
     icon: LayoutDashboard,
-    mobilePrimary: true,
     pinnableOnMobile: false,
   },
   {
@@ -55,7 +53,6 @@ export const navigationItems: readonly NavigationItem[] = [
     id: 'calendar',
     path: '/calendar',
     icon: CalendarDays,
-    mobilePrimary: true,
     pinnableOnMobile: true,
   },
   {
@@ -63,7 +60,6 @@ export const navigationItems: readonly NavigationItem[] = [
     id: 'tasks',
     path: '/tasks',
     icon: CheckSquare2,
-    mobilePrimary: true,
     pinnableOnMobile: true,
   },
   {
@@ -71,7 +67,6 @@ export const navigationItems: readonly NavigationItem[] = [
     id: 'technician',
     path: '/technician',
     icon: Wrench,
-    mobilePrimary: false,
     pinnableOnMobile: true,
   },
   {
@@ -79,7 +74,6 @@ export const navigationItems: readonly NavigationItem[] = [
     id: 'school',
     path: '/school',
     icon: GraduationCap,
-    mobilePrimary: false,
     pinnableOnMobile: true,
   },
   {
@@ -87,7 +81,6 @@ export const navigationItems: readonly NavigationItem[] = [
     id: 'training',
     path: '/training',
     icon: Dumbbell,
-    mobilePrimary: false,
     pinnableOnMobile: true,
   },
   {
@@ -95,7 +88,6 @@ export const navigationItems: readonly NavigationItem[] = [
     id: 'nutrition',
     path: '/nutrition',
     icon: Apple,
-    mobilePrimary: false,
     pinnableOnMobile: true,
   },
   {
@@ -103,7 +95,6 @@ export const navigationItems: readonly NavigationItem[] = [
     id: 'files',
     path: '/files',
     icon: Files,
-    mobilePrimary: false,
     pinnableOnMobile: true,
   },
   {
@@ -111,7 +102,6 @@ export const navigationItems: readonly NavigationItem[] = [
     id: 'ai',
     path: '/ai',
     icon: Bot,
-    mobilePrimary: false,
     pinnableOnMobile: true,
   },
   {
@@ -119,7 +109,6 @@ export const navigationItems: readonly NavigationItem[] = [
     id: 'settings',
     path: '/settings',
     icon: Settings,
-    mobilePrimary: true,
     pinnableOnMobile: true,
   },
 ]
