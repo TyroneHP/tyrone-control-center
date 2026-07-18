@@ -29,6 +29,7 @@ deployment file changed.
 | --- | --- | --- |
 | On-primary contrast and mappings | `npm.cmd test -- src/design-system/design-system.test.tsx`: 1 failed, 3 passed; missing `--color-on-primary`. A final hover audit then failed at 4.1869:1. | Same command: 4 passed. Both themes now provide `--color-on-primary`; primary and hover combinations are at least 4.5:1, and primary controls/brand marks use the token. |
 | Throwing `localStorage` getter | `npm.cmd test -- src/app/App.test.tsx`: 1 failed, 3 passed; render threw `DOMException`. | Same command: 4 passed; App resolves browser storage behind a guard and uses inert storage when unavailable. |
+| Blocked-storage persistence warning follow-up | `npm.cmd test -- src/app/App.test.tsx`: 1 failed, 3 passed. With the `localStorage` getter throwing, the real preference action changed the live theme from dark to light, but the warning status was absent because fallback writes reported success. | Same command: 4 passed. Fallback writes now throw inside the supplied storage boundary, the adapter reports `false`, live state remains updated, and the existing German warning toast appears. |
 | Visible dismissible-dialog close control | `npm.cmd test -- src/design-system/ResponsiveDialog.test.tsx`: 1 failed, 5 passed; no labelled close button. | Same command: 6 passed after adding the visible `Dialog schliessen` icon control and keeping critical dialogs without it. |
 | Modal background scroll lock | `npm.cmd test -- src/design-system/ResponsiveDialog.test.tsx`: 1 failed, 6 passed; root overflow stayed `scroll`. | `npm.cmd test -- src/design-system/ResponsiveDialog.test.tsx src/design-system/ResponsiveDialog.ssr.test.tsx`: 8 passed; html/body styles lock while open and exact prior values return on close/unmount. |
 | Personal Settings current icon/label | `npm.cmd test -- src/features/settings/SettingsPage.test.tsx`: 1 failed, 18 passed; no current-tab rows were found. | Same command: 19 passed; all three rows expose the current Lucide icon and label. |
@@ -36,7 +37,7 @@ deployment file changed.
 
 ## Full verification
 
-Final sequential run after all code and token changes:
+Final sequential run after the blocked-storage follow-up:
 
 - `npm.cmd run lint`: exit 0, no warnings.
 - `npm.cmd run typecheck`: exit 0.

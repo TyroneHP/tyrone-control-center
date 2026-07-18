@@ -83,7 +83,7 @@ describe('App', () => {
     ).toBeInTheDocument()
   })
 
-  it('renders safely when the browser storage getter is unavailable', async () => {
+  it('keeps live preferences and warns when the browser storage getter is unavailable', async () => {
     const localStorageGetter = vi
       .spyOn(window, 'localStorage', 'get')
       .mockImplementation(() => {
@@ -99,7 +99,10 @@ describe('App', () => {
         })),
       },
     } as unknown as SupabaseClient<Database>
-    const router = createMemoryRouter(appRoutes, { initialEntries: ['/login'] })
+    const router = createMemoryRouter(
+      [{ element: <PreferenceFailureTrigger />, path: '/' }],
+      { initialEntries: ['/'] },
+    )
 
     try {
       expect(() =>
@@ -111,8 +114,16 @@ describe('App', () => {
           />,
         ),
       ).not.toThrow()
-      expect(await screen.findByText('Tyrone Control Center')).toBeInTheDocument()
       expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Darstellung speichern' }),
+      )
+      expect(document.documentElement).toHaveAttribute('data-theme', 'light')
+      expect(
+        await screen.findByRole('status', {
+          name: /Warnung: Die Einstellung konnte auf diesem Ger.t nicht dauerhaft gespeichert werden\./,
+        }),
+      ).toBeInTheDocument()
     } finally {
       localStorageGetter.mockRestore()
     }

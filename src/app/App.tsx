@@ -30,7 +30,9 @@ function PreferenceBoundary({ children }: PropsWithChildren) {
 
     return createDevicePreferenceStorage({
       getItem: () => null,
-      setItem: () => undefined,
+      setItem: () => {
+        throw new DOMException('Storage blocked')
+      },
     })
   }, [])
 
