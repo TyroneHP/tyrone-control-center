@@ -8,11 +8,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border: 1px solid rgba(131, 181, 255, 0.3);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   padding: 1rem;
-  background: rgba(12, 37, 69, 0.97);
-  box-shadow: 0 20px 55px rgba(0, 5, 15, 0.42);
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-overlay);
   backdrop-filter: blur(18px);
 }
 

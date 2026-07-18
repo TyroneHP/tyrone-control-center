@@ -13,7 +13,7 @@
 
 .placeholder-page__header p,
 .placeholder-page__status {
-  color: #83b5ff;
+  color: var(--color-accent-text);
   font-size: 0.78rem;
   font-weight: 800;
   letter-spacing: 0.12em;
