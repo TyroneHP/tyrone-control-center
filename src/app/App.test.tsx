@@ -1,10 +1,11 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { QueryClient } from '@tanstack/react-query'
 import { createMemoryRouter } from 'react-router-dom'
 import { vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '../lib/supabase/database.types'
 import { DEVICE_PREFERENCES_KEY } from '../preferences/devicePreferences'
+import { useDevicePreferences } from '../preferences/useDevicePreferences'
 import { App } from './App'
 import { appRoutes } from '../routes/router'
 
@@ -15,6 +16,16 @@ vi.mock('virtual:pwa-register/react', () => ({
     updateServiceWorker: vi.fn(),
   }),
 }))
+
+function PreferenceFailureTrigger() {
+  const { setTheme, theme } = useDevicePreferences()
+
+  return (
+    <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+      Darstellung speichern
+    </button>
+  )
+}
 
 describe('App', () => {
   it('initializes device preferences from browser storage', async () => {
@@ -70,5 +81,35 @@ describe('App', () => {
     expect(
       await screen.findByText('Tyrone Control Center'),
     ).toBeInTheDocument()
+  })
+
+  it('shows a warning when device preferences cannot be persisted', async () => {
+    const setItem = vi
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(() => {
+        throw new Error('Storage unavailable')
+      })
+    const client = {
+      auth: {
+        getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
+        onAuthStateChange: vi.fn(() => ({
+          data: { subscription: { unsubscribe: vi.fn() } },
+        })),
+      },
+    } as unknown as SupabaseClient<Database>
+    const router = createMemoryRouter(
+      [{ element: <PreferenceFailureTrigger />, path: '/' }],
+      { initialEntries: ['/'] },
+    )
+
+    render(<App authClient={client} queryClient={new QueryClient()} router={router} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Darstellung speichern' }))
+
+    expect(
+      await screen.findByRole('status', {
+        name: /Warnung: Die Einstellung konnte auf diesem Gerät nicht dauerhaft gespeichert werden\./,
+      }),
+    ).toBeInTheDocument()
+    setItem.mockRestore()
   })
 })
