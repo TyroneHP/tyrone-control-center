@@ -71,6 +71,7 @@ export function PersonalSettings() {
               <label>
                 <span>Tab {index + 1}</span>
                 <select
+                  aria-label={`Tab ${index + 1}`}
                   onChange={(event) =>
                     setMobileTab(index, event.target.value as PinnableNavigationId)
                   }
