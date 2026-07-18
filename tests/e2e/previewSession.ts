@@ -65,10 +65,12 @@ export async function installPreviewSession(
   )
 
   await page.route('**/*', (route) => {
-    const path = new URL(route.request().url()).pathname
+    const request = route.request()
+    const method = request.method()
+    const path = new URL(request.url()).pathname
 
-    if (path === '/rest/v1/profiles') {
-      const accept = route.request().headers().accept ?? ''
+    if (method === 'GET' && path === '/rest/v1/profiles') {
+      const accept = request.headers().accept ?? ''
       return fulfillJson(
         route,
         accept.includes('application/vnd.pgrst.object+json')
@@ -76,13 +78,18 @@ export async function installPreviewSession(
           : profiles,
       )
     }
-    if (path === '/rest/v1/invitations') return fulfillJson(route, [])
-    if (path === '/rest/v1/rpc/get_account_capacity') {
+    if (method === 'GET' && path === '/rest/v1/invitations') {
+      return fulfillJson(route, [])
+    }
+    if (method === 'POST' && path === '/rest/v1/rpc/get_account_capacity') {
       return fulfillJson(route, { occupied_slots: 2, maximum_slots: 10 })
     }
     if (
+      path === '/rest/v1' ||
       path.startsWith('/rest/v1/') ||
+      path === '/auth/v1' ||
       path.startsWith('/auth/v1/') ||
+      path === '/functions/v1' ||
       path.startsWith('/functions/v1/')
     ) {
       return route.abort('blockedbyclient')
