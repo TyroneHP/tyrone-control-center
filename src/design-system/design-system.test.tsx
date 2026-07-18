@@ -175,6 +175,20 @@ describe('design system', () => {
     }
   })
 
+  it('scopes native touch suppression to the swipeable sheet handle', () => {
+    const styles = readFileSync(
+      resolve(process.cwd(), 'src/design-system/styles.css'),
+      'utf8',
+    )
+
+    expect(styles).toMatch(
+      /\.responsive-dialog__drag-handle--swipeable\s*\{[^}]*touch-action:\s*none;/,
+    )
+    expect(styles).not.toMatch(
+      /\.responsive-dialog__drag-handle\s*\{[^}]*touch-action:/,
+    )
+  })
+
   it('provides accessible controls and feedback primitives', () => {
     render(
       <Card>

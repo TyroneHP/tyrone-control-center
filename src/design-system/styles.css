@@ -318,6 +318,11 @@
     max-height: min(80dvh, 42rem);
     border-bottom: 0;
     border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    translate: 0 var(--responsive-dialog-drag-y, 0px);
+  }
+
+  .responsive-dialog__drag-handle--swipeable {
+    touch-action: none;
   }
 
   .responsive-dialog--sheet .responsive-dialog__actions {

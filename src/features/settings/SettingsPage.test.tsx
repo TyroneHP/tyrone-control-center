@@ -104,6 +104,15 @@ function sessionApi(): AuthApi {
   }
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve
+  })
+
+  return { promise, resolve }
+}
+
 beforeEach(() => {
   vi.stubGlobal(
     'matchMedia',
@@ -419,6 +428,192 @@ describe('SettingsPage', () => {
         name: 'Erfolg: Konto wurde deaktiviert.',
       }),
     ).toBeInTheDocument()
+  })
+
+  it('restores focus after deactivation when the opener is enabled again', async () => {
+    const member = profile(
+      '22222222-2222-2222-2222-222222222222',
+      'member@example.test',
+      'active',
+    )
+    const data: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 2 },
+      invitations: [],
+      profiles: [admin, member],
+    }
+    const refresh = deferred<AccountManagement>()
+    const settingsApi = api(data)
+    vi.mocked(settingsApi.listAccounts)
+      .mockResolvedValueOnce(data)
+      .mockReturnValueOnce(refresh.promise)
+    const user = userEvent.setup()
+    renderPage(admin, data, settingsApi)
+
+    const opener = await screen.findByRole('button', {
+      name: 'Konto von member@example.test deaktivieren',
+    })
+    opener.focus()
+    expect(opener).toHaveFocus()
+    await user.click(opener)
+    await user.click(
+      screen.getByRole('button', { name: 'Deaktivierung bestätigen' }),
+    )
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: 'Konto deaktivieren' }),
+      ).not.toBeInTheDocument(),
+    )
+    expect(opener).toBeDisabled()
+    expect(screen.getByRole('heading', { name: 'Kontoverwaltung' })).toHaveFocus()
+    expect(document.body).not.toHaveFocus()
+
+    await act(async () => {
+      refresh.resolve(data)
+      await refresh.promise
+    })
+
+    await waitFor(() => expect(opener).toBeEnabled())
+    expect(opener).toHaveFocus()
+  })
+
+  it('keeps focus on account management when deactivation removes the opener', async () => {
+    const member = profile(
+      '22222222-2222-2222-2222-222222222222',
+      'member@example.test',
+      'active',
+    )
+    const data: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 2 },
+      invitations: [],
+      profiles: [admin, member],
+    }
+    const refreshedData: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 1 },
+      invitations: [],
+      profiles: [
+        admin,
+        profile(member.id, member.email, 'deactivated'),
+      ],
+    }
+    const refresh = deferred<AccountManagement>()
+    const settingsApi = api(data)
+    vi.mocked(settingsApi.listAccounts)
+      .mockResolvedValueOnce(data)
+      .mockReturnValueOnce(refresh.promise)
+    const user = userEvent.setup()
+    renderPage(admin, data, settingsApi)
+
+    const opener = await screen.findByRole('button', {
+      name: 'Konto von member@example.test deaktivieren',
+    })
+    await user.click(opener)
+    await user.click(
+      screen.getByRole('button', { name: 'Deaktivierung bestätigen' }),
+    )
+    const fallback = screen.getByRole('heading', { name: 'Kontoverwaltung' })
+    await waitFor(() => expect(fallback).toHaveFocus())
+
+    await act(async () => {
+      refresh.resolve(refreshedData)
+      await refresh.promise
+    })
+
+    await waitFor(() => expect(opener).not.toBeInTheDocument())
+    expect(fallback).toHaveFocus()
+    expect(document.body).not.toHaveFocus()
+  })
+
+  it('keeps focus on account management when the opener remains hidden', async () => {
+    const member = profile(
+      '22222222-2222-2222-2222-222222222222',
+      'member@example.test',
+      'active',
+    )
+    const data: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 2 },
+      invitations: [],
+      profiles: [admin, member],
+    }
+    const refresh = deferred<AccountManagement>()
+    const settingsApi = api(data)
+    vi.mocked(settingsApi.listAccounts)
+      .mockResolvedValueOnce(data)
+      .mockReturnValueOnce(refresh.promise)
+    const user = userEvent.setup()
+    renderPage(admin, data, settingsApi)
+
+    const opener = await screen.findByRole('button', {
+      name: 'Konto von member@example.test deaktivieren',
+    })
+    await user.click(opener)
+    await user.click(
+      screen.getByRole('button', { name: 'Deaktivierung bestätigen' }),
+    )
+    const fallback = screen.getByRole('heading', { name: 'Kontoverwaltung' })
+    await waitFor(() => expect(fallback).toHaveFocus())
+    opener.hidden = true
+
+    await act(async () => {
+      refresh.resolve(data)
+      await refresh.promise
+    })
+
+    await waitFor(() => expect(opener).toBeEnabled())
+    expect(opener).not.toBeVisible()
+    expect(fallback).toHaveFocus()
+    expect(document.body).not.toHaveFocus()
+  })
+
+  it('does not overwrite later user focus after successful deactivation', async () => {
+    const member = profile(
+      '22222222-2222-2222-2222-222222222222',
+      'member@example.test',
+      'active',
+    )
+    const data: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 2 },
+      invitations: [],
+      profiles: [admin, member],
+    }
+    const refresh = deferred<AccountManagement>()
+    const settingsApi = api(data)
+    vi.mocked(settingsApi.listAccounts)
+      .mockResolvedValueOnce(data)
+      .mockReturnValueOnce(refresh.promise)
+    const user = userEvent.setup()
+    renderPage(admin, data, settingsApi)
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Konto von member@example.test deaktivieren',
+      }),
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Deaktivierung bestätigen' }),
+    )
+    const fallback = screen.getByRole('heading', { name: 'Kontoverwaltung' })
+    await waitFor(() => expect(fallback).toHaveFocus())
+
+    const laterTarget = screen.getByRole('button', {
+      name: 'Seitenleiste einklappen',
+    })
+    await user.click(laterTarget)
+    expect(laterTarget).toHaveFocus()
+
+    await act(async () => {
+      refresh.resolve(data)
+      await refresh.promise
+    })
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', {
+          name: 'Konto von member@example.test deaktivieren',
+        }),
+      ).toBeEnabled(),
+    )
+    expect(laterTarget).toHaveFocus()
   })
 
   it('keeps a deactivation server error visible inside the critical dialog', async () => {

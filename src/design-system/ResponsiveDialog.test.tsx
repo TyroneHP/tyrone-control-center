@@ -1,4 +1,4 @@
-import { createRef, type RefObject, useState } from 'react'
+import { createRef, type RefObject, useRef, useState } from 'react'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -17,6 +17,27 @@ function installMatchMedia(initialMatches = false) {
     'matchMedia',
     vi.fn((query: string) => ({ ...mediaQueryList, media: query })),
   )
+}
+
+function installPointerCapture(handle: HTMLElement) {
+  const capturedPointers = new Set<number>()
+  const setPointerCapture = vi.fn((pointerId: number) => {
+    capturedPointers.add(pointerId)
+  })
+  const hasPointerCapture = vi.fn((pointerId: number) =>
+    capturedPointers.has(pointerId),
+  )
+  const releasePointerCapture = vi.fn((pointerId: number) => {
+    capturedPointers.delete(pointerId)
+  })
+
+  Object.defineProperties(handle, {
+    hasPointerCapture: { configurable: true, value: hasPointerCapture },
+    releasePointerCapture: { configurable: true, value: releasePointerCapture },
+    setPointerCapture: { configurable: true, value: setPointerCapture },
+  })
+
+  return { hasPointerCapture, releasePointerCapture, setPointerCapture }
 }
 
 function OpenableDialog({
@@ -38,6 +59,42 @@ function OpenableDialog({
       >
         <button ref={initialFocusRef}>Erster Fokus</button>
         <button>Weiter</button>
+      </ResponsiveDialog>
+    </>
+  )
+}
+
+function DisabledOpenerDialog() {
+  const [disabled, setDisabled] = useState(false)
+  const [open, setOpen] = useState(false)
+  const fallbackFocusRef = useRef<HTMLHeadingElement>(null)
+
+  return (
+    <>
+      <h2 ref={fallbackFocusRef} tabIndex={-1}>
+        Stabiles Fokusziel
+      </h2>
+      <button disabled={disabled} onClick={() => setOpen(true)} type="button">
+        Dialog mit Fallback öffnen
+      </button>
+      <ResponsiveDialog
+        actions={
+          <button
+            onClick={() => {
+              setDisabled(true)
+              setOpen(false)
+            }}
+            type="button"
+          >
+            Erfolgreich schließen
+          </button>
+        }
+        onClose={() => setOpen(false)}
+        open={open}
+        restoreFocusFallbackRef={fallbackFocusRef}
+        title="Dialogtitel"
+      >
+        <p>Inhalt</p>
       </ResponsiveDialog>
     </>
   )
@@ -154,6 +211,24 @@ describe('ResponsiveDialog', () => {
     expect(opener).toHaveFocus()
   })
 
+  it('restores focus to a stable fallback when the opener becomes disabled', async () => {
+    installMatchMedia()
+    const user = userEvent.setup()
+    render(<DisabledOpenerDialog />)
+
+    const opener = screen.getByRole('button', {
+      name: 'Dialog mit Fallback öffnen',
+    })
+    await user.click(opener)
+    await user.click(
+      screen.getByRole('button', { name: 'Erfolgreich schließen' }),
+    )
+
+    expect(opener).toBeDisabled()
+    expect(screen.getByRole('heading', { name: 'Stabiles Fokusziel' })).toHaveFocus()
+    expect(document.body).not.toHaveFocus()
+  })
+
   it('uses sheet structure and a drag handle on mobile', () => {
     installMatchMedia(true)
     render(
@@ -164,6 +239,20 @@ describe('ResponsiveDialog', () => {
 
     expect(screen.getByRole('dialog')).toHaveClass('responsive-dialog--sheet')
     expect(screen.getByTestId('responsive-dialog-drag-handle')).toBeInTheDocument()
+  })
+
+  it('keeps the desktop dialog free of bottom-sheet gesture controls', () => {
+    installMatchMedia()
+    render(
+      <ResponsiveDialog onClose={vi.fn()} open title="Dialogtitel">
+        <button>Weiter</button>
+      </ResponsiveDialog>,
+    )
+
+    expect(screen.getByRole('dialog')).not.toHaveClass('responsive-dialog--sheet')
+    expect(
+      screen.queryByTestId('responsive-dialog-drag-handle'),
+    ).not.toBeInTheDocument()
   })
 
   it('closes a non-critical dialog with Escape and backdrop', async () => {
@@ -178,11 +267,105 @@ describe('ResponsiveDialog', () => {
 
     await user.keyboard('{Escape}')
     fireEvent.click(screen.getByTestId('responsive-dialog-backdrop'))
-    const handle = screen.getByTestId('responsive-dialog-drag-handle')
-    fireEvent.pointerDown(handle, { clientY: 12 })
-    fireEvent.pointerUp(handle, { clientY: 85 })
 
-    expect(onClose).toHaveBeenCalledTimes(3)
+    expect(onClose).toHaveBeenCalledTimes(2)
+  })
+
+  it('closes after a dominant downward drag beyond the threshold', () => {
+    installMatchMedia(true)
+    const onClose = vi.fn()
+    render(
+      <ResponsiveDialog dismissible onClose={onClose} open title="Dialogtitel">
+        <button>Weiter</button>
+      </ResponsiveDialog>,
+    )
+    const dialog = screen.getByRole('dialog')
+    const handle = screen.getByTestId('responsive-dialog-drag-handle')
+    const capture = installPointerCapture(handle)
+
+    fireEvent.pointerDown(handle, { clientX: 10, clientY: 10, pointerId: 1 })
+    fireEvent.pointerMove(handle, { clientX: 12, clientY: 90, pointerId: 1 })
+    expect(dialog.style.getPropertyValue('--responsive-dialog-drag-y')).toBe('80px')
+    fireEvent.pointerUp(handle, { clientX: 12, clientY: 90, pointerId: 1 })
+
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(dialog.style.getPropertyValue('--responsive-dialog-drag-y')).toBe('')
+    expect(capture.setPointerCapture).toHaveBeenCalledWith(1)
+    expect(capture.releasePointerCapture).toHaveBeenCalledWith(1)
+  })
+
+  it('resets a short downward drag without closing', () => {
+    installMatchMedia(true)
+    const onClose = vi.fn()
+    render(
+      <ResponsiveDialog dismissible onClose={onClose} open title="Dialogtitel">
+        <button>Weiter</button>
+      </ResponsiveDialog>,
+    )
+    const dialog = screen.getByRole('dialog')
+    const handle = screen.getByTestId('responsive-dialog-drag-handle')
+    const capture = installPointerCapture(handle)
+
+    fireEvent.pointerDown(handle, { clientX: 10, clientY: 10, pointerId: 2 })
+    fireEvent.pointerMove(handle, { clientX: 12, clientY: 50, pointerId: 2 })
+    expect(dialog.style.getPropertyValue('--responsive-dialog-drag-y')).toBe('40px')
+    fireEvent.pointerUp(handle, { clientX: 12, clientY: 50, pointerId: 2 })
+
+    expect(onClose).not.toHaveBeenCalled()
+    expect(dialog.style.getPropertyValue('--responsive-dialog-drag-y')).toBe('')
+    expect(capture.releasePointerCapture).toHaveBeenCalledWith(2)
+  })
+
+  it('fully resets pointer cancellation and accepts a new gesture', () => {
+    installMatchMedia(true)
+    const onClose = vi.fn()
+    render(
+      <ResponsiveDialog dismissible onClose={onClose} open title="Dialogtitel">
+        <button>Weiter</button>
+      </ResponsiveDialog>,
+    )
+    const dialog = screen.getByRole('dialog')
+    const handle = screen.getByTestId('responsive-dialog-drag-handle')
+    const capture = installPointerCapture(handle)
+
+    fireEvent.pointerDown(handle, { clientX: 10, clientY: 10, pointerId: 7 })
+    fireEvent.pointerMove(handle, { clientX: 12, clientY: 90, pointerId: 7 })
+    expect(dialog.style.getPropertyValue('--responsive-dialog-drag-y')).toBe('80px')
+    fireEvent.pointerCancel(handle, { clientX: 12, clientY: 90, pointerId: 7 })
+
+    expect(onClose).not.toHaveBeenCalled()
+    expect(dialog.style.getPropertyValue('--responsive-dialog-drag-y')).toBe('')
+    expect(capture.releasePointerCapture).toHaveBeenCalledWith(7)
+
+    fireEvent.pointerDown(handle, { clientX: 20, clientY: 20, pointerId: 8 })
+    fireEvent.pointerMove(handle, { clientX: 22, clientY: 93, pointerId: 8 })
+    fireEvent.pointerUp(handle, { clientX: 22, clientY: 93, pointerId: 8 })
+
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(capture.setPointerCapture).toHaveBeenLastCalledWith(8)
+    expect(capture.releasePointerCapture).toHaveBeenLastCalledWith(8)
+  })
+
+  it('does not close after a horizontal-dominant gesture', () => {
+    installMatchMedia(true)
+    const onClose = vi.fn()
+    render(
+      <ResponsiveDialog dismissible onClose={onClose} open title="Dialogtitel">
+        <button>Weiter</button>
+      </ResponsiveDialog>,
+    )
+    const dialog = screen.getByRole('dialog')
+    const handle = screen.getByTestId('responsive-dialog-drag-handle')
+    const capture = installPointerCapture(handle)
+
+    fireEvent.pointerDown(handle, { clientX: 10, clientY: 10, pointerId: 9 })
+    fireEvent.pointerMove(handle, { clientX: 130, clientY: 90, pointerId: 9 })
+    expect(dialog.style.getPropertyValue('--responsive-dialog-drag-y')).toBe('')
+    fireEvent.pointerUp(handle, { clientX: 130, clientY: 90, pointerId: 9 })
+
+    expect(onClose).not.toHaveBeenCalled()
+    expect(dialog.style.getPropertyValue('--responsive-dialog-drag-y')).toBe('')
+    expect(capture.releasePointerCapture).toHaveBeenCalledWith(9)
   })
 
   it('shows a labelled close control only for dismissible dialogs', async () => {
@@ -277,10 +460,16 @@ describe('ResponsiveDialog', () => {
     await user.keyboard('{Escape}')
     fireEvent.click(screen.getByTestId('responsive-dialog-backdrop'))
     const handle = screen.getByTestId('responsive-dialog-drag-handle')
-    fireEvent.pointerDown(handle, { clientY: 12 })
-    fireEvent.pointerUp(handle, { clientY: 85 })
+    const capture = installPointerCapture(handle)
+    fireEvent.pointerDown(handle, { clientX: 10, clientY: 12, pointerId: 10 })
+    fireEvent.pointerMove(handle, { clientX: 12, clientY: 85, pointerId: 10 })
+    fireEvent.pointerUp(handle, { clientX: 12, clientY: 85, pointerId: 10 })
 
     expect(onClose).not.toHaveBeenCalled()
+    expect(capture.setPointerCapture).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog').style.getPropertyValue('--responsive-dialog-drag-y')).toBe(
+      '',
+    )
   })
 
   it('keeps Tab focus inside and honors the initial focus ref', async () => {

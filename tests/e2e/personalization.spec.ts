@@ -108,3 +108,70 @@ test('keeps mobile navigation immediately operable with reduced motion', async (
   await destinations.getByRole('link', { name: 'Kalender' }).click()
   await expect(page).toHaveURL(/\/calendar$/)
 })
+
+test('resets a cancelled mobile sheet gesture without overflow', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'iphone-webkit')
+  await installPreviewSession(page, 'member')
+  await page.goto('/settings')
+
+  const mobile = page.getByRole('navigation', { name: 'Mobile Navigation' })
+  await mobile.getByRole('button', { name: 'Mehr' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Alle Bereiche' })
+  const handle = dialog.getByTestId('responsive-dialog-drag-handle')
+  await expect(handle).toHaveCSS('touch-action', 'none')
+
+  const contentPadding = await dialog
+    .locator('.responsive-dialog__content')
+    .evaluate((element) => Number.parseFloat(getComputedStyle(element).paddingBottom))
+  expect(contentPadding).toBeGreaterThanOrEqual(24)
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true)
+
+  const dispatchPointer = async (
+    type: 'pointercancel' | 'pointerdown' | 'pointermove' | 'pointerup',
+    init: { clientX: number; clientY: number; pointerId: number },
+  ) => {
+    await handle.evaluate(
+      (element, event) => {
+        element.dispatchEvent(
+          new PointerEvent(event.type, {
+            bubbles: true,
+            clientX: event.clientX,
+            clientY: event.clientY,
+            pointerId: event.pointerId,
+            pointerType: 'touch',
+          }),
+        )
+      },
+      { ...init, type },
+    )
+  }
+
+  await dispatchPointer('pointerdown', { clientX: 10, clientY: 10, pointerId: 7 })
+  await dispatchPointer('pointermove', { clientX: 12, clientY: 90, pointerId: 7 })
+  await expect
+    .poll(() =>
+      dialog.evaluate((element) =>
+        element.style.getPropertyValue('--responsive-dialog-drag-y'),
+      ),
+    )
+    .toBe('80px')
+  await dispatchPointer('pointercancel', { clientX: 12, clientY: 90, pointerId: 7 })
+  await expect
+    .poll(() =>
+      dialog.evaluate((element) =>
+        element.style.getPropertyValue('--responsive-dialog-drag-y'),
+      ),
+    )
+    .toBe('')
+
+  await dispatchPointer('pointerdown', { clientX: 20, clientY: 20, pointerId: 8 })
+  await dispatchPointer('pointermove', { clientX: 22, clientY: 95, pointerId: 8 })
+  await dispatchPointer('pointerup', { clientX: 22, clientY: 95, pointerId: 8 })
+  await expect(dialog).toBeHidden()
+})

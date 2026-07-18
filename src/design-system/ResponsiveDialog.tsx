@@ -3,6 +3,7 @@ import {
   type PointerEvent,
   type ReactNode,
   type RefObject,
+  useCallback,
   useEffect,
   useId,
   useRef,
@@ -18,6 +19,7 @@ export interface ResponsiveDialogProps {
   initialFocusRef?: RefObject<HTMLElement | null>
   onClose: () => void
   open: boolean
+  restoreFocusFallbackRef?: RefObject<HTMLElement | null>
   title: string
 }
 
@@ -28,6 +30,16 @@ const focusableSelector = [
   'select:not([disabled])',
   'textarea:not([disabled])',
 ].join(', ')
+
+const SWIPE_DISMISS_DISTANCE = 72
+const SWIPE_OFFSET_PROPERTY = '--responsive-dialog-drag-y'
+
+interface ActiveSwipe {
+  captureTarget: HTMLDivElement
+  pointerId: number
+  startX: number
+  startY: number
+}
 
 function getFocusableElements(container: HTMLElement | null) {
   if (!container) return []
@@ -107,6 +119,7 @@ function registerModal(
   dialog: HTMLElement,
   interactionRoot: HTMLElement,
   restoreFocusTarget: HTMLElement | null,
+  restoreFocusFallbackTarget: HTMLElement | null,
 ) {
   const ownerDocument = dialog.ownerDocument
   const previousModal = topModal()
@@ -116,6 +129,7 @@ function registerModal(
     restoreFocusTargets: [
       ...(restoreFocusTarget ? [restoreFocusTarget] : []),
       ...(previousModal?.restoreFocusTargets ?? []),
+      ...(restoreFocusFallbackTarget ? [restoreFocusFallbackTarget] : []),
     ],
   }
 
@@ -201,13 +215,30 @@ export function ResponsiveDialog({
   initialFocusRef,
   onClose,
   open,
+  restoreFocusFallbackRef,
   title,
 }: ResponsiveDialogProps) {
   const isMobile = useMediaQuery('(max-width: 767px)')
   const dialogRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
-  const pointerStartYRef = useRef<number | null>(null)
+  const activeSwipeRef = useRef<ActiveSwipe | null>(null)
   const titleId = useId()
+
+  const resetSwipeGesture = useCallback(() => {
+    const activeSwipe = activeSwipeRef.current
+    activeSwipeRef.current = null
+    dialogRef.current?.style.removeProperty(SWIPE_OFFSET_PROPERTY)
+
+    if (!activeSwipe) return
+
+    try {
+      if (activeSwipe.captureTarget.hasPointerCapture?.(activeSwipe.pointerId)) {
+        activeSwipe.captureTarget.releasePointerCapture?.(activeSwipe.pointerId)
+      }
+    } catch {
+      // The browser may already have released capture while cancelling the pointer.
+    }
+  }, [])
 
   useEffect(() => {
     if (!open || typeof document === 'undefined') return
@@ -222,14 +253,22 @@ export function ResponsiveDialog({
       dialog,
       interactionRoot,
       restoreFocusTarget,
+      restoreFocusFallbackRef?.current ?? null,
     )
 
     const initialFocus =
       initialFocusRef?.current ?? getFocusableElements(dialog)[0] ?? dialog
     initialFocus?.focus()
 
-    return unregisterModal
-  }, [initialFocusRef, open])
+    return () => {
+      resetSwipeGesture()
+      unregisterModal()
+    }
+  }, [initialFocusRef, open, resetSwipeGesture, restoreFocusFallbackRef])
+
+  useEffect(() => {
+    if (!dismissible || !isMobile) resetSwipeGesture()
+  }, [dismissible, isMobile, resetSwipeGesture])
 
   if (!open || typeof document === 'undefined') return null
 
@@ -263,17 +302,52 @@ export function ResponsiveDialog({
   }
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    pointerStartYRef.current = event.clientY
-    event.currentTarget.setPointerCapture?.(event.pointerId)
+    if (!dismissible || !isMobile || activeSwipeRef.current) return
+
+    activeSwipeRef.current = {
+      captureTarget: event.currentTarget,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+    }
+
+    try {
+      event.currentTarget.setPointerCapture?.(event.pointerId)
+    } catch {
+      // Pointer tracking still works while the pointer remains over the handle.
+    }
+  }
+
+  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const activeSwipe = activeSwipeRef.current
+    if (!activeSwipe || activeSwipe.pointerId !== event.pointerId) return
+
+    const deltaX = event.clientX - activeSwipe.startX
+    const deltaY = event.clientY - activeSwipe.startY
+    const dragY = deltaY > 0 && deltaY > Math.abs(deltaX) ? deltaY : 0
+
+    if (dragY > 0) {
+      dialogRef.current?.style.setProperty(SWIPE_OFFSET_PROPERTY, `${dragY}px`)
+    } else {
+      dialogRef.current?.style.removeProperty(SWIPE_OFFSET_PROPERTY)
+    }
   }
 
   const handlePointerUp = (event: PointerEvent<HTMLDivElement>) => {
-    const pointerStartY = pointerStartYRef.current
-    pointerStartYRef.current = null
+    const activeSwipe = activeSwipeRef.current
+    if (!activeSwipe || activeSwipe.pointerId !== event.pointerId) return
 
-    if (dismissible && isMobile && pointerStartY !== null && event.clientY - pointerStartY >= 72) {
-      onClose()
-    }
+    const deltaX = event.clientX - activeSwipe.startX
+    const deltaY = event.clientY - activeSwipe.startY
+    const shouldClose =
+      deltaY >= SWIPE_DISMISS_DISTANCE && deltaY > Math.abs(deltaX)
+
+    resetSwipeGesture()
+    if (shouldClose) onClose()
+  }
+
+  const handlePointerCancel = (event: PointerEvent<HTMLDivElement>) => {
+    if (activeSwipeRef.current?.pointerId === event.pointerId) resetSwipeGesture()
   }
 
   return createPortal(
@@ -299,12 +373,14 @@ export function ResponsiveDialog({
         {isMobile ? (
           <div
             aria-hidden="true"
-            className="responsive-dialog__drag-handle"
+            className={`responsive-dialog__drag-handle${
+              dismissible ? ' responsive-dialog__drag-handle--swipeable' : ''
+            }`}
             data-testid="responsive-dialog-drag-handle"
-            onPointerCancel={() => {
-              pointerStartYRef.current = null
-            }}
+            onLostPointerCapture={handlePointerCancel}
+            onPointerCancel={handlePointerCancel}
             onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
           />
         ) : null}

@@ -1,4 +1,10 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import {
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ResponsiveDialog, useToast } from '../../design-system'
 import {
@@ -45,6 +51,32 @@ function accountErrorMessage(error: unknown, fallback: string) {
   return error instanceof AccountFunctionError ? error.message : fallback
 }
 
+function isVisibleFocusTarget(element: HTMLButtonElement) {
+  if (
+    !element.isConnected ||
+    element.disabled ||
+    element.closest('[hidden], [aria-hidden="true"], [inert]')
+  ) {
+    return false
+  }
+
+  const view = element.ownerDocument.defaultView
+  for (let current: HTMLElement | null = element; current; current = current.parentElement) {
+    const styles = view?.getComputedStyle(current)
+    if (
+      styles?.display === 'none' ||
+      styles?.visibility === 'hidden' ||
+      styles?.visibility === 'collapse' ||
+      styles?.opacity === '0' ||
+      styles?.contentVisibility === 'hidden'
+    ) {
+      return false
+    }
+  }
+
+  return true
+}
+
 export function AdminAccountManagement({
   api = getSettingsApi(),
   profile,
@@ -56,6 +88,9 @@ export function AdminAccountManagement({
   const toast = useToast()
   const [email, setEmail] = useState('')
   const [confirmation, setConfirmation] = useState<Profile | null>(null)
+  const accountManagementTitleRef = useRef<HTMLHeadingElement>(null)
+  const deactivationOpenerRef = useRef<HTMLButtonElement>(null)
+  const pendingDeactivationFocusRef = useRef<HTMLButtonElement | null>(null)
   const isAdmin = profile.role === 'admin' && profile.status === 'active'
   const accountsQuery = useQuery({
     enabled: isAdmin,
@@ -75,6 +110,9 @@ export function AdminAccountManagement({
   const manageMutation = useMutation({
     mutationFn: (request: ManageUserRequest) => api.manageUser(request),
     onSuccess: async (_data, request) => {
+      if (request.action === 'deactivate') {
+        pendingDeactivationFocusRef.current = deactivationOpenerRef.current
+      }
       setConfirmation(null)
       toast.show({
         message:
@@ -98,6 +136,21 @@ export function AdminAccountManagement({
   const capacityReached = capacityKnown && occupiedSlots >= maximumSlots
   const capacityControlsDisabled = !capacityKnown || capacityReached
 
+  useLayoutEffect(() => {
+    if (manageMutation.isPending) return
+
+    const opener = pendingDeactivationFocusRef.current
+    if (!opener) return
+    pendingDeactivationFocusRef.current = null
+
+    const fallback = accountManagementTitleRef.current
+    if (!fallback || fallback.ownerDocument.activeElement !== fallback) return
+    if (!isVisibleFocusTarget(opener)) return
+
+    opener.focus()
+    if (opener.ownerDocument.activeElement !== opener) fallback.focus()
+  }, [manageMutation.isPending])
+
   function submitInvitation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!email.trim() || capacityControlsDisabled) return
@@ -109,7 +162,9 @@ export function AdminAccountManagement({
       <header className="settings-admin__header">
         <div>
           <p className="settings-page__eyebrow">Administration</p>
-          <h2 id="account-management-title">Kontoverwaltung</h2>
+          <h2 id="account-management-title" ref={accountManagementTitleRef} tabIndex={-1}>
+            Kontoverwaltung
+          </h2>
           <p>Einladungen, Zugänge und die serverseitige Kontogrenze verwalten.</p>
         </div>
         <div className="settings-capacity" aria-live="polite">
@@ -210,7 +265,8 @@ export function AdminAccountManagement({
                         aria-label={`Konto von ${item.email} deaktivieren`}
                         className="button-secondary button-danger"
                         disabled={manageMutation.isPending}
-                        onClick={() => {
+                        onClick={(event) => {
+                          deactivationOpenerRef.current = event.currentTarget
                           manageMutation.reset()
                           setConfirmation(item)
                         }}
@@ -301,6 +357,7 @@ export function AdminAccountManagement({
           dismissible={false}
           onClose={() => setConfirmation(null)}
           open
+          restoreFocusFallbackRef={accountManagementTitleRef}
           title="Konto deaktivieren"
         >
           <p>
