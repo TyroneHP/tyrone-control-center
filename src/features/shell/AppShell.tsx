@@ -1,29 +1,13 @@
 import { useState, type ReactNode } from 'react'
 import { Menu, X } from 'lucide-react'
-import { NavLink } from 'react-router-dom'
 import '../../design-system/tokens.css'
 import './AppShell.css'
-import { navigationItems, type NavigationItem } from './navigation'
+import { DesktopSidebar } from './DesktopSidebar'
+import { NavigationLink } from './NavigationLink'
+import { navigationItems } from './navigation'
 
 export interface AppShellProps {
   children: ReactNode
-}
-
-function NavigationLink({ item }: { item: NavigationItem }) {
-  const Icon = item.icon
-
-  return (
-    <NavLink
-      className={({ isActive }) =>
-        `app-navigation__link${isActive ? ' app-navigation__link--active' : ''}`
-      }
-      end={item.path === '/'}
-      to={item.path}
-    >
-      <Icon aria-hidden="true" size={20} strokeWidth={1.8} />
-      <span>{item.label}</span>
-    </NavLink>
-  )
 }
 
 export function AppShell({ children }: AppShellProps) {
@@ -33,17 +17,7 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="app-shell">
-      <aside className="app-shell__sidebar">
-        <div className="app-shell__brand">
-          <span className="app-shell__brand-mark">TC</span>
-          <span>Tyrone Control Center</span>
-        </div>
-        <nav aria-label="Desktop-Navigation" className="app-navigation">
-          {navigationItems.map((item) => (
-            <NavigationLink item={item} key={item.path} />
-          ))}
-        </nav>
-      </aside>
+      <DesktopSidebar />
 
       <main className="app-shell__content">{children}</main>
 

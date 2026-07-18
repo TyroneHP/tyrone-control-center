@@ -4,7 +4,26 @@ import { describe, expect, it, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '../lib/supabase/database.types'
 import { AuthProvider } from '../features/auth'
+import { DevicePreferencesProvider } from '../preferences/DevicePreferencesProvider'
+import { DEFAULT_DEVICE_PREFERENCES } from '../preferences/devicePreferences'
 import { appRoutes } from './router'
+
+const deviceStorage = {
+  read: () => DEFAULT_DEVICE_PREFERENCES,
+  write: () => true,
+}
+
+function installWideMatchMedia() {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn(() => ({
+      addEventListener: vi.fn(),
+      matches: false,
+      media: '(max-width: 1099px)',
+      removeEventListener: vi.fn(),
+    })),
+  )
+}
 
 function clientWithoutSession() {
   return {
@@ -56,11 +75,14 @@ function activeClient() {
 }
 
 function renderRoute(path: string, client: SupabaseClient<Database>) {
+  installWideMatchMedia()
   const router = createMemoryRouter(appRoutes, { initialEntries: [path] })
   render(
-    <AuthProvider client={client}>
-      <RouterProvider router={router} />
-    </AuthProvider>,
+    <DevicePreferencesProvider storage={deviceStorage}>
+      <AuthProvider client={client}>
+        <RouterProvider router={router} />
+      </AuthProvider>
+    </DevicePreferencesProvider>,
   )
 }
 

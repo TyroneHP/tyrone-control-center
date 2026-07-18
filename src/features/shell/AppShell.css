@@ -1,4 +1,6 @@
 .app-shell {
+  --sidebar-width: 248px;
+  --sidebar-collapsed-width: 76px;
   min-height: 100vh;
 }
 
@@ -7,13 +9,37 @@
   inset: 0 auto 0 0;
   z-index: 20;
   display: flex;
-  width: 248px;
+  width: var(--sidebar-width);
   flex-direction: column;
   gap: 1.5rem;
   border-right: 1px solid var(--color-border);
   background: var(--color-glass);
-  padding: 1.35rem 1rem;
+  padding:
+    calc(1.35rem + env(safe-area-inset-top))
+    calc(1rem + env(safe-area-inset-right))
+    calc(1.35rem + env(safe-area-inset-bottom))
+    calc(1rem + env(safe-area-inset-left));
   backdrop-filter: blur(18px);
+  transition: width var(--motion-normal) var(--motion-ease);
+}
+
+.app-shell__sidebar[data-collapsed='true'] {
+  width: var(--sidebar-collapsed-width);
+}
+
+.app-shell__sidebar[data-collapsed='true'] .app-shell__brand {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.app-shell__sidebar[data-collapsed='true'] .app-shell__brand-name,
+.app-navigation__link--collapsed > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .app-shell__brand {
@@ -59,6 +85,11 @@
   padding: 0.7rem 0.75rem;
 }
 
+.app-navigation__link--collapsed {
+  justify-content: center;
+  padding-inline: 0.7rem;
+}
+
 .app-navigation__link:hover,
 .app-navigation__link--active {
   border-color: var(--color-border);
@@ -72,8 +103,30 @@
 
 .app-shell__content {
   min-height: 100vh;
-  margin-left: 248px;
+  margin-left: var(--sidebar-width);
   padding: clamp(1.25rem, 3vw, 2.5rem);
+  transition: margin-left var(--motion-normal) var(--motion-ease);
+}
+
+.app-shell:has(.app-shell__sidebar[data-collapsed='true']) .app-shell__content {
+  margin-left: var(--sidebar-collapsed-width);
+}
+
+.app-shell__sidebar-toggle {
+  display: grid;
+  width: 44px;
+  min-height: 44px;
+  place-items: center;
+  align-self: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-soft);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.app-shell__sidebar-toggle:hover {
+  color: var(--color-text);
 }
 
 .mobile-navigation {
@@ -88,6 +141,10 @@
   .app-shell__content {
     margin-left: 0;
     padding: 1rem 1rem calc(6.25rem + env(safe-area-inset-bottom));
+  }
+
+  .app-shell:has(.app-shell__sidebar[data-collapsed='true']) .app-shell__content {
+    margin-left: 0;
   }
 
   .mobile-navigation {
