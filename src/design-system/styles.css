@@ -118,6 +118,100 @@
   animation: loading-spin 800ms linear infinite;
 }
 
+.responsive-dialog__overlay {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: var(--color-overlay);
+}
+
+.responsive-dialog {
+  display: grid;
+  width: min(100%, 34rem);
+  max-height: min(42rem, calc(100dvh - 3rem));
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-overlay);
+  animation: responsive-dialog-enter var(--motion-normal) var(--motion-ease) both;
+}
+
+.responsive-dialog__header,
+.responsive-dialog__content,
+.responsive-dialog__actions {
+  padding-inline: clamp(1rem, 3vw, 1.5rem);
+}
+
+.responsive-dialog__header {
+  padding-top: 1.5rem;
+}
+
+.responsive-dialog__header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.responsive-dialog__content {
+  display: grid;
+  gap: 1rem;
+  padding-block: 1rem;
+}
+
+.responsive-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding-bottom: 1.5rem;
+}
+
+.responsive-dialog__drag-handle {
+  width: 2.75rem;
+  height: 0.3rem;
+  justify-self: center;
+  margin-top: 0.75rem;
+  border-radius: 999px;
+  background: var(--color-border);
+}
+
+@keyframes responsive-dialog-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 767px) {
+  .responsive-dialog__overlay {
+    align-items: end;
+    padding: 0;
+  }
+
+  .responsive-dialog--sheet {
+    width: 100%;
+    max-height: min(80dvh, 42rem);
+    border-bottom: 0;
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  }
+
+  .responsive-dialog--sheet .responsive-dialog__actions {
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  }
+
+  .responsive-dialog--sheet .responsive-dialog__content:last-child {
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  }
+}
+
 .theme-switch {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -192,5 +286,9 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .responsive-dialog {
+    animation: none;
   }
 }

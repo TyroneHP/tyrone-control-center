@@ -13,3 +13,7 @@ export {
   LoadingIndicator,
   type LoadingIndicatorProps,
 } from './LoadingIndicator'
+export {
+  ResponsiveDialog,
+  type ResponsiveDialogProps,
+} from './ResponsiveDialog'
