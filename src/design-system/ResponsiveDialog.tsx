@@ -37,6 +37,163 @@ function getFocusableElements(container: HTMLElement | null) {
   )
 }
 
+interface ModalEntry {
+  dialog: HTMLElement
+  interactionRoot: HTMLElement
+  restoreFocusTargets: HTMLElement[]
+}
+
+interface ScrollStyles {
+  bodyOverflow: string
+  bodyOverscrollBehavior: string
+  rootOverflow: string
+  rootOverscrollBehavior: string
+}
+
+const modalStack: ModalEntry[] = []
+let modalDocument: Document | null = null
+let previousScrollStyles: ScrollStyles | null = null
+
+function topModal() {
+  return modalStack[modalStack.length - 1]
+}
+
+function focusTopModal() {
+  const modal = topModal()
+  if (!modal) return
+
+  const activeElement = modal.dialog.ownerDocument.activeElement
+  if (activeElement && modal.dialog.contains(activeElement)) return
+
+  const target = getFocusableElements(modal.dialog)[0] ?? modal.dialog
+  target.focus()
+}
+
+function restoreFocus(
+  targets: HTMLElement[],
+  within: HTMLElement | null = null,
+) {
+  for (const target of targets) {
+    if (!target.isConnected || (within && !within.contains(target))) continue
+    target.focus()
+    if (target.ownerDocument.activeElement === target) return true
+  }
+
+  return false
+}
+
+function handleDocumentFocus(event: Event) {
+  const modal = topModal()
+  if (!(event.target instanceof Node) || modal?.dialog.contains(event.target)) return
+  focusTopModal()
+}
+
+function blockOutsideModalInteraction(event: Event) {
+  const modal = topModal()
+  if (
+    !modal ||
+    !(event.target instanceof Node) ||
+    modal.interactionRoot.contains(event.target)
+  ) {
+    return
+  }
+
+  event.preventDefault()
+  event.stopPropagation()
+  event.stopImmediatePropagation()
+}
+
+function registerModal(
+  dialog: HTMLElement,
+  interactionRoot: HTMLElement,
+  restoreFocusTarget: HTMLElement | null,
+) {
+  const ownerDocument = dialog.ownerDocument
+  const previousModal = topModal()
+  const entry = {
+    dialog,
+    interactionRoot,
+    restoreFocusTargets: [
+      ...(restoreFocusTarget ? [restoreFocusTarget] : []),
+      ...(previousModal?.restoreFocusTargets ?? []),
+    ],
+  }
+
+  if (modalStack.length === 0) {
+    const root = ownerDocument.documentElement
+    const body = ownerDocument.body
+    modalDocument = ownerDocument
+    previousScrollStyles = {
+      bodyOverflow: body.style.overflow,
+      bodyOverscrollBehavior: body.style.overscrollBehavior,
+      rootOverflow: root.style.overflow,
+      rootOverscrollBehavior: root.style.overscrollBehavior,
+    }
+    root.style.overflow = 'hidden'
+    root.style.overscrollBehavior = 'contain'
+    body.style.overflow = 'hidden'
+    body.style.overscrollBehavior = 'contain'
+    ownerDocument.addEventListener('focusin', handleDocumentFocus, true)
+    ownerDocument.addEventListener(
+      'pointerdown',
+      blockOutsideModalInteraction,
+      true,
+    )
+    ownerDocument.addEventListener('click', blockOutsideModalInteraction, true)
+  }
+
+  modalStack.push(entry)
+
+  return () => {
+    const entryIndex = modalStack.indexOf(entry)
+    if (entryIndex < 0) return
+
+    const wasTopModal = entryIndex === modalStack.length - 1
+    modalStack.splice(entryIndex, 1)
+
+    if (modalStack.length > 0) {
+      if (wasTopModal) {
+        const remainingModal = topModal()
+        if (
+          !remainingModal ||
+          !restoreFocus(entry.restoreFocusTargets, remainingModal.dialog)
+        ) {
+          focusTopModal()
+        }
+      }
+      return
+    }
+
+    const documentToRestore = modalDocument
+    const stylesToRestore = previousScrollStyles
+    modalDocument = null
+    previousScrollStyles = null
+
+    if (documentToRestore && stylesToRestore) {
+      documentToRestore.removeEventListener('focusin', handleDocumentFocus, true)
+      documentToRestore.removeEventListener(
+        'pointerdown',
+        blockOutsideModalInteraction,
+        true,
+      )
+      documentToRestore.removeEventListener(
+        'click',
+        blockOutsideModalInteraction,
+        true,
+      )
+      documentToRestore.documentElement.style.overflow =
+        stylesToRestore.rootOverflow
+      documentToRestore.documentElement.style.overscrollBehavior =
+        stylesToRestore.rootOverscrollBehavior
+      documentToRestore.body.style.overflow = stylesToRestore.bodyOverflow
+      documentToRestore.body.style.overscrollBehavior =
+        stylesToRestore.bodyOverscrollBehavior
+    }
+
+    restoreFocus(entry.restoreFocusTargets)
+  }
+}
+
 export function ResponsiveDialog({
   actions,
   children,
@@ -48,41 +205,30 @@ export function ResponsiveDialog({
 }: ResponsiveDialogProps) {
   const isMobile = useMediaQuery('(max-width: 767px)')
   const dialogRef = useRef<HTMLDivElement>(null)
-  const previousFocusRef = useRef<HTMLElement | null>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
   const pointerStartYRef = useRef<number | null>(null)
   const titleId = useId()
 
   useEffect(() => {
     if (!open || typeof document === 'undefined') return
 
-    previousFocusRef.current =
+    const restoreFocusTarget =
       document.activeElement instanceof HTMLElement ? document.activeElement : null
 
-    const root = document.documentElement
-    const body = document.body
-    const previousScrollStyles = {
-      bodyOverflow: body.style.overflow,
-      bodyOverscrollBehavior: body.style.overscrollBehavior,
-      rootOverflow: root.style.overflow,
-      rootOverscrollBehavior: root.style.overscrollBehavior,
-    }
-    root.style.overflow = 'hidden'
-    root.style.overscrollBehavior = 'contain'
-    body.style.overflow = 'hidden'
-    body.style.overscrollBehavior = 'contain'
+    const dialog = dialogRef.current
+    const interactionRoot = overlayRef.current
+    if (!dialog || !interactionRoot) return
+    const unregisterModal = registerModal(
+      dialog,
+      interactionRoot,
+      restoreFocusTarget,
+    )
 
     const initialFocus =
-      initialFocusRef?.current ?? getFocusableElements(dialogRef.current)[0] ?? dialogRef.current
+      initialFocusRef?.current ?? getFocusableElements(dialog)[0] ?? dialog
     initialFocus?.focus()
 
-    return () => {
-      root.style.overflow = previousScrollStyles.rootOverflow
-      root.style.overscrollBehavior = previousScrollStyles.rootOverscrollBehavior
-      body.style.overflow = previousScrollStyles.bodyOverflow
-      body.style.overscrollBehavior = previousScrollStyles.bodyOverscrollBehavior
-      previousFocusRef.current?.focus()
-      previousFocusRef.current = null
-    }
+    return unregisterModal
   }, [initialFocusRef, open])
 
   if (!open || typeof document === 'undefined') return null
@@ -137,6 +283,7 @@ export function ResponsiveDialog({
       onClick={(event) => {
         if (dismissible && event.target === event.currentTarget) onClose()
       }}
+      ref={overlayRef}
     >
       <div
         aria-labelledby={titleId}
