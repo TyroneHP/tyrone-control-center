@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(112);
+select plan(118);
 
 select has_type('public', 'app_role', 'app_role enum exists');
 select has_type('public', 'profile_status', 'profile_status enum exists');
@@ -352,16 +352,40 @@ select lives_ok(
   $$select public.reserve_invitation('member3@example.test', 'member', '11111111-1111-1111-1111-111111111111', now() + interval '7 days')$$,
   'third member slot can be reserved'
 );
+select lives_ok(
+  $$select public.reserve_invitation('member4@example.test', 'member', '11111111-1111-1111-1111-111111111111', now() + interval '7 days')$$,
+  'fourth member slot can be reserved'
+);
+select lives_ok(
+  $$select public.reserve_invitation('member5@example.test', 'member', '11111111-1111-1111-1111-111111111111', now() + interval '7 days')$$,
+  'fifth member slot can be reserved'
+);
+select lives_ok(
+  $$select public.reserve_invitation('member6@example.test', 'member', '11111111-1111-1111-1111-111111111111', now() + interval '7 days')$$,
+  'sixth member slot can be reserved'
+);
+select lives_ok(
+  $$select public.reserve_invitation('member7@example.test', 'member', '11111111-1111-1111-1111-111111111111', now() + interval '7 days')$$,
+  'seventh member slot can be reserved'
+);
+select lives_ok(
+  $$select public.reserve_invitation('member8@example.test', 'member', '11111111-1111-1111-1111-111111111111', now() + interval '7 days')$$,
+  'eighth member slot can be reserved'
+);
+select lives_ok(
+  $$select public.reserve_invitation('member9@example.test', 'member', '11111111-1111-1111-1111-111111111111', now() + interval '7 days')$$,
+  'ninth member slot can be reserved'
+);
 select is(
   (select count(*) from public.activity_log where action = 'invitation.created'),
-  4::bigint,
+  10::bigint,
   'every successful reservation is audited in its database transaction'
 );
 select throws_ok(
-  $$select public.reserve_invitation('member4@example.test', 'member', '11111111-1111-1111-1111-111111111111', now() + interval '7 days')$$,
+  $$select public.reserve_invitation('member10@example.test', 'member', '11111111-1111-1111-1111-111111111111', now() + interval '7 days')$$,
   'P0001',
   'ACCOUNT_CAPACITY_REACHED',
-  'fifth account reservation is rejected transactionally'
+  'eleventh account reservation is rejected transactionally'
 );
 select throws_ok(
   $$
@@ -587,7 +611,7 @@ reset role;
 set local "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
 set local role authenticated;
 select is((select count(*) from public.profiles), 2::bigint, 'admin sees all profiles');
-select is((select count(*) from public.invitations), 5::bigint, 'admin sees all invitation states');
+select is((select count(*) from public.invitations), 11::bigint, 'admin sees all invitation states');
 select is(
   (select count(*) from public.activity_log where action = 'invitation.accepted'),
   2::bigint,

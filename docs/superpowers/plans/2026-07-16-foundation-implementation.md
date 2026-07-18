@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Deliver Milestone 1 as a deployable Slate-style React PWA with GitHub Pages CI, Supabase e-mail/password authentication, invitation-only onboarding, a transactionally enforced four-account limit, administrator user management, baseline RLS/auditing, and offline application-shell loading.
+**Goal:** Deliver Milestone 1 as a deployable Slate-style React PWA with GitHub Pages CI, Supabase e-mail/password authentication, invitation-only onboarding, a transactionally enforced ten-account limit, administrator user management, baseline RLS/auditing, and offline application-shell loading.
 
-**Architecture:** The browser runs a static React + TypeScript application from GitHub Pages. Public Supabase configuration is supplied at build time; all privileged account operations run through Supabase Edge Functions using the project secret key. PostgreSQL owns account-capacity enforcement, invitation state, profiles, and audit records so browser checks cannot bypass the four-user rule.
+**Architecture:** The browser runs a static React + TypeScript application from GitHub Pages. Public Supabase configuration is supplied at build time; all privileged account operations run through Supabase Edge Functions using the project secret key. PostgreSQL owns account-capacity enforcement, invitation state, profiles, and audit records so browser checks cannot bypass the ten-user rule.
 
 **Tech Stack:** Node.js 22.12+, npm, React, TypeScript, Vite, React Router, TanStack Query, Supabase JS/CLI, React Hook Form, Zod, Vitest, React Testing Library, Playwright, vite-plugin-pwa, GitHub Actions.
 
@@ -15,7 +15,7 @@
 - Node.js floor: `22.12.0`; npm only.
 - User-facing copy is German; code/database identifiers and commits are English.
 - Entire UI uses the approved dark Navy/Slate design with lighter blue accents.
-- Exactly four invited/active account slots, enforced transactionally in PostgreSQL.
+- Exactly ten occupied or reserved account slots, enforced transactionally in PostgreSQL.
 - First account can only be bootstrapped for `BOOTSTRAP_ADMIN_EMAIL`.
 - Public registration remains disabled; all later users require administrator invitations.
 - Admin rights never expose another user’s future private content.
@@ -192,7 +192,7 @@ select
     where status = 'pending' and expires_at > now() and auth_user_id is null)
 into v_reserved_count;
 
-if v_reserved_count >= 4 then
+if v_reserved_count >= public.account_capacity_limit() then
   raise exception using errcode = 'P0001', message = 'ACCOUNT_CAPACITY_REACHED';
 end if;
 ```
@@ -312,7 +312,7 @@ supabase.functions.invoke('bootstrap-admin', ...)
 **Files:** `manage-user` and cleanup Edge Functions, `src/features/settings/*`, tests.
 
 - [ ] Admin page shows active/invited/deactivated profiles, invitation state, and occupied/reserved slots.
-- [ ] Invite button disables at four reserved slots.
+- [ ] Invite button disables at the database-reported maximum of ten occupied or reserved slots.
 - [ ] `manage-user` request union:
 
 ```ts
@@ -326,7 +326,7 @@ type ManageUserRequest =
 - [ ] Restore clears grace-period fields and consumes a free slot transactionally.
 - [ ] Cleanup function requires `x-cron-secret`, processes due users idempotently, deletes auth users server-side, and returns counts without e-mails.
 - [ ] Admin tests show member access denied and explicit confirmation required for deactivation.
-- [ ] Commit: `feat: add four-account administrator controls`.
+- [ ] Commit: `feat: add ten-account administrator controls`.
 
 ---
 
@@ -397,8 +397,8 @@ type ManageUserRequest =
   1. bootstrap configured administrator;
   2. consume local Mailpit invite and set password;
   3. login and enter protected shell;
-  4. invite three members;
-  5. fifth reservation fails with `ACCOUNT_CAPACITY_REACHED`;
+  4. fill the first ten occupied or reserved slots, including the administrator;
+  5. eleventh reservation fails with `ACCOUNT_CAPACITY_REACHED`;
   6. member cannot use admin controls;
   7. deactivate and restore member.
 - [ ] Setup guide includes:
@@ -433,7 +433,7 @@ npm run security:scan
 - [ ] All unit, type, lint, build, database, Deno, and selected E2E checks pass.
 - [ ] Only configured bootstrap address can become first admin.
 - [ ] Uninvited/direct signup is rejected and hosted public signup is disabled.
-- [ ] Four account slots work; fifth reservation fails transactionally.
+- [ ] Ten account slots work; the eleventh reservation fails transactionally.
 - [ ] Admin can invite, deactivate, and restore; member cannot.
 - [ ] Client cannot modify role/status or read disallowed rows.
 - [ ] Bundle/repository contains no secret values.

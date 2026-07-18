@@ -150,6 +150,14 @@ export type Database = {
     }
     Views: Record<string, never>
     Functions: {
+      account_capacity_limit: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      account_capacity_occupied: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
       accept_current_invitation: {
         Args: Record<PropertyKey, never>
         Returns: Database['public']['Tables']['profiles']['Row']
@@ -177,6 +185,13 @@ export type Database = {
       deactivate_profile: {
         Args: { p_actor_id: string; p_user_id: string }
         Returns: Database['public']['Tables']['profiles']['Row']
+      }
+      get_account_capacity: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          maximum_slots: number
+          occupied_slots: number
+        }[]
       }
       list_cleanup_candidates: {
         Args: Record<PropertyKey, never>

@@ -15,11 +15,38 @@ describe('Foundation documentation', () => {
       'npm ci',
       'npm run check',
       'npm run test:e2e',
-      'maximal vier',
+      'maximal zehn',
+      'bis zu neun weitere',
       'Keine öffentliche Registrierung',
       'docs/setup-supabase.md',
     ]) {
       expect(readme).toContain(requiredText)
+    }
+  })
+
+  it('contains no obsolete four-account capacity guidance', () => {
+    const currentDocs = [
+      read('README.md'),
+      read('docs/setup-supabase.md'),
+      read('docs/superpowers/specs/2026-07-16-tyrone-control-center-design.md'),
+      read('docs/superpowers/plans/2026-07-16-foundation-implementation.md'),
+    ].join('\n')
+
+    for (const obsoleteText of [
+      'maximal vier',
+      'vier Konten',
+      'up to four invited users',
+      'Maximum of four active accounts',
+      'four-account',
+      'four-user rule',
+      'four active user profiles',
+      'More than four active accounts',
+      'Maximum accounts: four',
+      'fifth reservation',
+      'fifth account reservation',
+      'fifth slot',
+    ]) {
+      expect(currentDocs).not.toContain(obsoleteText)
     }
   })
 
@@ -71,5 +98,32 @@ describe('Foundation documentation', () => {
 
     expect(start).toBeGreaterThan(-1)
     expect(reset).toBeGreaterThan(start)
+  })
+
+  it('documents the safe upgrade order for an existing deployment', () => {
+    const setup = read('docs/setup-supabase.md')
+    const upgrade = setup.indexOf(
+      '### Bestehende Installation auf zehn Konten aktualisieren',
+    )
+    const migration = setup.indexOf('npx supabase db push', upgrade)
+    const inviteFunction = setup.indexOf(
+      'npx supabase functions deploy invite-user',
+      upgrade,
+    )
+    const manageFunction = setup.indexOf(
+      'npx supabase functions deploy manage-user',
+      upgrade,
+    )
+    const pages = setup.indexOf(
+      'Erst danach den Pull Request nach `main` mergen',
+      upgrade,
+    )
+
+    expect(upgrade).toBeGreaterThan(-1)
+    expect(migration).toBeGreaterThan(upgrade)
+    expect(inviteFunction).toBeGreaterThan(migration)
+    expect(manageFunction).toBeGreaterThan(inviteFunction)
+    expect(pages).toBeGreaterThan(manageFunction)
+    expect(setup).toContain('keine bestehenden Konten oder Einladungen')
   })
 })

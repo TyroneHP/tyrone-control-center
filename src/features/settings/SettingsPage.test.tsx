@@ -88,14 +88,22 @@ function sessionApi(): AuthApi {
 
 describe('SettingsPage', () => {
   it('denies account management to a member', () => {
-    const settingsApi = api({ invitations: [], profiles: [] })
+    const settingsApi = api({
+      capacity: { maximumSlots: 10, occupiedSlots: 0 },
+      invitations: [],
+      profiles: [],
+    })
     renderPage(
       profile(
         '22222222-2222-2222-2222-222222222222',
         'member@example.test',
         'active',
       ),
-      { invitations: [], profiles: [] },
+      {
+        capacity: { maximumSlots: 10, occupiedSlots: 0 },
+        invitations: [],
+        profiles: [],
+      },
       settingsApi,
     )
 
@@ -107,13 +115,14 @@ describe('SettingsPage', () => {
     expect(settingsApi.listAccounts).not.toHaveBeenCalled()
   })
 
-  it('shows account and invitation states and disables invitations at four slots', async () => {
+  it('shows account and invitation states and disables invitations at ten slots', async () => {
     const invited = profile(
       '22222222-2222-2222-2222-222222222222',
       'invite@example.test',
       'invited',
     )
     const data: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 10 },
       profiles: [
         admin,
         profile(
@@ -161,7 +170,7 @@ describe('SettingsPage', () => {
     renderPage(admin, data, api(data))
 
     expect(
-      await screen.findByText('4 von 4'),
+      await screen.findByText('10 von 10'),
     ).toBeInTheDocument()
     expect(
       screen.getByText('Kontoplätzen belegt oder reserviert'),
@@ -173,6 +182,68 @@ describe('SettingsPage', () => {
     expect(
       screen.getByRole('button', { name: 'Einladung senden' }),
     ).toBeDisabled()
+    expect(
+      screen.getByText('Alle 10 Kontoplätze sind belegt oder reserviert.'),
+    ).toBeInTheDocument()
+  })
+
+  it('keeps invitations enabled for the tenth account slot', async () => {
+    const data: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 9 },
+      invitations: [],
+      profiles: [admin],
+    }
+
+    renderPage(admin, data, api(data))
+
+    expect(await screen.findByText('9 von 10')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Einladung senden' }),
+    ).toBeEnabled()
+  })
+
+  it('keeps capacity-dependent controls disabled while capacity is loading', () => {
+    const data: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 9 },
+      invitations: [],
+      profiles: [admin],
+    }
+    const settingsApi = api(data)
+    vi.mocked(settingsApi.listAccounts).mockReturnValue(
+      new Promise<AccountManagement>(() => undefined),
+    )
+
+    renderPage(admin, data, settingsApi)
+
+    expect(screen.getByLabelText('E-Mail-Adresse')).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Einladung senden' }),
+    ).toBeDisabled()
+    expect(screen.getByText('Kontostand wird geladen.')).toBeInTheDocument()
+    expect(screen.queryByText('0 von 0')).not.toBeInTheDocument()
+  })
+
+  it('keeps capacity-dependent controls disabled when capacity loading fails', async () => {
+    const data: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 9 },
+      invitations: [],
+      profiles: [admin],
+    }
+    const settingsApi = api(data)
+    vi.mocked(settingsApi.listAccounts).mockRejectedValue(
+      new Error('capacity unavailable'),
+    )
+
+    renderPage(admin, data, settingsApi)
+
+    expect(
+      await screen.findByText('Kontostand nicht verfügbar.'),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('E-Mail-Adresse')).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Einladung senden' }),
+    ).toBeDisabled()
+    expect(screen.queryByText('0 von 0')).not.toBeInTheDocument()
   })
 
   it('requires explicit confirmation before deactivation', async () => {
@@ -181,7 +252,11 @@ describe('SettingsPage', () => {
       'member@example.test',
       'active',
     )
-    const data = { invitations: [], profiles: [admin, member] }
+    const data = {
+      capacity: { maximumSlots: 10, occupiedSlots: 2 },
+      invitations: [],
+      profiles: [admin, member],
+    }
     const settingsApi = api(data)
     renderPage(admin, data, settingsApi)
 
@@ -211,11 +286,19 @@ describe('SettingsPage', () => {
       'member@example.test',
       'active',
     )
-    const settingsApi = api({ invitations: [], profiles: [] })
+    const settingsApi = api({
+      capacity: { maximumSlots: 10, occupiedSlots: 0 },
+      invitations: [],
+      profiles: [],
+    })
     const authApi = sessionApi()
     renderPage(
       member,
-      { invitations: [], profiles: [] },
+      {
+        capacity: { maximumSlots: 10, occupiedSlots: 0 },
+        invitations: [],
+        profiles: [],
+      },
       settingsApi,
       authApi,
     )
@@ -231,20 +314,25 @@ describe('SettingsPage', () => {
     expect(authApi.signOutAll).toHaveBeenCalledOnce()
   })
 
-  it('shows the server capacity code when a stale view allows a fifth invite', async () => {
-    const data = { invitations: [], profiles: [admin] }
+  it('shows the server capacity code when a stale view allows an eleventh invite', async () => {
+    const data = {
+      capacity: { maximumSlots: 10, occupiedSlots: 9 },
+      invitations: [],
+      profiles: [admin],
+    }
     const settingsApi = api(data)
     vi.mocked(settingsApi.inviteUser).mockRejectedValue(
       new AccountFunctionError(
         'ACCOUNT_CAPACITY_REACHED',
-        'Alle vier Kontoplätze sind bereits belegt oder reserviert.',
+        'Alle verfügbaren Kontoplätze sind bereits belegt oder reserviert.',
       ),
     )
     renderPage(admin, data, settingsApi)
 
+    expect(await screen.findByText('9 von 10')).toBeInTheDocument()
     await userEvent.type(
-      await screen.findByLabelText('E-Mail-Adresse'),
-      'fifth@example.test',
+      screen.getByLabelText('E-Mail-Adresse'),
+      'eleventh@example.test',
     )
     await userEvent.click(
       screen.getByRole('button', { name: 'Einladung senden' }),
@@ -252,7 +340,7 @@ describe('SettingsPage', () => {
 
     expect(
       await screen.findByText(
-        'Alle vier Kontoplätze sind bereits belegt oder reserviert.',
+        'Alle verfügbaren Kontoplätze sind bereits belegt oder reserviert.',
       ),
     ).toBeInTheDocument()
   })
@@ -267,6 +355,7 @@ describe('SettingsPage', () => {
       invitation_id: '55555555-5555-5555-5555-555555555555',
     }
     const data: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 1 },
       profiles: [admin, cancelled],
       invitations: [
         {

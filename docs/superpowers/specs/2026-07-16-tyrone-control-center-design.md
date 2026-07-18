@@ -8,7 +8,7 @@
 
 ## 1. Product goal
 
-Tyrone Control Center is a private, Slate-style personal organization platform for up to four invited users. It combines calendar, tasks, school, technician project work, training, nutrition, files, collaboration, notifications, and a provider-independent AI chat.
+Tyrone Control Center is a private, Slate-style personal organization platform for up to ten accounts: one administrator and up to nine invited users. It combines calendar, tasks, school, technician project work, training, nutrition, files, collaboration, notifications, and a provider-independent AI chat.
 
 The product should feel like a polished native app while remaining deployable as a static React application on GitHub Pages. User data, authentication, storage, server-side logic, notifications, and AI orchestration are handled through Supabase.
 
@@ -33,7 +33,7 @@ The complete Version 1 is large and will be delivered as five deployable milesto
 - Supabase project configuration
 - E-mail/password login
 - Administrator-controlled invitations
-- Maximum of four active accounts
+- Maximum of ten occupied or reserved accounts
 - User profiles, settings, RLS baseline, audit baseline
 - PWA shell and offline application loading
 
@@ -228,7 +228,7 @@ Mobile layout stacks the daily status above or below a compact week agenda witho
 
 ### 5.1 Account limit
 
-- Maximum four active user profiles
+- Maximum ten occupied or reserved account slots
 - First account becomes administrator
 - No public registration
 - Additional users join only through invitation
@@ -874,7 +874,7 @@ Sensitive internal details are logged only in redacted form.
 Using a test Supabase project/local stack:
 
 - RLS isolation between users
-- invitation and four-account limit
+- invitation and ten-account limit
 - share permissions
 - Edge Function authentication
 - encrypted provider-key lifecycle
@@ -885,7 +885,7 @@ Using a test Supabase project/local stack:
 ### 18.4 End-to-end tests
 
 - first admin signup
-- invite three users and reject fifth slot
+- fill ten occupied or reserved slots and reject the eleventh slot
 - create school task and observe all synchronized views
 - drag calendar item and verify audit
 - share item as viewer/editor
@@ -908,7 +908,7 @@ Using a test Supabase project/local stack:
 
 Version 1 is complete when:
 
-1. Four-account invitation limit is enforced server-side.
+1. Ten-account invitation limit is enforced server-side.
 2. Users can only access their private and explicitly shared data.
 3. The overview, calendar, task views, and four domain modules use the unified item source.
 4. Calendar day/week/month/year views support create, edit, drag, and resize.
@@ -930,7 +930,7 @@ Version 1 is complete when:
 - Apple Calendar synchronization
 - Native iOS application
 - Public registration
-- More than four active accounts
+- More than ten occupied or reserved accounts
 - Shared use of another user’s AI key
 - Automatic AI writes without confirmation
 - Arbitrary unrestricted code execution by the AI
@@ -988,7 +988,7 @@ Version 1 is complete when:
 ## 22. Design validation summary
 
 - No public registration: confirmed.
-- Maximum accounts: four, confirmed.
+- Maximum accounts: ten including the administrator, confirmed.
 - Data-sharing default: private, confirmed.
 - Share permission chosen per share: confirmed.
 - AI writes: preview and confirmation, confirmed.
