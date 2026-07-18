@@ -1,7 +1,13 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ToastProvider } from '../../design-system'
+import {
+  DEFAULT_DEVICE_PREFERENCES,
+  type DevicePreferenceStorage,
+} from '../../preferences/devicePreferences'
+import { DevicePreferencesProvider } from '../../preferences/DevicePreferencesProvider'
 import type { Profile } from '../auth/authContextValue'
 import { AuthContext } from '../auth/authContextValue'
 import type { AuthApi } from '../auth/authApi'
@@ -43,6 +49,7 @@ function renderPage(
   data: AccountManagement,
   api: SettingsApi,
   authApi?: AuthApi,
+  storage: DevicePreferenceStorage = deviceStorage(),
 ) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -51,19 +58,30 @@ function renderPage(
     },
   })
   return render(
-    <QueryClientProvider client={queryClient}>
-      <AuthContext.Provider
-        value={{
-          error: null,
-          profile: currentProfile,
-          session: null,
-          status: 'authenticated',
-        }}
-      >
-        <SettingsPage api={api} authApi={authApi} />
-      </AuthContext.Provider>
-    </QueryClientProvider>,
+    <ToastProvider>
+      <DevicePreferencesProvider storage={storage}>
+        <QueryClientProvider client={queryClient}>
+          <AuthContext.Provider
+            value={{
+              error: null,
+              profile: currentProfile,
+              session: null,
+              status: 'authenticated',
+            }}
+          >
+            <SettingsPage api={api} authApi={authApi} />
+          </AuthContext.Provider>
+        </QueryClientProvider>
+      </DevicePreferencesProvider>
+    </ToastProvider>,
   )
+}
+
+function deviceStorage(): DevicePreferenceStorage {
+  return {
+    read: vi.fn(() => DEFAULT_DEVICE_PREFERENCES),
+    write: vi.fn(() => true),
+  }
 }
 
 function api(data: AccountManagement): SettingsApi {
@@ -86,8 +104,24 @@ function sessionApi(): AuthApi {
   }
 }
 
+beforeEach(() => {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn((query: string) => ({
+      addEventListener: vi.fn(),
+      matches: false,
+      media: query,
+      removeEventListener: vi.fn(),
+    })),
+  )
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
 describe('SettingsPage', () => {
-  it('denies account management to a member', () => {
+  it('shows personal settings to a member without loading account management', () => {
     const settingsApi = api({
       capacity: { maximumSlots: 10, occupiedSlots: 0 },
       invitations: [],
@@ -107,12 +141,83 @@ describe('SettingsPage', () => {
       settingsApi,
     )
 
+    expect(screen.getByRole('heading', { name: 'Darstellung' })).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Dunkelmodus' })).toBeInTheDocument()
     expect(
-      screen.getByText(
-        'Diese Kontoverwaltung ist nur für Administratoren verfügbar.',
-      ),
+      screen.getByRole('heading', { name: 'Mobile Navigation' }),
     ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Sitzungen' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: 'Kontoverwaltung' }),
+    ).not.toBeInTheDocument()
     expect(settingsApi.listAccounts).not.toHaveBeenCalled()
+  })
+
+  it('configures unique mobile tabs and reorders their positions', async () => {
+    const member = profile(
+      '22222222-2222-2222-2222-222222222222',
+      'member@example.test',
+      'active',
+    )
+    const data: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 0 },
+      invitations: [],
+      profiles: [],
+    }
+    const storage = deviceStorage()
+    const user = userEvent.setup()
+
+    renderPage(member, data, api(data), undefined, storage)
+
+    expect(
+      screen.getByText('Übersicht', { selector: '.mobile-tabs-preview__fixed' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Mehr', { selector: '.mobile-tabs-preview__fixed' }),
+    ).toBeInTheDocument()
+    expect(screen.getAllByRole('combobox')).toHaveLength(3)
+    expect(screen.getByLabelText('Tab 1')).toHaveValue('calendar')
+    expect(screen.getByLabelText('Tab 2')).toHaveValue('tasks')
+    expect(screen.getByLabelText('Tab 3')).toHaveValue('training')
+    expect(
+      screen.getByLabelText('Tab 2').querySelector('option[value="calendar"]'),
+    ).toBeDisabled()
+
+    await user.selectOptions(screen.getByLabelText('Tab 1'), 'files')
+    expect(storage.write).toHaveBeenLastCalledWith(
+      expect.objectContaining({ mobileTabs: ['files', 'tasks', 'training'] }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Tab 1 nach rechts' }))
+    expect(screen.getByLabelText('Tab 2')).toHaveValue('files')
+    expect(screen.getByRole('button', { name: 'Tab 1 nach links' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Tab 3 nach rechts' })).toBeDisabled()
+  })
+
+  it('saves the desktop sidebar preference on this device', async () => {
+    const member = profile(
+      '22222222-2222-2222-2222-222222222222',
+      'member@example.test',
+      'active',
+    )
+    const data: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 0 },
+      invitations: [],
+      profiles: [],
+    }
+    const storage = deviceStorage()
+    const user = userEvent.setup()
+    renderPage(member, data, api(data), undefined, storage)
+
+    await user.click(
+      screen.getByRole('button', { name: 'Seitenleiste einklappen' }),
+    )
+
+    expect(storage.write).toHaveBeenLastCalledWith(
+      expect.objectContaining({ desktopSidebar: 'collapsed' }),
+    )
+    expect(
+      screen.getByRole('button', { name: 'Seitenleiste ausklappen' }),
+    ).toBeInTheDocument()
   })
 
   it('shows account and invitation states and disables invitations at ten slots', async () => {
@@ -270,6 +375,10 @@ describe('SettingsPage', () => {
     expect(
       screen.getByRole('dialog', { name: 'Konto deaktivieren' }),
     ).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    expect(
+      screen.getByRole('dialog', { name: 'Konto deaktivieren' }),
+    ).toBeInTheDocument()
     await userEvent.click(
       screen.getByRole('button', { name: 'Deaktivierung bestätigen' }),
     )
@@ -278,6 +387,238 @@ describe('SettingsPage', () => {
       action: 'deactivate',
       userId: member.id,
     })
+    expect(
+      await screen.findByRole('status', {
+        name: 'Erfolg: Konto wurde deaktiviert.',
+      }),
+    ).toBeInTheDocument()
+  })
+
+  it('keeps a deactivation server error visible inside the critical dialog', async () => {
+    const member = profile(
+      '22222222-2222-2222-2222-222222222222',
+      'member@example.test',
+      'active',
+    )
+    const data: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 2 },
+      invitations: [],
+      profiles: [admin, member],
+    }
+    const settingsApi = api(data)
+    vi.mocked(settingsApi.manageUser).mockRejectedValue(
+      new AccountFunctionError(
+        'ACCOUNT_DEACTIVATION_FAILED',
+        'Das Konto konnte nicht deaktiviert werden.',
+      ),
+    )
+    const user = userEvent.setup()
+    renderPage(admin, data, settingsApi)
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Konto von member@example.test deaktivieren',
+      }),
+    )
+    const dialog = screen.getByRole('dialog', { name: 'Konto deaktivieren' })
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Deaktivierung bestätigen' }),
+    )
+
+    expect(
+      await within(dialog).findByRole('alert'),
+    ).toHaveTextContent('Das Konto konnte nicht deaktiviert werden.')
+  })
+
+  it('does not carry a failed deactivation error to another account', async () => {
+    const firstMember = profile(
+      '22222222-2222-2222-2222-222222222222',
+      'first@example.test',
+      'active',
+    )
+    const secondMember = profile(
+      '33333333-3333-3333-3333-333333333333',
+      'second@example.test',
+      'active',
+    )
+    const data: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 3 },
+      invitations: [],
+      profiles: [admin, firstMember, secondMember],
+    }
+    const settingsApi = api(data)
+    vi.mocked(settingsApi.manageUser).mockRejectedValueOnce(
+      new AccountFunctionError(
+        'ACCOUNT_DEACTIVATION_FAILED',
+        'Das erste Konto konnte nicht deaktiviert werden.',
+      ),
+    )
+    const user = userEvent.setup()
+    renderPage(admin, data, settingsApi)
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Konto von first@example.test deaktivieren',
+      }),
+    )
+    const firstDialog = screen.getByRole('dialog', { name: 'Konto deaktivieren' })
+    await user.click(
+      within(firstDialog).getByRole('button', {
+        name: 'Deaktivierung bestätigen',
+      }),
+    )
+    expect(await within(firstDialog).findByRole('alert')).toHaveTextContent(
+      'Das erste Konto konnte nicht deaktiviert werden.',
+    )
+    await user.click(within(firstDialog).getByRole('button', { name: 'Abbrechen' }))
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Konto von second@example.test deaktivieren',
+      }),
+    )
+    const secondDialog = screen.getByRole('dialog', { name: 'Konto deaktivieren' })
+    expect(within(secondDialog).getByText('second@example.test')).toBeInTheDocument()
+    expect(within(secondDialog).queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows success feedback after sending an invitation', async () => {
+    const data: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 9 },
+      invitations: [],
+      profiles: [admin],
+    }
+    const settingsApi = api(data)
+    const user = userEvent.setup()
+    renderPage(admin, data, settingsApi)
+
+    await screen.findByText('9 von 10')
+    await user.type(screen.getByLabelText('E-Mail-Adresse'), 'neu@example.test')
+    await user.click(screen.getByRole('button', { name: 'Einladung senden' }))
+
+    expect(settingsApi.inviteUser).toHaveBeenCalledWith('neu@example.test')
+    expect(
+      await screen.findByRole('status', {
+        name: 'Erfolg: Einladung wurde gesendet.',
+      }),
+    ).toBeInTheDocument()
+  })
+
+  it('restores an accepted account and shows success feedback', async () => {
+    const restored = {
+      ...profile(
+        '22222222-2222-2222-2222-222222222222',
+        'restore@example.test',
+        'deactivated',
+      ),
+      invitation_id: '55555555-5555-5555-5555-555555555555',
+    }
+    const data: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 1 },
+      profiles: [admin, restored],
+      invitations: [
+        {
+          accepted_at: '2026-07-17T01:00:00Z',
+          auth_user_id: restored.id,
+          created_at: '2026-07-17T00:00:00Z',
+          email: restored.email,
+          expires_at: '2026-07-24T00:00:00Z',
+          id: restored.invitation_id,
+          invited_by: admin.id,
+          revoked_at: null,
+          role: 'member',
+          status: 'accepted',
+          updated_at: '2026-07-17T01:00:00Z',
+        },
+      ],
+    }
+    const settingsApi = api(data)
+    const user = userEvent.setup()
+    renderPage(admin, data, settingsApi)
+
+    await user.click(await screen.findByRole('button', { name: 'Wiederherstellen' }))
+
+    expect(settingsApi.manageUser).toHaveBeenCalledWith({
+      action: 'restore',
+      userId: restored.id,
+    })
+    expect(
+      await screen.findByRole('status', {
+        name: 'Erfolg: Konto wurde wiederhergestellt.',
+      }),
+    ).toBeInTheDocument()
+  })
+
+  it('blocks deactivation while an account restore is pending', async () => {
+    const restored = {
+      ...profile(
+        '22222222-2222-2222-2222-222222222222',
+        'restore@example.test',
+        'deactivated',
+      ),
+      invitation_id: '55555555-5555-5555-5555-555555555555',
+    }
+    const activeMember = profile(
+      '33333333-3333-3333-3333-333333333333',
+      'active@example.test',
+      'active',
+    )
+    const data: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 2 },
+      profiles: [admin, restored, activeMember],
+      invitations: [
+        {
+          accepted_at: '2026-07-17T01:00:00Z',
+          auth_user_id: restored.id,
+          created_at: '2026-07-17T00:00:00Z',
+          email: restored.email,
+          expires_at: '2026-07-24T00:00:00Z',
+          id: restored.invitation_id,
+          invited_by: admin.id,
+          revoked_at: null,
+          role: 'member',
+          status: 'accepted',
+          updated_at: '2026-07-17T01:00:00Z',
+        },
+      ],
+    }
+    let resolveRestore!: () => void
+    const restoreRequest = new Promise<void>((resolve) => {
+      resolveRestore = resolve
+    })
+    const settingsApi = api(data)
+    vi.mocked(settingsApi.manageUser).mockImplementation((request) =>
+      request.action === 'restore' ? restoreRequest : Promise.resolve(),
+    )
+    const user = userEvent.setup()
+    renderPage(admin, data, settingsApi)
+
+    const restoreButton = await screen.findByRole('button', {
+      name: 'Wiederherstellen',
+    })
+    const deactivateButton = screen.getByRole('button', {
+      name: 'Konto von active@example.test deaktivieren',
+    })
+    await user.click(restoreButton)
+
+    try {
+      expect(deactivateButton).toBeDisabled()
+      await user.click(deactivateButton)
+      expect(
+        screen.queryByRole('dialog', { name: 'Konto deaktivieren' }),
+      ).not.toBeInTheDocument()
+      expect(settingsApi.manageUser).toHaveBeenCalledTimes(1)
+      expect(settingsApi.manageUser).toHaveBeenCalledWith({
+        action: 'restore',
+        userId: restored.id,
+      })
+    } finally {
+      await act(async () => {
+        resolveRestore()
+        await restoreRequest
+      })
+      await waitFor(() => expect(deactivateButton).toBeEnabled())
+    }
   })
 
   it('lets every active user end the current or all sessions', async () => {
@@ -292,6 +633,7 @@ describe('SettingsPage', () => {
       profiles: [],
     })
     const authApi = sessionApi()
+    const user = userEvent.setup()
     renderPage(
       member,
       {
@@ -303,15 +645,85 @@ describe('SettingsPage', () => {
       authApi,
     )
 
-    await userEvent.click(
+    await user.click(
       screen.getByRole('button', { name: 'Auf diesem Gerät abmelden' }),
     )
-    await userEvent.click(
+    await user.click(
       screen.getByRole('button', { name: 'Auf allen Geräten abmelden' }),
     )
 
     expect(authApi.signOutCurrent).toHaveBeenCalledOnce()
+    expect(authApi.signOutAll).not.toHaveBeenCalled()
+    const dialog = screen.getByRole('dialog', {
+      name: 'Auf allen Geräten abmelden',
+    })
+    await user.keyboard('{Escape}')
+    expect(dialog).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Überall abmelden' }))
     expect(authApi.signOutAll).toHaveBeenCalledOnce()
+  })
+
+  it('keeps an all-device sign-out error visible inside the critical dialog', async () => {
+    const member = profile(
+      '22222222-2222-2222-2222-222222222222',
+      'member@example.test',
+      'active',
+    )
+    const data: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 0 },
+      invitations: [],
+      profiles: [],
+    }
+    const authApi = sessionApi()
+    vi.mocked(authApi.signOutAll).mockRejectedValue(new Error('network unavailable'))
+    const user = userEvent.setup()
+    renderPage(member, data, api(data), authApi)
+
+    await user.click(
+      screen.getByRole('button', { name: 'Auf allen Geräten abmelden' }),
+    )
+    const dialog = screen.getByRole('dialog', {
+      name: 'Auf allen Geräten abmelden',
+    })
+    await user.click(within(dialog).getByRole('button', { name: 'Überall abmelden' }))
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Die Abmeldung konnte nicht abgeschlossen werden. Bitte versuche es erneut.',
+    )
+  })
+
+  it('does not carry a current-device error into all-device confirmation', async () => {
+    const member = profile(
+      '22222222-2222-2222-2222-222222222222',
+      'member@example.test',
+      'active',
+    )
+    const data: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 0 },
+      invitations: [],
+      profiles: [],
+    }
+    const authApi = sessionApi()
+    vi.mocked(authApi.signOutCurrent).mockRejectedValue(
+      new Error('network unavailable'),
+    )
+    const user = userEvent.setup()
+    renderPage(member, data, api(data), authApi)
+
+    await user.click(
+      screen.getByRole('button', { name: 'Auf diesem Gerät abmelden' }),
+    )
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Die Abmeldung konnte nicht abgeschlossen werden. Bitte versuche es erneut.',
+    )
+
+    await user.click(
+      screen.getByRole('button', { name: 'Auf allen Geräten abmelden' }),
+    )
+    const dialog = screen.getByRole('dialog', {
+      name: 'Auf allen Geräten abmelden',
+    })
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('shows the server capacity code when a stale view allows an eleventh invite', async () => {
