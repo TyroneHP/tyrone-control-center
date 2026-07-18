@@ -1,5 +1,4 @@
 import {
-  createContext,
   useCallback,
   useLayoutEffect,
   useRef,
@@ -14,16 +13,7 @@ import {
   type DevicePreferences,
   type ThemePreference,
 } from './devicePreferences'
-
-export interface DevicePreferencesContextValue extends DevicePreferences {
-  moveMobileTab: (index: 0 | 1 | 2, direction: -1 | 1) => void
-  setMobileTab: (index: 0 | 1 | 2, id: PinnableNavigationId) => void
-  setTheme: (theme: ThemePreference) => void
-  toggleDesktopSidebar: () => void
-}
-
-export const DevicePreferencesContext =
-  createContext<DevicePreferencesContextValue | null>(null)
+import { DevicePreferencesContext } from './devicePreferencesContext'
 
 function readPreferences(storage: DevicePreferenceStorage): DevicePreferences {
   try {

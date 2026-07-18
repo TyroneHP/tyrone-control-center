@@ -2,7 +2,7 @@ import { useContext } from 'react'
 import {
   DevicePreferencesContext,
   type DevicePreferencesContextValue,
-} from './DevicePreferencesProvider'
+} from './devicePreferencesContext'
 
 export function useDevicePreferences(): DevicePreferencesContextValue {
   const preferences = useContext(DevicePreferencesContext)
