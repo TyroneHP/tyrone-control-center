@@ -83,6 +83,41 @@ describe('App', () => {
     ).toBeInTheDocument()
   })
 
+  it('renders safely when the browser storage getter is unavailable', async () => {
+    const localStorageGetter = vi
+      .spyOn(window, 'localStorage', 'get')
+      .mockImplementation(() => {
+        throw new DOMException('Storage blocked')
+      })
+    const client = {
+      auth: {
+        getSession: vi
+          .fn()
+          .mockResolvedValue({ data: { session: null }, error: null }),
+        onAuthStateChange: vi.fn(() => ({
+          data: { subscription: { unsubscribe: vi.fn() } },
+        })),
+      },
+    } as unknown as SupabaseClient<Database>
+    const router = createMemoryRouter(appRoutes, { initialEntries: ['/login'] })
+
+    try {
+      expect(() =>
+        render(
+          <App
+            authClient={client}
+            queryClient={new QueryClient()}
+            router={router}
+          />,
+        ),
+      ).not.toThrow()
+      expect(await screen.findByText('Tyrone Control Center')).toBeInTheDocument()
+      expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
+    } finally {
+      localStorageGetter.mockRestore()
+    }
+  })
+
   it('shows a warning when device preferences cannot be persisted', async () => {
     const setItem = vi
       .spyOn(Storage.prototype, 'setItem')

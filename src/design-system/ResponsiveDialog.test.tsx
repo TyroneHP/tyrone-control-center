@@ -96,6 +96,85 @@ describe('ResponsiveDialog', () => {
     expect(onClose).toHaveBeenCalledTimes(3)
   })
 
+  it('shows a labelled close control only for dismissible dialogs', async () => {
+    installMatchMedia()
+    const onClose = vi.fn()
+    const user = userEvent.setup()
+    const { rerender } = render(
+      <ResponsiveDialog dismissible onClose={onClose} open title="Dialogtitel">
+        <p>Inhalt</p>
+      </ResponsiveDialog>,
+    )
+
+    const closeButton = screen.getByRole('button', {
+      name: 'Dialog schlie\u00dfen',
+    })
+    expect(closeButton).toBeVisible()
+    await user.click(closeButton)
+    expect(onClose).toHaveBeenCalledOnce()
+
+    rerender(
+      <ResponsiveDialog
+        dismissible={false}
+        onClose={onClose}
+        open
+        title="Kritischer Dialog"
+      >
+        <p>Inhalt</p>
+      </ResponsiveDialog>,
+    )
+    expect(
+      screen.queryByRole('button', { name: 'Dialog schlie\u00dfen' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('locks background scrolling and restores prior styles on close and unmount', () => {
+    installMatchMedia()
+    const rootStyles = document.documentElement.style.cssText
+    const bodyStyles = document.body.style.cssText
+    document.documentElement.style.overflow = 'scroll'
+    document.documentElement.style.overscrollBehavior = 'auto'
+    document.body.style.overflow = 'clip'
+    document.body.style.overscrollBehavior = 'none'
+
+    try {
+      const { rerender, unmount } = render(
+        <ResponsiveDialog onClose={vi.fn()} open title="Dialogtitel">
+          <p>Inhalt</p>
+        </ResponsiveDialog>,
+      )
+
+      expect(document.documentElement.style.overflow).toBe('hidden')
+      expect(document.documentElement.style.overscrollBehavior).toBe('contain')
+      expect(document.body.style.overflow).toBe('hidden')
+      expect(document.body.style.overscrollBehavior).toBe('contain')
+
+      rerender(
+        <ResponsiveDialog onClose={vi.fn()} open={false} title="Dialogtitel">
+          <p>Inhalt</p>
+        </ResponsiveDialog>,
+      )
+      expect(document.documentElement.style.overflow).toBe('scroll')
+      expect(document.documentElement.style.overscrollBehavior).toBe('auto')
+      expect(document.body.style.overflow).toBe('clip')
+      expect(document.body.style.overscrollBehavior).toBe('none')
+
+      rerender(
+        <ResponsiveDialog onClose={vi.fn()} open title="Dialogtitel">
+          <p>Inhalt</p>
+        </ResponsiveDialog>,
+      )
+      unmount()
+      expect(document.documentElement.style.overflow).toBe('scroll')
+      expect(document.documentElement.style.overscrollBehavior).toBe('auto')
+      expect(document.body.style.overflow).toBe('clip')
+      expect(document.body.style.overscrollBehavior).toBe('none')
+    } finally {
+      document.documentElement.style.cssText = rootStyles
+      document.body.style.cssText = bodyStyles
+    }
+  })
+
   it('does not dismiss a critical dialog with Escape, backdrop, or swipe', async () => {
     installMatchMedia(true)
     const onClose = vi.fn()
@@ -129,7 +208,11 @@ describe('ResponsiveDialog', () => {
     await user.keyboard('{Tab}')
     expect(screen.getByRole('button', { name: 'Schließen' })).toHaveFocus()
     await user.keyboard('{Tab}')
+    expect(screen.getByRole('button', { name: /Dialog sch/ })).toHaveFocus()
+    await user.keyboard('{Tab}')
     expect(initialFocusRef.current).toHaveFocus()
+    await user.keyboard('{Shift>}{Tab}{/Shift}')
+    expect(screen.getByRole('button', { name: /Dialog sch/ })).toHaveFocus()
     await user.keyboard('{Shift>}{Tab}{/Shift}')
     expect(screen.getByRole('button', { name: 'Schließen' })).toHaveFocus()
     await user.keyboard('{Shift>}{Tab}{/Shift}')

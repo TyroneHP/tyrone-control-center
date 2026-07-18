@@ -1,5 +1,6 @@
 import {
   isPinnableNavigationId,
+  navigationById,
   navigationItems,
   type NavigationItem,
   type PinnableNavigationId,
@@ -66,8 +67,16 @@ export function PersonalSettings() {
         </div>
 
         <div className="mobile-tab-settings">
-          {mobileTabIndexes.map((index) => (
-            <div className="mobile-tab-setting" key={index}>
+          {mobileTabIndexes.map((index) => {
+            const currentItem = navigationById.get(mobileTabs[index])!
+            const CurrentIcon = currentItem.icon
+
+            return (
+              <div className="mobile-tab-setting" key={index}>
+              <span className="mobile-tab-setting__current">
+                <CurrentIcon aria-hidden="true" size={20} strokeWidth={1.8} />
+                <span>{currentItem.label}</span>
+              </span>
               <label>
                 <span>Tab {index + 1}</span>
                 <select
@@ -111,7 +120,8 @@ export function PersonalSettings() {
                 </button>
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       </div>
     </>

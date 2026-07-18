@@ -19,10 +19,20 @@ export interface AppProps {
 
 function PreferenceBoundary({ children }: PropsWithChildren) {
   const toast = useToast()
-  const storage = useMemo(
-    () => createDevicePreferenceStorage(window.localStorage),
-    [],
-  )
+  const storage = useMemo(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        return createDevicePreferenceStorage(window.localStorage)
+      }
+    } catch {
+      // Browser privacy settings may make the localStorage getter itself throw.
+    }
+
+    return createDevicePreferenceStorage({
+      getItem: () => null,
+      setItem: () => undefined,
+    })
+  }, [])
 
   return (
     <DevicePreferencesProvider

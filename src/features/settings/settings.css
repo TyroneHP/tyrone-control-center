@@ -141,7 +141,7 @@
   border-radius: var(--radius-control);
   padding: 0.65rem 1rem;
   background: var(--color-primary);
-  color: var(--color-text);
+  color: var(--color-on-primary);
   font-weight: 750;
   cursor: pointer;
 }
@@ -156,6 +156,7 @@
 .button-secondary {
   border-color: var(--color-border);
   background: var(--color-surface-soft);
+  color: var(--color-text);
 }
 
 .button-danger {
@@ -241,9 +242,24 @@
 
 .mobile-tab-setting {
   display: grid;
-  grid-template-columns: minmax(12rem, 1fr) auto;
+  grid-template-columns: minmax(8rem, 0.7fr) minmax(12rem, 1fr) auto;
   align-items: end;
   gap: 1rem;
+}
+
+.mobile-tab-setting__current {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.mobile-tab-setting__current svg {
+  flex: none;
+  color: var(--color-accent-text);
 }
 
 .mobile-tab-setting label,

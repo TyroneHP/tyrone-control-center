@@ -43,7 +43,7 @@
   border-radius: var(--radius-control);
   padding: 0.55rem 0.8rem;
   background: var(--color-primary);
-  color: var(--color-text);
+  color: var(--color-on-primary);
   font-weight: 750;
   cursor: pointer;
 }
@@ -51,6 +51,7 @@
 .reload-prompt button.reload-prompt__later {
   border-color: var(--color-border);
   background: var(--color-surface-soft);
+  color: var(--color-text);
 }
 
 @media (max-width: 767px) {

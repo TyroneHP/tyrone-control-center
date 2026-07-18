@@ -193,6 +193,33 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('button', { name: 'Tab 3 nach rechts' })).toBeDisabled()
   })
 
+  it('shows the current icon and label for every configurable mobile tab', () => {
+    const member = profile(
+      '22222222-2222-2222-2222-222222222222',
+      'member@example.test',
+      'active',
+    )
+    const data: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 0 },
+      invitations: [],
+      profiles: [],
+    }
+
+    const { container } = renderPage(member, data, api(data))
+    const currentTabs = Array.from(
+      container.querySelectorAll('.mobile-tab-setting__current'),
+    )
+
+    expect(currentTabs.map((tab) => tab.textContent)).toEqual([
+      'Kalender',
+      'Aufgaben',
+      'Training',
+    ])
+    expect(
+      currentTabs.every((tab) => tab.querySelector('svg[aria-hidden="true"]')),
+    ).toBe(true)
+  })
+
   it('saves the desktop sidebar preference on this device', async () => {
     const member = profile(
       '22222222-2222-2222-2222-222222222222',

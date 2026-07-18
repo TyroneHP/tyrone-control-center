@@ -9,7 +9,8 @@
   --color-glass: rgba(7, 21, 38, 0.94);
   --color-input: rgba(7, 21, 38, 0.72);
   --color-primary: #326ac1;
-  --color-primary-hover: #3f7bd6;
+  --color-primary-hover: #3972ca;
+  --color-on-primary: #ffffff;
   --color-accent-text: #8bb9ff;
   --color-primary-soft: rgba(50, 106, 193, 0.16);
   --color-text: #f4f7fb;
@@ -37,6 +38,7 @@
   --color-input: #ffffff;
   --color-primary: #326ac1;
   --color-primary-hover: #2859a6;
+  --color-on-primary: #ffffff;
   --color-accent-text: #2859a6;
   --color-primary-soft: rgba(50, 106, 193, 0.11);
   --color-text: #10243c;

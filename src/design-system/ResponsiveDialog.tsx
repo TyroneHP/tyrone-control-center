@@ -8,6 +8,7 @@ import {
   useRef,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { X } from 'lucide-react'
 import { useMediaQuery } from '../features/shell/useMediaQuery'
 
 export interface ResponsiveDialogProps {
@@ -52,16 +53,33 @@ export function ResponsiveDialog({
   const titleId = useId()
 
   useEffect(() => {
-    if (!open) return
+    if (!open || typeof document === 'undefined') return
 
     previousFocusRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null
+
+    const root = document.documentElement
+    const body = document.body
+    const previousScrollStyles = {
+      bodyOverflow: body.style.overflow,
+      bodyOverscrollBehavior: body.style.overscrollBehavior,
+      rootOverflow: root.style.overflow,
+      rootOverscrollBehavior: root.style.overscrollBehavior,
+    }
+    root.style.overflow = 'hidden'
+    root.style.overscrollBehavior = 'contain'
+    body.style.overflow = 'hidden'
+    body.style.overscrollBehavior = 'contain'
 
     const initialFocus =
       initialFocusRef?.current ?? getFocusableElements(dialogRef.current)[0] ?? dialogRef.current
     initialFocus?.focus()
 
     return () => {
+      root.style.overflow = previousScrollStyles.rootOverflow
+      root.style.overscrollBehavior = previousScrollStyles.rootOverscrollBehavior
+      body.style.overflow = previousScrollStyles.bodyOverflow
+      body.style.overscrollBehavior = previousScrollStyles.bodyOverscrollBehavior
       previousFocusRef.current?.focus()
       previousFocusRef.current = null
     }
@@ -145,6 +163,16 @@ export function ResponsiveDialog({
         ) : null}
         <header className="responsive-dialog__header">
           <h2 id={titleId}>{title}</h2>
+          {dismissible ? (
+            <button
+              aria-label={'Dialog schlie\u00dfen'}
+              className="responsive-dialog__close"
+              onClick={onClose}
+              type="button"
+            >
+              <X aria-hidden="true" size={20} />
+            </button>
+          ) : null}
         </header>
         <div className="responsive-dialog__content">{children}</div>
         {actions ? <footer className="responsive-dialog__actions">{actions}</footer> : null}
