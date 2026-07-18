@@ -64,21 +64,30 @@ export async function installPreviewSession(
     { email: currentProfile.email, id: currentProfile.id, now: timestamp },
   )
 
-  await page.route('http://127.0.0.1:54321/rest/v1/profiles**', (route) => {
-    const accept = route.request().headers().accept ?? ''
-    return fulfillJson(
-      route,
-      accept.includes('application/vnd.pgrst.object+json')
-        ? currentProfile
-        : profiles,
-    )
+  await page.route('**/*', (route) => {
+    const path = new URL(route.request().url()).pathname
+
+    if (path === '/rest/v1/profiles') {
+      const accept = route.request().headers().accept ?? ''
+      return fulfillJson(
+        route,
+        accept.includes('application/vnd.pgrst.object+json')
+          ? currentProfile
+          : profiles,
+      )
+    }
+    if (path === '/rest/v1/invitations') return fulfillJson(route, [])
+    if (path === '/rest/v1/rpc/get_account_capacity') {
+      return fulfillJson(route, { occupied_slots: 2, maximum_slots: 10 })
+    }
+    if (
+      path.startsWith('/rest/v1/') ||
+      path.startsWith('/auth/v1/') ||
+      path.startsWith('/functions/v1/')
+    ) {
+      return route.abort('blockedbyclient')
+    }
+
+    return route.fallback()
   })
-  await page.route('http://127.0.0.1:54321/rest/v1/invitations**', (route) =>
-    fulfillJson(route, []),
-  )
-  await page.route(
-    'http://127.0.0.1:54321/rest/v1/rpc/get_account_capacity**',
-    (route) =>
-      fulfillJson(route, { occupied_slots: 2, maximum_slots: 10 }),
-  )
 }
