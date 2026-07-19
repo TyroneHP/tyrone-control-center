@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import {
   createCalendarEvent,
   deleteCalendarEvent,
@@ -36,15 +36,18 @@ export function useCalendarEvents({
   storage = getBrowserStorage() ?? undefined,
 }: UseCalendarEventsOptions) {
   const [source, setSource] = useState(() => loadSource(storage, profileId))
-  const sourceRef = useRef({ ...source, createId })
+  let activeSource = source
 
   if (source.profileId !== profileId || source.storage !== storage) {
-    const nextSource = loadSource(storage, profileId)
-    sourceRef.current = { ...nextSource, createId }
-    setSource(nextSource)
-  } else {
-    sourceRef.current = { ...sourceRef.current, createId }
+    activeSource = loadSource(storage, profileId)
+    setSource(activeSource)
   }
+
+  const sourceRef = useRef({ ...activeSource, createId })
+
+  useLayoutEffect(() => {
+    sourceRef.current = { ...activeSource, createId }
+  }, [activeSource, createId])
 
   const createEvent = useCallback((draft: CalendarEventDraft) => {
     const current = sourceRef.current
@@ -96,8 +99,8 @@ export function useCalendarEvents({
   return {
     createEvent,
     deleteEvent,
-    events: source.events,
+    events: activeSource.events,
     updateEvent,
-    warning: source.warning,
+    warning: activeSource.warning,
   }
 }
