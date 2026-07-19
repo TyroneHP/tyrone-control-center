@@ -10,6 +10,23 @@
   gap: 0.35rem;
 }
 
+.calendar-page__heading-row {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.calendar-page__heading-row > div {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.calendar-page__create {
+  min-height: 44px;
+  flex: 0 0 auto;
+}
+
 .calendar-page__header p,
 .calendar-page__header h1 {
   margin: 0;
@@ -29,6 +46,23 @@
 }
 
 .calendar-page__header > p:last-child {
+  color: var(--color-text-muted);
+}
+
+.calendar-page__heading-row > div > p:first-child {
+  color: var(--color-accent-text);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.calendar-page__heading-row p,
+.calendar-page__heading-row h1 {
+  margin: 0;
+}
+
+.calendar-page__heading-row > div > p:last-child {
   color: var(--color-text-muted);
 }
 
@@ -178,7 +212,78 @@
   display: none;
 }
 
+.calendar-selected-day .card {
+  display: grid;
+  gap: 1rem;
+}
+
+.calendar-selected-day h2,
+.calendar-selected-day h3,
+.calendar-selected-day p {
+  margin: 0;
+}
+
+.calendar-selected-day .card > div {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.calendar-selected-day article {
+  display: grid;
+  min-width: 0;
+  gap: 0.45rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-bg-elevated);
+}
+
+.calendar-selected-day article p {
+  overflow-wrap: anywhere;
+  color: var(--color-text-muted);
+  white-space: pre-wrap;
+}
+
+.calendar-selected-day article .button {
+  min-height: 44px;
+  justify-self: start;
+}
+
+[id^='calendar-event-form-'] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+[id^='calendar-event-form-'] > .form-field:has(#calendar-event-title),
+[id^='calendar-event-form-'] > .form-field:has(#calendar-event-date),
+[id^='calendar-event-form-'] > .form-field:has(#calendar-event-description) {
+  grid-column: 1 / -1;
+}
+
+[id^='calendar-event-form-'] textarea {
+  resize: vertical;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 767px) {
+  .calendar-page__heading-row {
+    flex-wrap: wrap;
+    align-items: start;
+  }
+
+  .calendar-page__create {
+    width: 100%;
+  }
+
+  [id^='calendar-event-form-'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  [id^='calendar-event-form-'] > .form-field {
+    grid-column: 1;
+  }
+
   .calendar-card {
     gap: 0.65rem;
     padding: 0.7rem;

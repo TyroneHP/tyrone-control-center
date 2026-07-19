@@ -9,12 +9,12 @@ import type { CalendarEvent } from './calendarEvents'
 import './calendar.css'
 
 export interface MonthCalendarProps {
-  events?: CalendarEvent[]
+  events: CalendarEvent[]
   month: Date
   onNextMonth: () => void
   onPreviousMonth: () => void
-  onSelectDate?: (date: string) => void
-  selectedDate?: string
+  onSelectDate: (date: string) => void
+  selectedDate: string
   today: Date
 }
 
@@ -25,12 +25,12 @@ function eventCountLabel(count: number) {
 }
 
 export function MonthCalendar({
-  events = [],
+  events,
   month,
   onNextMonth,
   onPreviousMonth,
-  onSelectDate = () => undefined,
-  selectedDate = '',
+  onSelectDate,
+  selectedDate,
   today,
 }: MonthCalendarProps) {
   const days = buildMonthGrid(month, today)
