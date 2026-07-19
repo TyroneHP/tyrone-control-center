@@ -6,7 +6,11 @@ import {
   type FormEvent,
 } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ResponsiveDialog, useToast } from '../../design-system'
+import {
+  isValidDialogFocusTarget,
+  ResponsiveDialog,
+  useToast,
+} from '../../design-system'
 import {
   AccountFunctionError,
   getSettingsApi,
@@ -49,32 +53,6 @@ function pendingReservations(invitations: Invitation[]) {
 
 function accountErrorMessage(error: unknown, fallback: string) {
   return error instanceof AccountFunctionError ? error.message : fallback
-}
-
-function isVisibleFocusTarget(element: HTMLButtonElement) {
-  if (
-    !element.isConnected ||
-    element.disabled ||
-    element.closest('[hidden], [aria-hidden="true"], [inert]')
-  ) {
-    return false
-  }
-
-  const view = element.ownerDocument.defaultView
-  for (let current: HTMLElement | null = element; current; current = current.parentElement) {
-    const styles = view?.getComputedStyle(current)
-    if (
-      styles?.display === 'none' ||
-      styles?.visibility === 'hidden' ||
-      styles?.visibility === 'collapse' ||
-      styles?.opacity === '0' ||
-      styles?.contentVisibility === 'hidden'
-    ) {
-      return false
-    }
-  }
-
-  return true
 }
 
 export function AdminAccountManagement({
@@ -144,8 +122,14 @@ export function AdminAccountManagement({
     pendingDeactivationFocusRef.current = null
 
     const fallback = accountManagementTitleRef.current
-    if (!fallback || fallback.ownerDocument.activeElement !== fallback) return
-    if (!isVisibleFocusTarget(opener)) return
+    if (
+      !fallback ||
+      fallback.ownerDocument.activeElement !== fallback ||
+      !isValidDialogFocusTarget(fallback) ||
+      !isValidDialogFocusTarget(opener)
+    ) {
+      return
+    }
 
     opener.focus()
     if (opener.ownerDocument.activeElement !== opener) fallback.focus()

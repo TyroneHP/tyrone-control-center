@@ -41,11 +41,50 @@ interface ActiveSwipe {
   startY: number
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
+export function isValidDialogFocusTarget(
+  element: HTMLElement | null,
+): element is HTMLElement {
+  if (
+    !element ||
+    !element.isConnected ||
+    element.matches(':disabled, [disabled]') ||
+    Boolean(element.closest('[hidden], [aria-hidden="true"], [inert]')) ||
+    (!element.matches(focusableSelector) &&
+      (!element.hasAttribute('tabindex') || element.tabIndex < -1))
+  ) {
+    return false
+  }
+
+  const view = element.ownerDocument.defaultView
+  for (let current: HTMLElement | null = element; current; current = current.parentElement) {
+    const styles = view?.getComputedStyle(current)
+    if (
+      styles?.display === 'none' ||
+      styles?.visibility === 'hidden' ||
+      styles?.visibility === 'collapse' ||
+      styles?.opacity === '0' ||
+      styles?.contentVisibility === 'hidden'
+    ) {
+      return false
+    }
+  }
+
+  return true
+}
+
+function moveFocus(target: HTMLElement | null) {
+  if (!isValidDialogFocusTarget(target)) return false
+
+  target.focus()
+  return target.ownerDocument.activeElement === target
+}
+
 function getFocusableElements(container: HTMLElement | null) {
   if (!container) return []
 
   return Array.from(container.querySelectorAll<HTMLElement>(focusableSelector)).filter(
-    (element) => element.tabIndex >= 0,
+    (element) => element.tabIndex >= 0 && isValidDialogFocusTarget(element),
   )
 }
 
@@ -77,8 +116,9 @@ function focusTopModal() {
   const activeElement = modal.dialog.ownerDocument.activeElement
   if (activeElement && modal.dialog.contains(activeElement)) return
 
-  const target = getFocusableElements(modal.dialog)[0] ?? modal.dialog
-  target.focus()
+  for (const target of [...getFocusableElements(modal.dialog), modal.dialog]) {
+    if (moveFocus(target)) return
+  }
 }
 
 function restoreFocus(
@@ -86,9 +126,8 @@ function restoreFocus(
   within: HTMLElement | null = null,
 ) {
   for (const target of targets) {
-    if (!target.isConnected || (within && !within.contains(target))) continue
-    target.focus()
-    if (target.ownerDocument.activeElement === target) return true
+    if (within && !within.contains(target)) continue
+    if (moveFocus(target)) return true
   }
 
   return false
@@ -256,9 +295,14 @@ export function ResponsiveDialog({
       restoreFocusFallbackRef?.current ?? null,
     )
 
-    const initialFocus =
-      initialFocusRef?.current ?? getFocusableElements(dialog)[0] ?? dialog
-    initialFocus?.focus()
+    const initialFocusTargets = [
+      initialFocusRef?.current ?? null,
+      ...getFocusableElements(dialog),
+      dialog,
+    ]
+    for (const target of initialFocusTargets) {
+      if (moveFocus(target)) break
+    }
 
     return () => {
       resetSwipeGesture()
@@ -284,7 +328,7 @@ export function ResponsiveDialog({
     const focusableElements = getFocusableElements(dialogRef.current)
     if (focusableElements.length === 0) {
       event.preventDefault()
-      dialogRef.current?.focus()
+      moveFocus(dialogRef.current)
       return
     }
 
@@ -294,10 +338,10 @@ export function ResponsiveDialog({
 
     if (event.shiftKey && currentIndex <= 0) {
       event.preventDefault()
-      last.focus()
+      moveFocus(last)
     } else if (!event.shiftKey && currentIndex === focusableElements.length - 1) {
       event.preventDefault()
-      first.focus()
+      moveFocus(first)
     }
   }
 

@@ -1,4 +1,11 @@
-import { createRef, type RefObject, useRef, useState } from 'react'
+import {
+  createRef,
+  type ComponentProps,
+  type CSSProperties,
+  type RefObject,
+  useRef,
+  useState,
+} from 'react'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -95,6 +102,100 @@ function DisabledOpenerDialog() {
         title="Dialogtitel"
       >
         <p>Inhalt</p>
+      </ResponsiveDialog>
+    </>
+  )
+}
+
+type InvalidFocusTarget =
+  | 'aria-hidden'
+  | 'disabled'
+  | 'disconnected'
+  | 'display-none'
+  | 'hidden'
+  | 'inert'
+  | 'visibility-hidden'
+
+function InvalidFocusTargetDialog({ target }: { target: InvalidFocusTarget }) {
+  const [invalidated, setInvalidated] = useState(false)
+  const [open, setOpen] = useState(false)
+  const fallbackFocusRef = useRef<HTMLHeadingElement>(null)
+  const initialFocusRef = useRef<HTMLButtonElement>(null)
+  const disconnectedInitialFocusRef = useRef<HTMLButtonElement | null>(
+    target === 'disconnected' ? document.createElement('button') : null,
+  )
+  const targetProps: ComponentProps<'button'> = {}
+  const wrapperProps: ComponentProps<'div'> = {}
+  const initialFocusStyle: CSSProperties | undefined =
+    target === 'display-none'
+      ? { display: 'none' }
+      : target === 'visibility-hidden'
+        ? { visibility: 'hidden' }
+        : undefined
+
+  if (target === 'disabled' && invalidated) targetProps.disabled = true
+  if (target === 'hidden' && invalidated) targetProps.hidden = true
+  if (target === 'display-none' && invalidated) targetProps.style = { display: 'none' }
+  if (target === 'visibility-hidden' && invalidated) {
+    targetProps.style = { visibility: 'hidden' }
+  }
+  if (target === 'aria-hidden' && invalidated) wrapperProps['aria-hidden'] = true
+  if (target === 'inert' && invalidated) wrapperProps.inert = true
+
+  return (
+    <>
+      <h2 ref={fallbackFocusRef} tabIndex={-1}>
+        Sichtbarer Ersatzfokus
+      </h2>
+      {!(target === 'disconnected' && invalidated) ? (
+        <div {...wrapperProps}>
+          <button
+            {...targetProps}
+            onClick={() => setOpen(true)}
+            type="button"
+          >
+            Ungültig werdender Öffner
+          </button>
+        </div>
+      ) : null}
+      <ResponsiveDialog
+        actions={
+          <button
+            onClick={() => {
+              setInvalidated(true)
+              setOpen(false)
+            }}
+            type="button"
+          >
+            Ungültig schließen
+          </button>
+        }
+        dismissible={false}
+        initialFocusRef={
+          target === 'disconnected' ? disconnectedInitialFocusRef : initialFocusRef
+        }
+        onClose={() => setOpen(false)}
+        open={open}
+        restoreFocusFallbackRef={fallbackFocusRef}
+        title="Ungültige Fokusziele"
+      >
+        {target !== 'disconnected' ? (
+          <div
+            aria-hidden={target === 'aria-hidden' ? 'true' : undefined}
+            inert={target === 'inert' ? true : undefined}
+            style={initialFocusStyle}
+          >
+            <button
+              disabled={target === 'disabled'}
+              hidden={target === 'hidden'}
+              ref={initialFocusRef}
+              type="button"
+            >
+              Ungültiger Anfangsfokus
+            </button>
+          </div>
+        ) : null}
+        <button type="button">Sichtbarer Dialogfokus</button>
       </ResponsiveDialog>
     </>
   )
@@ -226,6 +327,34 @@ describe('ResponsiveDialog', () => {
 
     expect(opener).toBeDisabled()
     expect(screen.getByRole('heading', { name: 'Stabiles Fokusziel' })).toHaveFocus()
+    expect(document.body).not.toHaveFocus()
+  })
+
+  it.each<InvalidFocusTarget>([
+    'hidden',
+    'display-none',
+    'visibility-hidden',
+    'aria-hidden',
+    'inert',
+    'disabled',
+    'disconnected',
+  ])('skips %s focus targets during containment and restoration', async (target) => {
+    installMatchMedia()
+    const user = userEvent.setup()
+    render(<InvalidFocusTargetDialog target={target} />)
+
+    await user.click(
+      screen.getByRole('button', { name: 'Ungültig werdender Öffner' }),
+    )
+    expect(
+      screen.getByRole('button', { name: 'Sichtbarer Dialogfokus' }),
+    ).toHaveFocus()
+
+    await user.click(screen.getByRole('button', { name: 'Ungültig schließen' }))
+
+    expect(
+      screen.getByRole('heading', { name: 'Sichtbarer Ersatzfokus' }),
+    ).toHaveFocus()
     expect(document.body).not.toHaveFocus()
   })
 

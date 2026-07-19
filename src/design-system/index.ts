@@ -15,6 +15,7 @@ export {
 } from './LoadingIndicator'
 export {
   ResponsiveDialog,
+  isValidDialogFocusTarget,
   type ResponsiveDialogProps,
 } from './ResponsiveDialog'
 export {
