@@ -63,7 +63,6 @@ export function isValidDialogFocusTarget(
       styles?.display === 'none' ||
       styles?.visibility === 'hidden' ||
       styles?.visibility === 'collapse' ||
-      styles?.opacity === '0' ||
       styles?.contentVisibility === 'hidden'
     ) {
       return false

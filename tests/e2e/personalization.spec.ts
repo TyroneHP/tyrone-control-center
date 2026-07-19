@@ -239,6 +239,30 @@ test('keeps mobile navigation immediately operable with reduced motion', async (
   await expect(page).toHaveURL(/\/calendar$/)
 })
 
+test('moves focus into an animated dialog during normal motion', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium')
+  await page.setViewportSize({ height: 844, width: 390 })
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await installPreviewSession(page, 'member')
+  await page.goto('/settings')
+
+  const opener = page
+    .getByRole('navigation', { name: 'Mobile Navigation' })
+    .getByRole('button', { name: 'Mehr' })
+  await opener.click()
+
+  const dialog = page.getByRole('dialog', { name: 'Alle Bereiche' })
+  const focusState = await dialog.evaluate((element, openerElement) => ({
+    body: document.activeElement === document.body,
+    inside: element.contains(document.activeElement),
+    opener: document.activeElement === openerElement,
+  }), await opener.elementHandle())
+
+  expect(focusState).toEqual({ body: false, inside: true, opener: false })
+})
+
 test('resets a cancelled mobile sheet gesture without overflow', async ({
   page,
 }, testInfo) => {
