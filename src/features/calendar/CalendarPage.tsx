@@ -189,7 +189,7 @@ function AuthenticatedCalendarPage({
         restoreFocusFallbackRef={pageHeadingRef}
         title="Termin löschen"
       >
-        <p>
+        <p className="calendar-delete-confirmation">
           {deleteCandidate
             ? `Möchtest du den Termin „${deleteCandidate.title}“ wirklich löschen?`
             : ''}

@@ -116,7 +116,9 @@ test('creates, persists, edits, cancels deletion, and deletes a local event', as
   ).toBe(true)
 })
 
-test('wraps a long unbroken event title without horizontal overflow', async ({ page }) => {
+test('keeps a long unbroken event title within the calendar and delete dialog', async ({
+  page,
+}) => {
   const today = localIsoDate(new Date())
   const longTitle = 'CoreGridTermin'.repeat(30)
 
@@ -142,4 +144,21 @@ test('wraps a long unbroken event title without horizontal overflow', async ({ p
       () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
     ),
   ).toBe(true)
+
+  await page.getByRole('button', { name: `${longTitle} bearbeiten` }).click()
+  await page.getByRole('button', { name: 'Termin löschen' }).click()
+
+  const deleteDialog = page.getByRole('dialog', { name: 'Termin löschen' })
+  const cancelDelete = deleteDialog.getByRole('button', { name: 'Abbrechen' })
+  const confirmDelete = deleteDialog.getByRole('button', {
+    name: 'Termin endgültig löschen',
+  })
+  await expect(deleteDialog).toBeVisible()
+  expect(
+    await deleteDialog.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth,
+    ),
+  ).toBe(true)
+  await expect(cancelDelete).toBeInViewport()
+  await expect(confirmDelete).toBeInViewport()
 })
