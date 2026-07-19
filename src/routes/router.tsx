@@ -6,6 +6,7 @@ import {
   SetupPage,
   UpdatePasswordPage,
 } from '../features/auth'
+import { CalendarPage } from '../features/calendar/CalendarPage'
 import { SettingsPage } from '../features/settings/SettingsPage'
 import { PlaceholderPage } from './PlaceholderPage'
 import { ProtectedShell } from './ProtectedShell'
@@ -22,7 +23,7 @@ export const appRoutes: RouteObject[] = [
         element: <ProtectedShell />,
         children: [
           { index: true, element: <PlaceholderPage title="Übersicht" /> },
-          { path: 'calendar', element: <PlaceholderPage title="Kalender" /> },
+          { path: 'calendar', element: <CalendarPage /> },
           { path: 'tasks', element: <PlaceholderPage title="Aufgaben" /> },
           {
             path: 'technician',

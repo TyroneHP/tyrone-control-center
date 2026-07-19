@@ -103,15 +103,15 @@ describe('application routing', () => {
     ).toBeInTheDocument()
   })
 
-  it('renders a protected German module placeholder for an active profile', async () => {
+  it('renders the protected calendar page for an active profile', async () => {
     renderRoute('/calendar', activeClient())
 
     expect(
       await screen.findByRole('heading', { name: 'Kalender' }),
     ).toBeInTheDocument()
-    expect(screen.getByText('Grundlage')).toBeInTheDocument()
     expect(
-      screen.getByText('Dieses Modul wird in einem späteren Meilenstein aktiviert.'),
+      screen.getByRole('table', { name: /Monatskalender/ }),
     ).toBeInTheDocument()
+    expect(screen.queryByText('Bereich vorbereitet')).not.toBeInTheDocument()
   })
 })
