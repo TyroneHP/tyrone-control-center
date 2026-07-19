@@ -24,6 +24,19 @@
         }
       })(window.location)
     </script>
+    <script>
+      ;(function applyStoredTheme() {
+        var theme = 'dark'
+        try {
+          var raw = window.localStorage.getItem('tcc.device-preferences.v1')
+          var stored = raw ? JSON.parse(raw).theme : null
+          if (stored === 'light' || stored === 'dark') theme = stored
+        } catch (_) {
+          theme = 'dark'
+        }
+        document.documentElement.dataset.theme = theme
+      })()
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

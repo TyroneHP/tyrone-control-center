@@ -12,8 +12,8 @@ test('shows German login branding without horizontal overflow', async ({
   ).toBeVisible()
   await expect(page.getByRole('button', { name: 'Anmelden' })).toBeVisible()
 
-  const hasHorizontalOverflow = await page.evaluate(
-    () => document.documentElement.scrollWidth > window.innerWidth,
+  const fitsViewport = await page.evaluate(
+    () => document.documentElement.scrollWidth <= window.innerWidth,
   )
-  expect(hasHorizontalOverflow).toBe(false)
+  expect(fitsViewport).toBe(true)
 })

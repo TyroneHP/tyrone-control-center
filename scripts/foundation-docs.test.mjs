@@ -50,6 +50,21 @@ describe('Foundation documentation', () => {
     }
   })
 
+  it('documents device-local design-system personalization', () => {
+    const readme = read('README.md')
+
+    for (const requiredText of [
+      'Dunkelmodus',
+      'Light Mode',
+      'Seitenleiste',
+      'Mobile Navigation',
+      'Kalender, Aufgaben und Training',
+      'lokal auf dem Gerät',
+    ]) {
+      expect(readme).toContain(requiredText)
+    }
+  })
+
   it('documents every required hosted Supabase and Pages setup step', () => {
     const setup = read('docs/setup-supabase.md')
 

@@ -41,6 +41,17 @@ Das erste Administratorkonto wird nur über
 Admin-Einladung. Insgesamt sind maximal zehn Konten aktiv oder reserviert: das
 Administratorkonto und bis zu neun weitere Nutzer.
 
+## Lokale Personalisierung
+
+Der Dunkelmodus ist beim ersten Start die Voreinstellung; der Light Mode wird
+unter Einstellungen ausgewählt. Das gewählte Design, der manuelle Zustand der
+Desktop-Seitenleiste und die Tabs der Mobile Navigation bleiben lokal auf dem Gerät
+gespeichert. Mobil sind Kalender, Aufgaben und Training voreingestellt;
+Übersicht und Mehr bleiben fest angeordnet.
+
+Die Personalisierung legt keine Daten in der Datenbank ab und benötigt kein
+Secret. Die deaktivierten Platzhalter bleiben weiterhin ohne Funktion.
+
 ## Prüfungen
 
 ```bash

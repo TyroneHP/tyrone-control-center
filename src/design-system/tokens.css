@@ -1,18 +1,69 @@
-:root {
+:root,
+[data-theme='dark'] {
   color-scheme: dark;
   --color-bg: #071526;
+  --color-bg-accent: rgba(50, 106, 193, 0.15);
   --color-bg-elevated: #0c2545;
   --color-surface: #122d4f;
   --color-surface-soft: #193458;
+  --color-glass: rgba(7, 21, 38, 0.94);
+  --color-input: rgba(7, 21, 38, 0.72);
   --color-primary: #326ac1;
-  --color-primary-hover: #3f7bd6;
+  --color-primary-hover: #3972ca;
+  --color-on-primary: #ffffff;
+  --color-focus-ring: #75aaff;
+  --color-accent-text: #8bb9ff;
+  --color-primary-soft: rgba(50, 106, 193, 0.16);
   --color-text: #f4f7fb;
   --color-text-muted: #a9b6c6;
   --color-border: rgba(169, 182, 198, 0.16);
-  --color-danger: #f17b8c;
   --color-success: #5bd0a4;
-  --radius-card: 18px;
-  --radius-control: 12px;
+  --color-success-soft: rgba(91, 208, 164, 0.12);
+  --color-warning: #f2bd5a;
+  --color-warning-soft: rgba(242, 189, 90, 0.12);
+  --color-danger: #f17b8c;
+  --color-danger-soft: rgba(241, 123, 140, 0.12);
+  --color-overlay: rgba(2, 10, 22, 0.78);
+  --shadow-soft: 0 18px 44px rgba(0, 8, 20, 0.2);
+  --shadow-overlay: 0 24px 70px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --color-bg: #f3f7fc;
+  --color-bg-accent: rgba(50, 106, 193, 0.09);
+  --color-bg-elevated: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-soft: #e8f0fa;
+  --color-glass: rgba(246, 249, 253, 0.94);
+  --color-input: #ffffff;
+  --color-primary: #326ac1;
+  --color-primary-hover: #2859a6;
+  --color-on-primary: #ffffff;
+  --color-focus-ring: #2859a6;
+  --color-accent-text: #2859a6;
+  --color-primary-soft: rgba(50, 106, 193, 0.11);
+  --color-text: #10243c;
+  --color-text-muted: #53677d;
+  --color-border: rgba(33, 70, 112, 0.16);
+  --color-success: #147a5a;
+  --color-success-soft: rgba(20, 122, 90, 0.1);
+  --color-warning: #956000;
+  --color-warning-soft: rgba(149, 96, 0, 0.1);
+  --color-danger: #b8334a;
+  --color-danger-soft: rgba(184, 51, 74, 0.1);
+  --color-overlay: rgba(24, 42, 66, 0.32);
+  --shadow-soft: 0 18px 44px rgba(36, 65, 98, 0.14);
+  --shadow-overlay: 0 24px 70px rgba(36, 65, 98, 0.2);
+}
+
+:root {
+  --radius-card: 22px;
+  --radius-control: 16px;
+  --radius-sheet: 24px;
+  --motion-fast: 140ms;
+  --motion-normal: 220ms;
+  --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
@@ -35,7 +86,7 @@ body {
   min-height: 100vh;
   margin: 0;
   background:
-    radial-gradient(circle at 80% 0%, rgba(50, 106, 193, 0.15), transparent 34rem),
+    radial-gradient(circle at 80% 0%, var(--color-bg-accent), transparent 34rem),
     var(--color-bg);
   color: var(--color-text);
 }
@@ -52,6 +103,6 @@ a {
 }
 
 :focus-visible {
-  outline: 3px solid rgba(83, 145, 238, 0.7);
+  outline: 3px solid var(--color-focus-ring);
   outline-offset: 3px;
 }
