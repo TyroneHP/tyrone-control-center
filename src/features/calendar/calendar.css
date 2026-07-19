@@ -238,8 +238,12 @@
   background: var(--color-bg-elevated);
 }
 
+.calendar-selected-day article h3,
 .calendar-selected-day article p {
   overflow-wrap: anywhere;
+}
+
+.calendar-selected-day article p {
   color: var(--color-text-muted);
   white-space: pre-wrap;
 }

@@ -115,3 +115,31 @@ test('creates, persists, edits, cancels deletion, and deletes a local event', as
     ),
   ).toBe(true)
 })
+
+test('wraps a long unbroken event title without horizontal overflow', async ({ page }) => {
+  const today = localIsoDate(new Date())
+  const longTitle = 'CoreGridTermin'.repeat(30)
+
+  await installPreviewSession(page, 'member')
+  await page.goto('/calendar')
+  await page.evaluate((key) => window.localStorage.removeItem(key), memberCalendarKey)
+  await page.reload()
+
+  await page.locator(`[data-date="${today}"]`).click()
+  await page.getByRole('button', { name: 'Termin erstellen' }).click()
+  await page.getByLabel('Titel').fill(longTitle)
+  await page.getByRole('button', { name: 'Termin speichern' }).click()
+
+  const eventCard = page.locator('.calendar-selected-day article').filter({
+    has: page.getByRole('heading', { name: longTitle }),
+  })
+  await expect(eventCard).toBeVisible()
+  expect(
+    await eventCard.evaluate((element) => element.scrollWidth <= element.clientWidth),
+  ).toBe(true)
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true)
+})
