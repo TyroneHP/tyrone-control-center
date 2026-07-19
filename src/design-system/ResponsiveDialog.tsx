@@ -329,7 +329,15 @@ export function ResponsiveDialog({
     })
     observer.observe(dialog, {
       attributes: true,
-      attributeFilter: ['aria-hidden', 'disabled', 'hidden', 'inert', 'style', 'tabindex'],
+      attributeFilter: [
+        'aria-hidden',
+        'class',
+        'disabled',
+        'hidden',
+        'inert',
+        'style',
+        'tabindex',
+      ],
       childList: true,
       subtree: true,
     })

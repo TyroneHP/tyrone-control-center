@@ -141,6 +141,36 @@ function PendingActionDialog({
   )
 }
 
+function ClassHiddenPendingActionDialog() {
+  const [pending, setPending] = useState(false)
+
+  return (
+    <>
+      <style>{'.pending-action--hidden { display: none; }'}</style>
+      <ResponsiveDialog
+        actions={
+          <>
+            <button
+              className={pending ? 'pending-action--hidden' : undefined}
+              onClick={() => setPending(true)}
+              type="button"
+            >
+              Klassenbasierte Anfrage starten
+            </button>
+            <button type="button">Sicheres klassenbasiertes Dialogziel</button>
+          </>
+        }
+        dismissible={false}
+        onClose={vi.fn()}
+        open
+        title="Klassenbasierte ausstehende Anfrage"
+      >
+        <p>Die Anfrage wird verarbeitet.</p>
+      </ResponsiveDialog>
+    </>
+  )
+}
+
 type InvalidFocusTarget =
   | 'aria-hidden-ancestor'
   | 'aria-hidden-self'
@@ -353,6 +383,25 @@ describe('ResponsiveDialog', () => {
       expect(document.body).not.toHaveFocus()
     },
   )
+
+  it('moves focus when a pending action becomes hidden through a class change', async () => {
+    installMatchMedia()
+    const user = userEvent.setup()
+    render(<ClassHiddenPendingActionDialog />)
+
+    const action = screen.getByRole('button', {
+      name: 'Klassenbasierte Anfrage starten',
+    })
+    action.focus()
+    expect(action).toHaveFocus()
+
+    await user.click(action)
+
+    expect(
+      screen.getByRole('button', { name: 'Sicheres klassenbasiertes Dialogziel' }),
+    ).toHaveFocus()
+    expect(document.body).not.toHaveFocus()
+  })
 
   it('renders labelled desktop dialog semantics and restores focus', async () => {
     installMatchMedia()
