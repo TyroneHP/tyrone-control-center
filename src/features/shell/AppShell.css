@@ -10,6 +10,9 @@
   z-index: 20;
   display: flex;
   width: var(--sidebar-width);
+  box-sizing: border-box;
+  max-inline-size: 100%;
+  min-block-size: 0;
   flex-direction: column;
   gap: 1.5rem;
   border-right: 1px solid var(--color-border);
@@ -20,6 +23,7 @@
     calc(1.35rem + env(safe-area-inset-bottom))
     calc(1rem + env(safe-area-inset-left));
   backdrop-filter: blur(18px);
+  overflow-y: auto;
   transition: width var(--motion-normal) var(--motion-ease);
 }
 
@@ -82,8 +86,14 @@
 }
 
 .app-navigation__link {
+  min-inline-size: 0;
   min-height: 44px;
   padding: 0.7rem 0.75rem;
+}
+
+.app-navigation__link > span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
 }
 
 .app-navigation__link--collapsed {
@@ -103,6 +113,7 @@
 }
 
 .app-shell__content {
+  min-inline-size: 0;
   min-height: 100vh;
   margin-left: var(--sidebar-width);
   padding: clamp(1.25rem, 3vw, 2.5rem);

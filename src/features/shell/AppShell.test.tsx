@@ -181,6 +181,23 @@ describe('AppShell', () => {
     )
   })
 
+  it('keeps the desktop sidebar vertically scrollable without inline overflow', () => {
+    const desktopRules = appShellCss.slice(
+      0,
+      appShellCss.indexOf('@media (max-width: 767px)'),
+    )
+
+    expect(desktopRules).toMatch(
+      /\.app-shell__sidebar\s*\{[\s\S]*?box-sizing:\s*border-box;[\s\S]*?max-inline-size:\s*100%;[\s\S]*?min-block-size:\s*0;[\s\S]*?overflow-y:\s*auto;/,
+    )
+    expect(desktopRules).toMatch(
+      /\.app-navigation__link\s*\{[\s\S]*?min-inline-size:\s*0;/,
+    )
+    expect(desktopRules).toMatch(
+      /\.app-navigation__link > span\s*\{[\s\S]*?overflow-wrap:\s*anywhere;/,
+    )
+  })
+
   it('adds horizontal safe-area insets to the mobile navigation bar', () => {
     const mobileRules = appShellCss.slice(
       appShellCss.indexOf('@media (max-width: 767px)'),

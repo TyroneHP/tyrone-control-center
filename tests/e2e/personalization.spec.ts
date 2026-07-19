@@ -51,6 +51,61 @@ test('forces compact desktop navigation between 768 and 1099 pixels', async ({
   ).toBeVisible()
 })
 
+test('keeps desktop sidebar controls reachable at short heights with large text', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium')
+  await page.setViewportSize({ height: 360, width: 1280 })
+  await installPreviewSession(page, 'member')
+  await page.goto('/settings')
+  await page.locator('html').evaluate((element) => {
+    element.style.fontSize = '200%'
+  })
+
+  const sidebar = page.locator('.app-shell__sidebar')
+  const main = page.getByRole('main')
+  await expect
+    .poll(() =>
+      sidebar.evaluate((element) => element.scrollHeight > element.clientHeight),
+    )
+    .toBe(true)
+
+  const documentScrollBeforeSidebarScroll = await page.evaluate(() => window.scrollY)
+  await sidebar.evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+  })
+
+  const settingsLink = sidebar.getByRole('link', { name: 'Einstellungen' })
+  const toggle = sidebar.getByRole('button', {
+    name: 'Seitenleiste einklappen',
+  })
+  await expect(settingsLink).toBeInViewport()
+  await expect(toggle).toBeInViewport()
+  await toggle.focus()
+  await expect(toggle).toBeFocused()
+  expect(await page.evaluate(() => window.scrollY)).toBe(
+    documentScrollBeforeSidebarScroll,
+  )
+
+  await toggle.click()
+  await expect(sidebar).toHaveAttribute('data-collapsed', 'true')
+  await sidebar.evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+  })
+  await expect(settingsLink).toBeInViewport()
+  await expect(
+    sidebar.getByRole('button', { name: 'Seitenleiste ausklappen' }),
+  ).toBeInViewport()
+
+  await main.getByRole('switch', { name: 'Dunkelmodus' }).scrollIntoViewIfNeeded()
+  await expect(main.getByRole('switch', { name: 'Dunkelmodus' })).toBeInViewport()
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true)
+})
+
 test('persists configured mobile tab order and exposes the complete More menu', async ({
   page,
 }, testInfo) => {
