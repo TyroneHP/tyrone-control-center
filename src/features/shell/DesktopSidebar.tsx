@@ -20,8 +20,8 @@ export function DesktopSidebar() {
       data-forced-compact={forcedCompact}
     >
       <div className="app-shell__brand">
-        <span className="app-shell__brand-mark">TC</span>
-        <span className="app-shell__brand-name">Tyrone Control Center</span>
+        <span className="app-shell__brand-mark">CG</span>
+        <span className="app-shell__brand-name">CoreGrid</span>
       </div>
       <nav aria-label="Desktop-Navigation" className="app-navigation">
         {navigationItems.map((item) => (

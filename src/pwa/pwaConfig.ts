@@ -3,8 +3,8 @@ import type { VitePWAOptions } from 'vite-plugin-pwa'
 export const pwaOptions = {
   registerType: 'prompt',
   manifest: {
-    name: 'Tyrone Control Center',
-    short_name: 'Control Center',
+    name: 'CoreGrid',
+    short_name: 'CoreGrid',
     theme_color: '#071526',
     background_color: '#071526',
     display: 'standalone',

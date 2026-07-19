@@ -5,7 +5,7 @@
 
 ## Objective
 
-Increase the Tyrone Control Center account capacity from four to ten occupied
+Increase the CoreGrid account capacity from four to ten occupied
 or reserved accounts. The existing administrator remains one occupied slot, so
 an administrator can invite up to nine additional members. Existing accounts,
 invitations, roles, permissions, and account lifecycle behavior remain

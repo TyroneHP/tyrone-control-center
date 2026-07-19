@@ -13,9 +13,9 @@ export function AuthPageLayout({
 }) {
   return (
     <main className="auth-page">
-      <section className="auth-page__intro" aria-label="Tyrone Control Center">
-        <span className="auth-page__mark">TC</span>
-        <p className="auth-page__eyebrow">Tyrone Control Center</p>
+      <section className="auth-page__intro" aria-label="CoreGrid">
+        <span className="auth-page__mark">CG</span>
+        <p className="auth-page__eyebrow">CoreGrid</p>
         <h1>{title}</h1>
         <p>{description}</p>
       </section>

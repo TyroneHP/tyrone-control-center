@@ -1,6 +1,6 @@
-# Tyrone Control Center
+# CoreGrid
 
-Das Repository enthält den Foundation-Meilenstein des Tyrone Control Center: eine
+Das Repository enthält den Foundation-Meilenstein von CoreGrid: eine
 deutsche, responsive Slate-PWA mit E-Mail-/Passwort-Anmeldung, ausschließlich
 administrativen Einladungen, maximal zehn reservierten oder aktiven Konten und
 einer Supabase-Sicherheitsbasis mit Row Level Security.
