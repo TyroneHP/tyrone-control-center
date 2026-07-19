@@ -1,3 +1,37 @@
+.calendar-page {
+  display: grid;
+  width: min(100%, 72rem);
+  gap: clamp(1.25rem, 3vw, 2rem);
+  margin: 0 auto;
+}
+
+.calendar-page__header {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.calendar-page__header p,
+.calendar-page__header h1 {
+  margin: 0;
+}
+
+.calendar-page__header > p:first-child {
+  color: var(--color-accent-text);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.calendar-page__header h1 {
+  font-size: clamp(2rem, 5vw, 3.75rem);
+  letter-spacing: -0.045em;
+}
+
+.calendar-page__header > p:last-child {
+  color: var(--color-text-muted);
+}
+
 .calendar-card {
   display: grid;
   min-width: 0;
