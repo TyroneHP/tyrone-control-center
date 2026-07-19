@@ -106,11 +106,13 @@ function sessionApi(): AuthApi {
 
 function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((promiseResolve) => {
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
     resolve = promiseResolve
+    reject = promiseReject
   })
 
-  return { promise, resolve }
+  return { promise, reject, resolve }
 }
 
 beforeEach(() => {
@@ -652,6 +654,46 @@ describe('SettingsPage', () => {
     ).toHaveTextContent('Das Konto konnte nicht deaktiviert werden.')
   })
 
+  it('keeps focus in the deactivation dialog while its pending action is disabled', async () => {
+    const member = profile(
+      '22222222-2222-2222-2222-222222222222',
+      'member@example.test',
+      'active',
+    )
+    const data: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 2 },
+      invitations: [],
+      profiles: [admin, member],
+    }
+    const request = deferred<void>()
+    const settingsApi = api(data)
+    vi.mocked(settingsApi.manageUser).mockReturnValue(request.promise)
+    const user = userEvent.setup()
+    renderPage(admin, data, settingsApi)
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Konto von member@example.test deaktivieren',
+      }),
+    )
+    const dialog = screen.getByRole('dialog', { name: 'Konto deaktivieren' })
+    const confirm = within(dialog).getByRole('button', {
+      name: 'Deaktivierung bestätigen',
+    })
+    await user.click(confirm)
+
+    expect(confirm).toBeDisabled()
+    expect(dialog).toHaveFocus()
+
+    await act(async () => {
+      request.reject(new Error('network unavailable'))
+      await expect(request.promise).rejects.toThrow('network unavailable')
+    })
+    expect(await within(dialog).findByRole('alert')).toBeInTheDocument()
+    expect(dialog).toHaveFocus()
+    expect(document.body).not.toHaveFocus()
+  })
+
   it('does not carry a failed deactivation error to another account', async () => {
     const firstMember = profile(
       '22222222-2222-2222-2222-222222222222',
@@ -912,6 +954,52 @@ describe('SettingsPage', () => {
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
       'Die Abmeldung konnte nicht abgeschlossen werden. Bitte versuche es erneut.',
     )
+    expect(dialog).toHaveFocus()
+    expect(document.body).not.toHaveFocus()
+  })
+
+  it('retains meaningful focus while ending all sessions and after success or cancellation', async () => {
+    const member = profile(
+      '22222222-2222-2222-2222-222222222222',
+      'member@example.test',
+      'active',
+    )
+    const data: AccountManagement = {
+      capacity: { maximumSlots: 10, occupiedSlots: 0 },
+      invitations: [],
+      profiles: [],
+    }
+    const request = deferred<void>()
+    const authApi = sessionApi()
+    vi.mocked(authApi.signOutAll).mockReturnValue(request.promise)
+    const user = userEvent.setup()
+    renderPage(member, data, api(data), authApi)
+
+    const opener = screen.getByRole('button', { name: 'Auf allen Geräten abmelden' })
+    await user.click(opener)
+    const dialog = screen.getByRole('dialog', {
+      name: 'Auf allen Geräten abmelden',
+    })
+    await user.click(within(dialog).getByRole('button', { name: 'Überall abmelden' }))
+
+    expect(screen.getByRole('button', { name: 'Abmeldung läuft …' })).toBeDisabled()
+    expect(dialog).toHaveFocus()
+
+    await act(async () => {
+      request.resolve()
+      await request.promise
+    })
+
+    await waitFor(() => expect(dialog).not.toBeInTheDocument())
+    expect(opener).toHaveFocus()
+    expect(document.body).not.toHaveFocus()
+
+    await user.click(opener)
+    const reopenedDialog = screen.getByRole('dialog', {
+      name: 'Auf allen Geräten abmelden',
+    })
+    await user.click(within(reopenedDialog).getByRole('button', { name: 'Abbrechen' }))
+    expect(opener).toHaveFocus()
   })
 
   it('does not carry a current-device error into all-device confirmation', async () => {

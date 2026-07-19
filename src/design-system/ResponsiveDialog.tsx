@@ -115,7 +115,13 @@ function focusTopModal() {
   if (!modal) return
 
   const activeElement = modal.dialog.ownerDocument.activeElement
-  if (activeElement && modal.dialog.contains(activeElement)) return
+  if (
+    activeElement instanceof HTMLElement &&
+    modal.dialog.contains(activeElement) &&
+    isValidDialogFocusTarget(activeElement)
+  ) {
+    return
+  }
 
   for (const target of [...getFocusableElements(modal.dialog), modal.dialog]) {
     if (focusDialogTarget(target)) return
@@ -310,6 +316,26 @@ export function ResponsiveDialog({
       unregisterModal()
     }
   }, [initialFocusRef, open, resetSwipeGesture, restoreFocusFallbackRef])
+
+  useEffect(() => {
+    if (!open || typeof MutationObserver === 'undefined') return
+
+    const dialog = dialogRef.current
+    if (!dialog) return
+
+    const observer = new MutationObserver(() => {
+      if (topModal()?.dialog !== dialog) return
+      focusTopModal()
+    })
+    observer.observe(dialog, {
+      attributes: true,
+      attributeFilter: ['aria-hidden', 'disabled', 'hidden', 'inert', 'style', 'tabindex'],
+      childList: true,
+      subtree: true,
+    })
+
+    return () => observer.disconnect()
+  }, [open])
 
   useEffect(() => {
     if (!dismissible || !isMobile) resetSwipeGesture()

@@ -107,6 +107,40 @@ function DisabledOpenerDialog() {
   )
 }
 
+function PendingActionDialog({
+  invalidation,
+}: {
+  invalidation: 'disabled' | 'hidden' | 'removed'
+}) {
+  const [pending, setPending] = useState(false)
+
+  return (
+    <ResponsiveDialog
+      actions={
+        <>
+          {!(pending && invalidation === 'removed') ? (
+            <button
+              disabled={pending && invalidation === 'disabled'}
+              hidden={pending && invalidation === 'hidden'}
+              onClick={() => setPending(true)}
+              type="button"
+            >
+              Anfrage starten
+            </button>
+          ) : null}
+          <button type="button">Sicheres Dialogziel</button>
+        </>
+      }
+      dismissible={false}
+      onClose={vi.fn()}
+      open
+      title="Ausstehende Anfrage"
+    >
+      <p>Die Anfrage wird verarbeitet.</p>
+    </ResponsiveDialog>
+  )
+}
+
 type InvalidFocusTarget =
   | 'aria-hidden-ancestor'
   | 'aria-hidden-self'
@@ -302,6 +336,24 @@ afterEach(() => {
 })
 
 describe('ResponsiveDialog', () => {
+  it.each(['disabled', 'hidden', 'removed'] as const)(
+    'moves focus to the first valid dialog target when a pending action is %s',
+    async (invalidation) => {
+      installMatchMedia()
+      const user = userEvent.setup()
+      render(<PendingActionDialog invalidation={invalidation} />)
+
+      const action = screen.getByRole('button', { name: 'Anfrage starten' })
+      action.focus()
+      expect(action).toHaveFocus()
+
+      await user.click(action)
+
+      expect(screen.getByRole('button', { name: 'Sicheres Dialogziel' })).toHaveFocus()
+      expect(document.body).not.toHaveFocus()
+    },
+  )
+
   it('renders labelled desktop dialog semantics and restores focus', async () => {
     installMatchMedia()
     const user = userEvent.setup()

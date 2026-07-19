@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { ResponsiveDialog } from '../../design-system'
 import { getAuthApi, type AuthApi } from '../auth/authApi'
 
@@ -8,6 +8,7 @@ export function SessionSettings({ authApi }: { authApi?: AuthApi }) {
     null,
   )
   const [sessionError, setSessionError] = useState(false)
+  const sessionSettingsTitleRef = useRef<HTMLHeadingElement>(null)
 
   async function endSessions(scope: 'all' | 'current') {
     setSessionError(false)
@@ -31,7 +32,9 @@ export function SessionSettings({ authApi }: { authApi?: AuthApi }) {
     <div className="settings-card">
       <div className="settings-card__heading">
         <div>
-          <h2>Sitzungen</h2>
+          <h2 ref={sessionSettingsTitleRef} tabIndex={-1}>
+            Sitzungen
+          </h2>
           <p>Beende den Zugang auf diesem oder auf allen angemeldeten Geräten.</p>
         </div>
       </div>
@@ -88,6 +91,7 @@ export function SessionSettings({ authApi }: { authApi?: AuthApi }) {
         dismissible={false}
         onClose={() => setConfirmationOpen(false)}
         open={confirmationOpen}
+        restoreFocusFallbackRef={sessionSettingsTitleRef}
         title="Auf allen Geräten abmelden"
       >
         <p>
