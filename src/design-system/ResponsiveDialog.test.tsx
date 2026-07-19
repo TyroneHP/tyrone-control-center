@@ -171,6 +171,31 @@ function ClassHiddenPendingActionDialog() {
   )
 }
 
+function InlineStyleHiddenPendingActionDialog() {
+  const [pending, setPending] = useState(false)
+
+  return (
+    <ResponsiveDialog
+      actions={
+        <>
+          <div style={pending ? { display: 'none' } : undefined}>
+            <button onClick={() => setPending(true)} type="button">
+              Inline-Stil Anfrage starten
+            </button>
+          </div>
+          <button type="button">Sicheres Inline-Stil Dialogziel</button>
+        </>
+      }
+      dismissible={false}
+      onClose={vi.fn()}
+      open
+      title="Inline-Stil ausstehende Anfrage"
+    >
+      <p>Die Anfrage wird verarbeitet.</p>
+    </ResponsiveDialog>
+  )
+}
+
 type InvalidFocusTarget =
   | 'aria-hidden-ancestor'
   | 'aria-hidden-self'
@@ -399,6 +424,25 @@ describe('ResponsiveDialog', () => {
 
     expect(
       screen.getByRole('button', { name: 'Sicheres klassenbasiertes Dialogziel' }),
+    ).toHaveFocus()
+    expect(document.body).not.toHaveFocus()
+  })
+
+  it('moves focus when an inline style hides an ancestor of the focused action', async () => {
+    installMatchMedia()
+    const user = userEvent.setup()
+    render(<InlineStyleHiddenPendingActionDialog />)
+
+    const action = screen.getByRole('button', {
+      name: 'Inline-Stil Anfrage starten',
+    })
+    action.focus()
+    expect(action).toHaveFocus()
+
+    await user.click(action)
+
+    expect(
+      screen.getByRole('button', { name: 'Sicheres Inline-Stil Dialogziel' }),
     ).toHaveFocus()
     expect(document.body).not.toHaveFocus()
   })

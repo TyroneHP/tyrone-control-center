@@ -427,24 +427,30 @@ describe('SettingsPage', () => {
       profiles: [admin, member],
     }
     const settingsApi = api(data)
+    const user = userEvent.setup()
     renderPage(admin, data, settingsApi)
 
-    await userEvent.click(
-      await screen.findByRole('button', {
-        name: 'Konto von member@example.test deaktivieren',
-      }),
-    )
+    const opener = await screen.findByRole('button', {
+      name: 'Konto von member@example.test deaktivieren',
+    })
+    await user.click(opener)
     expect(settingsApi.manageUser).not.toHaveBeenCalled()
 
-    expect(
-      screen.getByRole('dialog', { name: 'Konto deaktivieren' }),
-    ).toBeInTheDocument()
-    await userEvent.keyboard('{Escape}')
-    expect(
-      screen.getByRole('dialog', { name: 'Konto deaktivieren' }),
-    ).toBeInTheDocument()
-    await userEvent.click(
-      screen.getByRole('button', { name: 'Deaktivierung bestätigen' }),
+    const dialog = screen.getByRole('dialog', { name: 'Konto deaktivieren' })
+    await user.keyboard('{Escape}')
+    expect(dialog).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Abbrechen' }))
+
+    expect(settingsApi.manageUser).not.toHaveBeenCalled()
+    expect(opener).toHaveFocus()
+    expect(document.body).not.toHaveFocus()
+
+    await user.click(opener)
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Konto deaktivieren' })).getByRole(
+        'button',
+        { name: 'Deaktivierung bestätigen' },
+      ),
     )
 
     expect(settingsApi.manageUser).toHaveBeenCalledWith({
@@ -1025,6 +1031,7 @@ describe('SettingsPage', () => {
       name: 'Auf allen Geräten abmelden',
     })
     await user.click(within(reopenedDialog).getByRole('button', { name: 'Abbrechen' }))
+    expect(authApi.signOutAll).toHaveBeenCalledTimes(1)
     expect(opener).toHaveFocus()
   })
 
