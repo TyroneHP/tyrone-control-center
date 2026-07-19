@@ -29,6 +29,9 @@
 
 .app-shell__sidebar[data-collapsed='true'] {
   width: var(--sidebar-collapsed-width);
+  padding-inline:
+    calc(8px + env(safe-area-inset-left))
+    calc(8px + env(safe-area-inset-right));
 }
 
 .app-shell__sidebar[data-collapsed='true'] .app-shell__brand {
@@ -98,7 +101,7 @@
 
 .app-navigation__link--collapsed {
   justify-content: center;
-  padding-inline: 0.7rem;
+  padding-inline: 6px;
 }
 
 .app-navigation__link:hover,

@@ -1,5 +1,58 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator } from '@playwright/test'
 import { installPreviewSession } from './previewSession'
+
+async function expectNoInlineOverflow(sidebar: Locator) {
+  const dimensions = await sidebar.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }))
+
+  expect(
+    dimensions.scrollWidth,
+    `sidebar dimensions: ${JSON.stringify(dimensions)}`,
+  ).toBeLessThanOrEqual(dimensions.clientWidth)
+}
+
+async function expectControlInsideSidebar(
+  control: Locator,
+  minimumClearance = 0,
+) {
+  const geometry = await control.evaluate((element) => {
+    const sidebar = element.closest<HTMLElement>('.app-shell__sidebar')
+    if (!sidebar) throw new Error('Expected control inside desktop sidebar')
+
+    const controlRect = element.getBoundingClientRect()
+    const sidebarRect = sidebar.getBoundingClientRect()
+    const scrollportLeft = sidebarRect.left + sidebar.clientLeft
+    const scrollportTop = sidebarRect.top + sidebar.clientTop
+
+    return {
+      bottom: scrollportTop + sidebar.clientHeight - controlRect.bottom,
+      left: controlRect.left - scrollportLeft,
+      right: scrollportLeft + sidebar.clientWidth - controlRect.right,
+      top: controlRect.top - scrollportTop,
+    }
+  })
+
+  for (const clearance of Object.values(geometry)) {
+    expect(clearance).toBeGreaterThanOrEqual(minimumClearance)
+  }
+}
+
+async function expectFocusedControlOutlineInsideSidebar(control: Locator) {
+  await control.focus()
+  await expect(control).toBeFocused()
+  const outlineClearance = await control.evaluate((element) => {
+    const styles = getComputedStyle(element)
+    return (
+      Number.parseFloat(styles.outlineWidth) +
+      Number.parseFloat(styles.outlineOffset)
+    )
+  })
+
+  expect(outlineClearance).toBe(6)
+  await expectControlInsideSidebar(control, outlineClearance)
+}
 
 test('personalizes desktop theme and sidebar without overflow', async ({
   page,
@@ -69,33 +122,55 @@ test('keeps desktop sidebar controls reachable at short heights with large text'
       sidebar.evaluate((element) => element.scrollHeight > element.clientHeight),
     )
     .toBe(true)
+  await expectNoInlineOverflow(sidebar)
 
   const documentScrollBeforeSidebarScroll = await page.evaluate(() => window.scrollY)
   await sidebar.evaluate((element) => {
-    element.scrollTop = element.scrollHeight
+    element.scrollTo({ left: 0, top: element.scrollHeight })
   })
 
   const settingsLink = sidebar.getByRole('link', { name: 'Einstellungen' })
   const toggle = sidebar.getByRole('button', {
     name: 'Seitenleiste einklappen',
   })
-  await expect(settingsLink).toBeInViewport()
-  await expect(toggle).toBeInViewport()
-  await toggle.focus()
-  await expect(toggle).toBeFocused()
+  await expectControlInsideSidebar(settingsLink)
+  await expectControlInsideSidebar(toggle)
+  await expectFocusedControlOutlineInsideSidebar(toggle)
   expect(await page.evaluate(() => window.scrollY)).toBe(
     documentScrollBeforeSidebarScroll,
   )
 
   await toggle.click()
   await expect(sidebar).toHaveAttribute('data-collapsed', 'true')
+  await expect(sidebar).toHaveCSS('width', '76px')
   await sidebar.evaluate((element) => {
-    element.scrollTop = element.scrollHeight
+    element.scrollTo({ left: 0, top: element.scrollHeight })
   })
-  await expect(settingsLink).toBeInViewport()
-  await expect(
-    sidebar.getByRole('button', { name: 'Seitenleiste ausklappen' }),
-  ).toBeInViewport()
+  await expectNoInlineOverflow(sidebar)
+  const collapsedToggle = sidebar.getByRole('button', {
+    name: 'Seitenleiste ausklappen',
+  })
+  await expectControlInsideSidebar(settingsLink)
+  await expectControlInsideSidebar(collapsedToggle)
+  await expectFocusedControlOutlineInsideSidebar(collapsedToggle)
+
+  const fixedSidebarBeforeMainScroll = await sidebar.evaluate((element) => ({
+    bottom: element.getBoundingClientRect().bottom,
+    scrollTop: element.scrollTop,
+    top: element.getBoundingClientRect().top,
+  }))
+  const maximumDocumentScroll = await page.evaluate(
+    () => document.documentElement.scrollHeight - window.innerHeight,
+  )
+  expect(maximumDocumentScroll).toBeGreaterThan(0)
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+  const fixedSidebarAfterMainScroll = await sidebar.evaluate((element) => ({
+    bottom: element.getBoundingClientRect().bottom,
+    scrollTop: element.scrollTop,
+    top: element.getBoundingClientRect().top,
+  }))
+  expect(fixedSidebarAfterMainScroll).toEqual(fixedSidebarBeforeMainScroll)
 
   await main.getByRole('switch', { name: 'Dunkelmodus' }).scrollIntoViewIfNeeded()
   await expect(main.getByRole('switch', { name: 'Dunkelmodus' })).toBeInViewport()

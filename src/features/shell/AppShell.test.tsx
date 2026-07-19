@@ -196,6 +196,12 @@ describe('AppShell', () => {
     expect(desktopRules).toMatch(
       /\.app-navigation__link > span\s*\{[\s\S]*?overflow-wrap:\s*anywhere;/,
     )
+    expect(desktopRules).toMatch(
+      /\.app-shell__sidebar\[data-collapsed='true'\]\s*\{[^}]*padding-inline:\s*calc\(8px \+ env\(safe-area-inset-left\)\)\s+calc\(8px \+ env\(safe-area-inset-right\)\);/,
+    )
+    expect(desktopRules).toMatch(
+      /\.app-navigation__link--collapsed\s*\{[^}]*padding-inline:\s*6px;/,
+    )
   })
 
   it('adds horizontal safe-area insets to the mobile navigation bar', () => {
