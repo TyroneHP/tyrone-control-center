@@ -14,6 +14,8 @@ export interface SettingsPageProps {
 export function SettingsPage(props: SettingsPageProps) {
   const { profile } = useAuth()
   const isAdmin = profile?.role === 'admin' && profile.status === 'active'
+  const isActiveMember =
+    profile?.role === 'member' && profile.status === 'active'
 
   return (
     <section className="settings-page">
@@ -26,6 +28,11 @@ export function SettingsPage(props: SettingsPageProps) {
       </header>
       <PersonalSettings />
       <SessionSettings authApi={props.authApi} />
+      {isActiveMember ? (
+        <div className="settings-card settings-card--notice">
+          Diese Kontoverwaltung ist nur für Administratoren verfügbar.
+        </div>
+      ) : null}
       {isAdmin ? (
         <AdminAccountManagement api={props.api} profile={profile} />
       ) : null}

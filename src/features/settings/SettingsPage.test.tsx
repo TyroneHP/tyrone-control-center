@@ -138,7 +138,7 @@ describe('SettingsPage', () => {
       invitations: [],
       profiles: [],
     })
-    renderPage(
+    const page = renderPage(
       profile(
         '22222222-2222-2222-2222-222222222222',
         'member@example.test',
@@ -158,10 +158,36 @@ describe('SettingsPage', () => {
       screen.getByRole('heading', { name: 'Mobile Navigation' }),
     ).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Sitzungen' })).toBeInTheDocument()
+    const memberNotices = screen.getAllByText(
+      'Diese Kontoverwaltung ist nur für Administratoren verfügbar.',
+    )
+    expect(memberNotices).toHaveLength(1)
+    expect(
+      screen
+        .getByRole('heading', { name: 'Sitzungen' })
+        .compareDocumentPosition(memberNotices[0]) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(
       screen.queryByRole('heading', { name: 'Kontoverwaltung' }),
     ).not.toBeInTheDocument()
     expect(settingsApi.listAccounts).not.toHaveBeenCalled()
+
+    page.unmount()
+    renderPage(
+      admin,
+      {
+        capacity: { maximumSlots: 10, occupiedSlots: 0 },
+        invitations: [],
+        profiles: [],
+      },
+      settingsApi,
+    )
+    expect(
+      screen.queryByText(
+        'Diese Kontoverwaltung ist nur für Administratoren verfügbar.',
+      ),
+    ).not.toBeInTheDocument()
   })
 
   it('configures unique mobile tabs and reorders their positions', async () => {
