@@ -73,7 +73,8 @@ export function isValidDialogFocusTarget(
   return true
 }
 
-function moveFocus(target: HTMLElement | null) {
+// eslint-disable-next-line react-refresh/only-export-components
+export function focusDialogTarget(target: HTMLElement | null) {
   if (!isValidDialogFocusTarget(target)) return false
 
   target.focus()
@@ -117,7 +118,7 @@ function focusTopModal() {
   if (activeElement && modal.dialog.contains(activeElement)) return
 
   for (const target of [...getFocusableElements(modal.dialog), modal.dialog]) {
-    if (moveFocus(target)) return
+    if (focusDialogTarget(target)) return
   }
 }
 
@@ -127,7 +128,7 @@ function restoreFocus(
 ) {
   for (const target of targets) {
     if (within && !within.contains(target)) continue
-    if (moveFocus(target)) return true
+    if (focusDialogTarget(target)) return true
   }
 
   return false
@@ -301,7 +302,7 @@ export function ResponsiveDialog({
       dialog,
     ]
     for (const target of initialFocusTargets) {
-      if (moveFocus(target)) break
+      if (focusDialogTarget(target)) break
     }
 
     return () => {
@@ -328,7 +329,7 @@ export function ResponsiveDialog({
     const focusableElements = getFocusableElements(dialogRef.current)
     if (focusableElements.length === 0) {
       event.preventDefault()
-      moveFocus(dialogRef.current)
+      focusDialogTarget(dialogRef.current)
       return
     }
 
@@ -338,10 +339,10 @@ export function ResponsiveDialog({
 
     if (event.shiftKey && currentIndex <= 0) {
       event.preventDefault()
-      moveFocus(last)
+      focusDialogTarget(last)
     } else if (!event.shiftKey && currentIndex === focusableElements.length - 1) {
       event.preventDefault()
-      moveFocus(first)
+      focusDialogTarget(first)
     }
   }
 

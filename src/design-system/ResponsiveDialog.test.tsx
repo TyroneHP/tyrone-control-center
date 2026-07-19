@@ -108,12 +108,14 @@ function DisabledOpenerDialog() {
 }
 
 type InvalidFocusTarget =
-  | 'aria-hidden'
+  | 'aria-hidden-ancestor'
+  | 'aria-hidden-self'
   | 'disabled'
   | 'disconnected'
   | 'display-none'
   | 'hidden'
-  | 'inert'
+  | 'inert-ancestor'
+  | 'inert-self'
   | 'visibility-hidden'
 
 function InvalidFocusTargetDialog({ target }: { target: InvalidFocusTarget }) {
@@ -139,8 +141,12 @@ function InvalidFocusTargetDialog({ target }: { target: InvalidFocusTarget }) {
   if (target === 'visibility-hidden' && invalidated) {
     targetProps.style = { visibility: 'hidden' }
   }
-  if (target === 'aria-hidden' && invalidated) wrapperProps['aria-hidden'] = true
-  if (target === 'inert' && invalidated) wrapperProps.inert = true
+  if (target === 'aria-hidden-ancestor' && invalidated) {
+    wrapperProps['aria-hidden'] = true
+  }
+  if (target === 'aria-hidden-self' && invalidated) targetProps['aria-hidden'] = true
+  if (target === 'inert-ancestor' && invalidated) wrapperProps.inert = true
+  if (target === 'inert-self' && invalidated) targetProps.inert = true
 
   return (
     <>
@@ -181,13 +187,15 @@ function InvalidFocusTargetDialog({ target }: { target: InvalidFocusTarget }) {
       >
         {target !== 'disconnected' ? (
           <div
-            aria-hidden={target === 'aria-hidden' ? 'true' : undefined}
-            inert={target === 'inert' ? true : undefined}
+            aria-hidden={target === 'aria-hidden-ancestor' ? true : undefined}
+            inert={target === 'inert-ancestor' ? true : undefined}
             style={initialFocusStyle}
           >
             <button
+              aria-hidden={target === 'aria-hidden-self' ? true : undefined}
               disabled={target === 'disabled'}
               hidden={target === 'hidden'}
+              inert={target === 'inert-self' ? true : undefined}
               ref={initialFocusRef}
               type="button"
             >
@@ -334,8 +342,10 @@ describe('ResponsiveDialog', () => {
     'hidden',
     'display-none',
     'visibility-hidden',
-    'aria-hidden',
-    'inert',
+    'aria-hidden-self',
+    'aria-hidden-ancestor',
+    'inert-self',
+    'inert-ancestor',
     'disabled',
     'disconnected',
   ])('skips %s focus targets during containment and restoration', async (target) => {

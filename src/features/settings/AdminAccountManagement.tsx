@@ -7,6 +7,7 @@ import {
 } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  focusDialogTarget,
   isValidDialogFocusTarget,
   ResponsiveDialog,
   useToast,
@@ -131,8 +132,7 @@ export function AdminAccountManagement({
       return
     }
 
-    opener.focus()
-    if (opener.ownerDocument.activeElement !== opener) fallback.focus()
+    if (!focusDialogTarget(opener)) focusDialogTarget(fallback)
   }, [manageMutation.isPending])
 
   function submitInvitation(event: FormEvent<HTMLFormElement>) {
