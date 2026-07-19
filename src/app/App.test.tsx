@@ -55,7 +55,7 @@ describe('App', () => {
       />,
     )
 
-    await screen.findByText('Tyrone Control Center')
+    await screen.findByText('CoreGrid')
     expect(document.documentElement).toHaveAttribute('data-theme', 'light')
   })
 
@@ -79,7 +79,7 @@ describe('App', () => {
     )
 
     expect(
-      await screen.findByText('Tyrone Control Center'),
+      await screen.findByText('CoreGrid'),
     ).toBeInTheDocument()
   })
 

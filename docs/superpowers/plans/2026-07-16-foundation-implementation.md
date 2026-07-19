@@ -1,4 +1,4 @@
-# Tyrone Control Center Foundation Implementation Plan
+# CoreGrid Foundation Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -96,7 +96,7 @@ npm install -D vitest jsdom @testing-library/react @testing-library/jest-dom @te
 }
 ```
 
-- [ ] Add a failing test asserting the heading `Tyrone Control Center`, configure Vitest with `jsdom`, then implement the minimal `App` component.
+- [ ] Add a failing test asserting the heading `CoreGrid`, configure Vitest with `jsdom`, then implement the minimal `App` component.
 - [ ] Run `npm run check`; expected PASS.
 - [ ] Commit: `chore: scaffold React foundation`.
 
@@ -340,8 +340,8 @@ type ManageUserRequest =
 {
   registerType: 'prompt',
   manifest: {
-    name: 'Tyrone Control Center',
-    short_name: 'Control Center',
+    name: 'CoreGrid',
+    short_name: 'CoreGrid',
     theme_color: '#071526',
     background_color: '#071526',
     display: 'standalone',

@@ -5,8 +5,8 @@ test('shows German login branding without horizontal overflow', async ({
 }) => {
   await page.goto('/login')
 
-  await expect(page).toHaveTitle('Tyrone Control Center')
-  await expect(page.getByText('Tyrone Control Center')).toBeVisible()
+  await expect(page).toHaveTitle('CoreGrid')
+  await expect(page.getByText('CoreGrid')).toBeVisible()
   await expect(
     page.getByRole('heading', { name: 'Willkommen zurück.' }),
   ).toBeVisible()

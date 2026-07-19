@@ -1,4 +1,4 @@
-# Tyrone Control Center – Design Specification
+# CoreGrid – Design Specification
 
 **Status:** Approved design  
 **Date:** 2026-07-16  
@@ -8,7 +8,7 @@
 
 ## 1. Product goal
 
-Tyrone Control Center is a private, Slate-style personal organization platform for up to ten accounts: one administrator and up to nine invited users. It combines calendar, tasks, school, technician project work, training, nutrition, files, collaboration, notifications, and a provider-independent AI chat.
+CoreGrid is a private, Slate-style personal organization platform for up to ten accounts: one administrator and up to nine invited users. It combines calendar, tasks, school, technician project work, training, nutrition, files, collaboration, notifications, and a provider-independent AI chat.
 
 The product should feel like a polished native app while remaining deployable as a static React application on GitHub Pages. User data, authentication, storage, server-side logic, notifications, and AI orchestration are handled through Supabase.
 

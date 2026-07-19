@@ -11,7 +11,7 @@
 
 ## 1. Goal
 
-Extend the existing Tyrone Control Center Foundation with reusable, accessible
+Extend the existing CoreGrid Foundation with reusable, accessible
 UI foundations while preserving the confirmed compact Navy/Slate design and all
 existing behavior. The milestone adds:
 
