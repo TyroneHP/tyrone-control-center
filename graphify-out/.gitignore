@@ -1,0 +1,8 @@
+# Keep the shared Graphify artifacts and portable update metadata only.
+*
+!.gitignore
+!graph.json
+!graph.html
+!GRAPH_REPORT.md
+!manifest.json
+!.graphify_labels.json
