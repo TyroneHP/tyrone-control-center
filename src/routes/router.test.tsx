@@ -3,6 +3,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '../lib/supabase/database.types'
+import { ToastProvider } from '../design-system'
 import { AuthProvider } from '../features/auth'
 import { DevicePreferencesProvider } from '../preferences/DevicePreferencesProvider'
 import { DEFAULT_DEVICE_PREFERENCES } from '../preferences/devicePreferences'
@@ -78,11 +79,13 @@ function renderRoute(path: string, client: SupabaseClient<Database>) {
   installWideMatchMedia()
   const router = createMemoryRouter(appRoutes, { initialEntries: [path] })
   render(
-    <DevicePreferencesProvider storage={deviceStorage}>
-      <AuthProvider client={client}>
-        <RouterProvider router={router} />
-      </AuthProvider>
-    </DevicePreferencesProvider>,
+    <ToastProvider>
+      <DevicePreferencesProvider storage={deviceStorage}>
+        <AuthProvider client={client}>
+          <RouterProvider router={router} />
+        </AuthProvider>
+      </DevicePreferencesProvider>
+    </ToastProvider>,
   )
 }
 
