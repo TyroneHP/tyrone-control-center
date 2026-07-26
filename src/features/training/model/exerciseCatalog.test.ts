@@ -65,6 +65,42 @@ const REQUIRED_EXERCISE_IDS = [
 
 const exerciseAssetDirectory = resolve('public/training/exercises')
 
+interface SvgPoint {
+  x: number
+  y: number
+}
+
+function readExerciseSvg(exerciseId: string) {
+  const markup = readFileSync(
+    resolve(exerciseAssetDirectory, `${exerciseId}.svg`),
+    'utf8',
+  )
+  return new DOMParser().parseFromString(markup, 'image/svg+xml')
+}
+
+function parsePolylinePoints(element: Element): SvgPoint[] {
+  const coordinates = (element.getAttribute('points')?.match(/-?\d+(?:\.\d+)?/g) ?? [])
+    .map(Number)
+
+  return Array.from({ length: coordinates.length / 2 }, (_, index) => ({
+    x: coordinates[index * 2],
+    y: coordinates[index * 2 + 1],
+  }))
+}
+
+function parsePathEndpoints(element: Element) {
+  const coordinates = (element.getAttribute('d')?.match(/-?\d+(?:\.\d+)?/g) ?? [])
+    .map(Number)
+
+  return {
+    start: { x: coordinates[0], y: coordinates[1] },
+    end: {
+      x: coordinates[coordinates.length - 2],
+      y: coordinates[coordinates.length - 1],
+    },
+  }
+}
+
 describe('standard exercise catalog', () => {
   it('ships exactly the 50 required exercises with stable unique IDs and names', () => {
     const ids = STANDARD_EXERCISES.map(({ id }) => id)
@@ -149,7 +185,11 @@ describe('standard exercise illustrations', () => {
     )
 
     expect(assetNames).toEqual(expectedAssetNames)
-    expect(new Set(svgContents)).toHaveLength(50)
+    const geometryContents = svgContents.map((markup) =>
+      markup.replace(/ data-exercise-id="[^"]+"/, ''),
+    )
+
+    expect(new Set(geometryContents)).toHaveLength(50)
 
     for (const [index, markup] of svgContents.entries()) {
       const document = new DOMParser().parseFromString(markup, 'image/svg+xml')
@@ -182,6 +222,100 @@ describe('standard exercise illustrations', () => {
       expect(svg.querySelector('image')).toBeNull()
       expect(svg.querySelector('[href^="http"]')).toBeNull()
     }
+  })
+
+  it('shows both dumbbells moving forward and upward during the front raise', () => {
+    const document = readExerciseSvg('front-raise')
+    const startArms = ['near-arm', 'far-arm'].map((limb) =>
+      document.querySelector(
+        `[data-pose="start"] polyline[data-limb="${limb}"]`,
+      ),
+    )
+    const endArms = ['near-arm', 'far-arm'].map((limb) =>
+      document.querySelector(
+        `[data-pose="end"] polyline[data-limb="${limb}"]`,
+      ),
+    )
+    const motionArrow = document.querySelector('[data-motion="arrow"]')
+
+    expect(startArms.every(Boolean)).toBe(true)
+    expect(endArms.every(Boolean)).toBe(true)
+    expect(motionArrow).not.toBeNull()
+    if (startArms.some((arm) => !arm) || endArms.some((arm) => !arm) || !motionArrow) {
+      return
+    }
+
+    const startPoints = startArms.map((arm) => parsePolylinePoints(arm!))
+    const endPoints = endArms.map((arm) => parsePolylinePoints(arm!))
+
+    for (const [index, points] of startPoints.entries()) {
+      const startShoulder = points[0]
+      const startHand = points.at(-1)!
+      const endShoulder = endPoints[index][0]
+      const endHand = endPoints[index].at(-1)!
+
+      expect(points).toHaveLength(3)
+      expect(endPoints[index]).toHaveLength(3)
+      expect(endShoulder).toEqual(startShoulder)
+      expect(endHand.x - startHand.x).toBeGreaterThan(90)
+      expect(startHand.y - endHand.y).toBeGreaterThan(80)
+    }
+
+    const nearStartHand = startPoints[0].at(-1)!
+    const nearEndHand = endPoints[0].at(-1)!
+    const farEndHand = endPoints[1].at(-1)!
+    const arrow = parsePathEndpoints(motionArrow)
+
+    expect(Math.abs(nearEndHand.x - farEndHand.x)).toBeLessThan(15)
+    expect(Math.abs(nearEndHand.y - farEndHand.y)).toBeLessThan(15)
+    expect(arrow).toEqual({ start: nearStartHand, end: nearEndHand })
+  })
+
+  it('shows both hanging legs moving together forward and upward', () => {
+    const document = readExerciseSvg('hanging-leg-raise')
+    const startLegs = ['near-leg', 'far-leg'].map((limb) =>
+      document.querySelector(
+        `[data-pose="start"] polyline[data-limb="${limb}"]`,
+      ),
+    )
+    const endLegs = ['near-leg', 'far-leg'].map((limb) =>
+      document.querySelector(
+        `[data-pose="end"] polyline[data-limb="${limb}"]`,
+      ),
+    )
+    const motionArrow = document.querySelector('[data-motion="arrow"]')
+
+    expect(startLegs.every(Boolean)).toBe(true)
+    expect(endLegs.every(Boolean)).toBe(true)
+    expect(motionArrow).not.toBeNull()
+    if (startLegs.some((leg) => !leg) || endLegs.some((leg) => !leg) || !motionArrow) {
+      return
+    }
+
+    const startPoints = startLegs.map((leg) => parsePolylinePoints(leg!))
+    const endPoints = endLegs.map((leg) => parsePolylinePoints(leg!))
+
+    for (const [index, points] of startPoints.entries()) {
+      const startHip = points[0]
+      const startFoot = points.at(-1)!
+      const endHip = endPoints[index][0]
+      const endFoot = endPoints[index].at(-1)!
+
+      expect(points).toHaveLength(3)
+      expect(endPoints[index]).toHaveLength(3)
+      expect(endHip).toEqual(startHip)
+      expect(endFoot.x - startFoot.x).toBeGreaterThan(130)
+      expect(startFoot.y - endFoot.y).toBeGreaterThan(65)
+    }
+
+    const nearStartFoot = startPoints[0].at(-1)!
+    const nearEndFoot = endPoints[0].at(-1)!
+    const farEndFoot = endPoints[1].at(-1)!
+    const arrow = parsePathEndpoints(motionArrow)
+
+    expect(Math.abs(nearEndFoot.x - farEndFoot.x)).toBeLessThan(15)
+    expect(Math.abs(nearEndFoot.y - farEndFoot.y)).toBeLessThan(15)
+    expect(arrow).toEqual({ start: nearStartFoot, end: nearEndFoot })
   })
 })
 
