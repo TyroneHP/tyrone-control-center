@@ -1,4 +1,4 @@
-import { openDB, type DBSchema } from 'idb'
+import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import { EMPTY_TRAINING_STATE } from '../model/trainingDefaults'
 import type { TrainingState } from '../model/trainingTypes'
 import {
@@ -28,13 +28,65 @@ function imageKey(profileId: string, imageId: string) {
   return `${profileId}:${imageId}`
 }
 
+async function readStoredState(
+  database: IDBPDatabase<TrainingDb>,
+  profileId: string,
+) {
+  const transaction = database.transaction('states')
+  const store = transaction.objectStore('states')
+  const [recordCount, value] = await Promise.all([
+    store.count(profileId),
+    store.get(profileId),
+  ])
+  await transaction.done
+  return { exists: recordCount > 0, value }
+}
+
+async function readStoredImage(
+  database: IDBPDatabase<TrainingDb>,
+  key: string,
+) {
+  const transaction = database.transaction('images')
+  const store = transaction.objectStore('images')
+  const [recordCount, value] = await Promise.all([
+    store.count(key),
+    store.get(key),
+  ])
+  await transaction.done
+  return { exists: recordCount > 0, value }
+}
+
+function isBlob(value: unknown): value is Blob {
+  if (typeof value !== 'object' || value === null) return false
+  const candidate = value as Blob
+  return (
+    Object.prototype.toString.call(value) === '[object Blob]' &&
+    typeof candidate.size === 'number' &&
+    typeof candidate.type === 'string' &&
+    typeof candidate.arrayBuffer === 'function' &&
+    typeof candidate.slice === 'function'
+  )
+}
+
+function isImageRecord(
+  value: unknown,
+): value is { profileId: string; blob: Blob } {
+  if (typeof value !== 'object' || value === null) return false
+  const record = value as Record<string, unknown>
+  return (
+    Object.keys(record).length === 2 &&
+    typeof record.profileId === 'string' &&
+    isBlob(record.blob)
+  )
+}
+
 export class IndexedDbTrainingRepository implements TrainingRepository {
   private readonly database = openTrainingDatabase()
 
   async load(profileId: string): Promise<TrainingState> {
     const database = await this.database
-    const value = await database.get('states', profileId)
-    if (value === undefined) return EMPTY_TRAINING_STATE
+    const { exists, value } = await readStoredState(database, profileId)
+    if (!exists) return EMPTY_TRAINING_STATE
 
     try {
       return migrateTrainingState(value)
@@ -70,8 +122,17 @@ export class IndexedDbTrainingRepository implements TrainingRepository {
     imageId: string,
   ): Promise<Blob | undefined> {
     const database = await this.database
-    const value = await database.get('images', imageKey(profileId, imageId))
-    return value?.profileId === profileId ? value.blob : undefined
+    const { exists, value } = await readStoredImage(
+      database,
+      imageKey(profileId, imageId),
+    )
+    if (!exists) return undefined
+    if (!isImageRecord(value) || value.profileId !== profileId) {
+      throw new TrainingDataCorruptionError(
+        'Die gespeicherten Trainingsbilder sind beschädigt.',
+      )
+    }
+    return value.blob
   }
 
   async deleteImage(profileId: string, imageId: string): Promise<void> {
@@ -81,8 +142,9 @@ export class IndexedDbTrainingRepository implements TrainingRepository {
 
   async exportRaw(profileId: string): Promise<string> {
     const database = await this.database
-    const value = await database.get('states', profileId)
-    return JSON.stringify(value ?? null, null, 2)
+    const { exists, value } = await readStoredState(database, profileId)
+    if (!exists) return 'null'
+    return JSON.stringify(value, null, 2) ?? 'undefined'
   }
 
   async reset(profileId: string): Promise<void> {

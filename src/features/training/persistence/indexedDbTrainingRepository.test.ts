@@ -11,7 +11,7 @@ const DATABASE_VERSION = 1
 
 interface RawTrainingDb extends DBSchema {
   states: { key: string; value: unknown }
-  images: { key: string; value: { profileId: string; blob: Blob } }
+  images: { key: string; value: unknown }
 }
 
 const EMPTY_STATE: TrainingState = {
@@ -85,6 +85,37 @@ async function readRawState(profileId: string) {
   } finally {
     database.close()
   }
+}
+
+async function countRawState(profileId: string) {
+  const database = await openRawTrainingDatabase()
+  try {
+    return await database.count('states', profileId)
+  } finally {
+    database.close()
+  }
+}
+
+async function putRawImage(key: string, value: unknown) {
+  const database = await openRawTrainingDatabase()
+  try {
+    await database.put('images', value, key)
+  } finally {
+    database.close()
+  }
+}
+
+async function readRawImage(key: string) {
+  const database = await openRawTrainingDatabase()
+  try {
+    return await database.get('images', key)
+  } finally {
+    database.close()
+  }
+}
+
+async function readBlobBytes(blob: Blob) {
+  return [...new Uint8Array(await blob.arrayBuffer())]
 }
 
 describe('IndexedDbTrainingRepository', () => {
@@ -167,8 +198,12 @@ describe('IndexedDbTrainingRepository', () => {
       'image-profile-b',
       'shared-image',
     )
+    expect(firstLoaded).toBeInstanceOf(NodeBlob)
+    expect(secondLoaded).toBeInstanceOf(NodeBlob)
     expect(firstLoaded).toMatchObject({ size: 3, type: 'image/webp' })
     expect(secondLoaded).toMatchObject({ size: 2, type: 'image/png' })
+    expect(await readBlobBytes(firstLoaded!)).toEqual([1, 2, 3])
+    expect(await readBlobBytes(secondLoaded!)).toEqual([4, 5])
 
     const database = await openRawTrainingDatabase()
     try {
@@ -186,9 +221,49 @@ describe('IndexedDbTrainingRepository', () => {
     await expect(
       repository.loadImage('image-profile-a', 'shared-image'),
     ).resolves.toBeUndefined()
+    const remaining = await repository.loadImage(
+      'image-profile-b',
+      'shared-image',
+    )
+    expect(remaining).toBeInstanceOf(NodeBlob)
+    expect(remaining).toMatchObject({ size: 2, type: 'image/png' })
+    expect(await readBlobBytes(remaining!)).toEqual([4, 5])
+  })
+
+  it('rejects an image record whose blob field is corrupt without overwriting it', async () => {
+    const profileId = 'corrupt-image-profile'
+    const imageId = 'corrupt-blob'
+    const key = `${profileId}:${imageId}`
+    const corruptRecord = { profileId, blob: 'not-a-blob' }
+    await putRawImage(key, corruptRecord)
+
+    await expect(repository.loadImage(profileId, imageId)).rejects.toBeInstanceOf(
+      TrainingDataCorruptionError,
+    )
+    await expect(readRawImage(key)).resolves.toEqual(corruptRecord)
+  })
+
+  it('rejects mismatched image profile metadata without exposing or overwriting the blob', async () => {
+    const requestedProfileId = 'requested-image-profile'
+    const storedProfileId = 'different-image-profile'
+    const imageId = 'mismatched-profile'
+    const key = `${requestedProfileId}:${imageId}`
+    await putRawImage(key, {
+      profileId: storedProfileId,
+      blob: makeCloneableBlob([9, 8, 7], 'image/webp'),
+    })
+
     await expect(
-      repository.loadImage('image-profile-b', 'shared-image'),
-    ).resolves.toMatchObject({ size: 2, type: 'image/png' })
+      repository.loadImage(requestedProfileId, imageId),
+    ).rejects.toBeInstanceOf(TrainingDataCorruptionError)
+
+    const preserved = (await readRawImage(key)) as {
+      profileId: string
+      blob: Blob
+    }
+    expect(preserved.profileId).toBe(storedProfileId)
+    expect(preserved.blob).toBeInstanceOf(NodeBlob)
+    expect(await readBlobBytes(preserved.blob)).toEqual([9, 8, 7])
   })
 
   it('rejects invalid version-one state without overwriting its raw value', async () => {
@@ -203,6 +278,16 @@ describe('IndexedDbTrainingRepository', () => {
       TrainingDataCorruptionError,
     )
     await expect(readRawState(profileId)).resolves.toEqual(corruptState)
+  })
+
+  it('rejects a stored undefined state without treating its key as missing', async () => {
+    const profileId = 'undefined-state-profile'
+    await putRawState(profileId, undefined)
+
+    await expect(repository.load(profileId)).rejects.toBeInstanceOf(
+      TrainingDataCorruptionError,
+    )
+    await expect(countRawState(profileId)).resolves.toBe(1)
   })
 
   it('rejects an unknown data version with the recovery error message', async () => {
@@ -229,6 +314,17 @@ describe('IndexedDbTrainingRepository', () => {
 
     expect(JSON.parse(exported)).toEqual(rawState)
     await expect(readRawState(profileId)).resolves.toEqual(rawState)
+  })
+
+  it('exports stored undefined distinctly from a missing state record', async () => {
+    const profileId = 'undefined-export-profile'
+    await putRawState(profileId, undefined)
+
+    await expect(repository.exportRaw(profileId)).resolves.toBe('undefined')
+    await expect(
+      repository.exportRaw('missing-undefined-export-profile'),
+    ).resolves.toBe('null')
+    await expect(countRawState(profileId)).resolves.toBe(1)
   })
 
   it('resets only the selected profile state and images', async () => {
