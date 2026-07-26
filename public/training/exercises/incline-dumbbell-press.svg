@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" data-exercise-id="incline-dumbbell-press">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#f59e0b"/></marker></defs>
+  <g fill="none" stroke="#26313a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <g data-equipment="incline-bench-dumbbells"><path d="M80 290h310M145 270l125-145m-125 145h75m50-145 28 165"/><path d="M194 156h35m-8-15v30m-19-30v30M291 131h35m-8-15v30m-19-30v30" stroke-width="6"/></g>
+    <g data-pose="end" opacity="0.38"><circle cx="273" cy="139" r="14"/><path d="M260 150l-100 116m84-98-13-70m13 70 48-57m-63-14-20 4m83 10 21-3M160 266l-28 28m28-28 30 28"/></g>
+    <g data-pose="start"><circle cx="273" cy="139" r="14"/><path d="M260 150l-100 116m84-98-39-15m39 15 39-28m-78 13-19-4m97-9 18-10M160 266l-28 28m28-28 30 28"/></g>
+    <path data-motion="arrow" d="M347 158l-8-65" stroke="#f59e0b" stroke-width="6" marker-end="url(#arrow)"/>
+  </g>
+  <g data-muscle-map="front" stroke="#26313a" stroke-width="2" fill="none"><circle cx="535" cy="73" r="12"/><path d="M535 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path data-muscle="primary" d="M520 101q15-13 30 0v14q-15 6-30 0Z" fill="#f59e0b" stroke="none"/><path data-muscle="secondary" d="M513 101l-10 31 10 7 10-32m34-6 10 31-10 7-10-32" fill="#f59e0b" opacity="0.38" stroke="none"/></g>
+  <g data-muscle-map="back" stroke="#26313a" stroke-width="2" fill="none"><circle cx="596" cy="73" r="12"/><path d="M596 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path d="M581 103q15-12 30 0v38q-15 10-30 0Z" fill="#e7eaec" stroke="none"/></g>
+</svg>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" data-exercise-id="reverse-pec-deck">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#f59e0b"/></marker></defs>
+  <g fill="none" stroke="#26313a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <g data-equipment="reverse-pec-deck-machine"><path d="M55 305h405M82 52v253m345-253v253M82 65h345M208 224h92m-72 0v81m52-81v81M252 126v98"/><path d="M105 117l102 47m220-47-102 47M187 150l15 49m138-49-15 49" stroke-width="9"/></g>
+    <g data-pose="end" opacity="0.38"><circle cx="254" cy="106" r="16"/><path d="M254 123v102m0-67-69-11-55 24m124-13 69-11 55 24m-124 54-29 72m29-72 29 72"/></g>
+    <g data-pose="start"><circle cx="254" cy="106" r="16"/><path d="M254 123v102m0-67-36 21 29 17m7-38 36 21-29 17m-7 29-29 72m29-72 29 72"/></g>
+    <path data-motion="arrow" d="M249 216q-100 8-127-48" stroke="#f59e0b" stroke-width="6" marker-end="url(#arrow)"/>
+  </g>
+  <g data-muscle-map="front" stroke="#26313a" stroke-width="2" fill="none"><circle cx="535" cy="73" r="12"/><path d="M535 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path d="M520 104q15-10 30 0v37q-15 9-30 0Z" fill="#e7eaec" stroke="none"/><path data-muscle="secondary" d="M512 103l-9 28 10 7 10-31m34-4 9 28-9 7-10-31" fill="#f59e0b" opacity="0.38" stroke="none"/></g>
+  <g data-muscle-map="back" stroke="#26313a" stroke-width="2" fill="none"><circle cx="596" cy="73" r="12"/><path d="M596 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path data-muscle="primary" d="M577 102l19 6 19-6-6 22-13 5-13-5Z" fill="#f59e0b" stroke="none"/></g>
+</svg>

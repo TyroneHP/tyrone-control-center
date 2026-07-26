@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" data-exercise-id="rear-delt-cable-fly">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#f59e0b"/></marker></defs>
+  <g fill="none" stroke="#26313a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <g data-equipment="crossed-cable-station"><path d="M45 45v265m390-265v265M45 55h390M45 310h390"/><rect x="59" y="105" width="34" height="113" rx="4"/><rect x="387" y="105" width="34" height="113" rx="4"/><path d="M88 94l180 78m122-78-180 78" stroke-width="3"/></g>
+    <g data-pose="end" opacity="0.38"><circle cx="239" cy="96" r="17"/><path d="M239 113v111m0-73-78-10-76 4m154 6 78-10 76 4m-154 79-38 79m38-79 38 79"/></g>
+    <g data-pose="start"><circle cx="239" cy="96" r="17"/><path d="M239 113v111m0-73-42 18 35 24m7-42 42 18-35 24m-7 31-38 79m38-79 38 79"/></g>
+    <path data-motion="arrow" d="M232 210q-94 18-151-42" stroke="#f59e0b" stroke-width="6" marker-end="url(#arrow)"/>
+  </g>
+  <g data-muscle-map="front" stroke="#26313a" stroke-width="2" fill="none"><circle cx="535" cy="73" r="12"/><path d="M535 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path d="M520 104q15-10 30 0v37q-15 9-30 0Z" fill="#e7eaec" stroke="none"/><path data-muscle="secondary" d="M512 103l-9 28 10 7 10-31m34-4 9 28-9 7-10-31" fill="#f59e0b" opacity="0.38" stroke="none"/></g>
+  <g data-muscle-map="back" stroke="#26313a" stroke-width="2" fill="none"><circle cx="596" cy="73" r="12"/><path d="M596 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path data-muscle="primary" d="M576 102l20 7 20-7-6 20-14 7-14-7Z" fill="#f59e0b" stroke="none"/></g>
+</svg>

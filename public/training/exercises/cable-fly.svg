@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" data-exercise-id="cable-fly">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#f59e0b"/></marker></defs>
+  <g fill="none" stroke="#26313a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <g data-equipment="dual-cable-tower"><path d="M45 48v260m390-260v260M45 55h390M45 308h390"/><rect x="57" y="100" width="32" height="112" rx="3"/><rect x="391" y="100" width="32" height="112" rx="3"/><path d="M87 90l105 116m201-116L288 206" stroke-width="3"/></g>
+    <g data-pose="end" opacity="0.38"><circle cx="240" cy="112" r="16"/><path d="M240 129v106m0-69-40 36 35 19m5-55 40 36-35 19m-5 14-31 67m31-67 31 67"/></g>
+    <g data-pose="start"><circle cx="240" cy="112" r="16"/><path d="M240 129v106m0-69-63 12-41 29m104-41 63 12 41 29m-104 28-31 67m31-67 31 67"/></g>
+    <path data-motion="arrow" d="M132 231q108 49 216 0" stroke="#f59e0b" stroke-width="6" marker-end="url(#arrow)"/>
+  </g>
+  <g data-muscle-map="front" stroke="#26313a" stroke-width="2" fill="none"><circle cx="535" cy="73" r="12"/><path d="M535 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path data-muscle="primary" d="M520 103q15-12 30 0v22q-15 9-30 0Z" fill="#f59e0b" stroke="none"/><path data-muscle="secondary" d="M512 104l-9 29 10 6 10-31m34-4 9 29-9 6-10-31" fill="#f59e0b" opacity="0.38" stroke="none"/></g>
+  <g data-muscle-map="back" stroke="#26313a" stroke-width="2" fill="none"><circle cx="596" cy="73" r="12"/><path d="M596 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path d="M581 103q15-12 30 0v38q-15 10-30 0Z" fill="#e7eaec" stroke="none"/></g>
+</svg>

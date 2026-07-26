@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" data-exercise-id="rope-pushdown">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#f59e0b"/></marker></defs>
+  <g fill="none" stroke="#26313a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <g data-equipment="high-pulley-rope"><path d="M49 43v269h105M49 53h95v259"/><rect x="66" y="118" width="41" height="116" rx="4"/><circle cx="135" cy="78" r="10"/><path d="M135 78l99 52" stroke-width="3"/><path d="M234 130v32m0 0-17 25m17-25 17 25" stroke-width="5"/></g>
+    <g data-pose="end" opacity="0.38"><circle cx="292" cy="76" r="18"/><path d="M292 95v121m0-77-42 22-25 101m67-123 42 22 25 101m-67-46-41 88m41-88 41 88"/><path d="M209 263l-15 26m15-26 18 24m116-24 15 26m-15-26-18 24"/></g>
+    <g data-pose="start"><circle cx="292" cy="76" r="18"/><path d="M292 95v121m0-77-42 22-12 17m54-39 42 22 12 17m-54 38-41 88m41-88 41 88"/></g>
+    <path data-motion="arrow" d="M391 169v91" stroke="#f59e0b" stroke-width="6" marker-end="url(#arrow)"/>
+  </g>
+  <g data-muscle-map="front" stroke="#26313a" stroke-width="2" fill="none"><circle cx="535" cy="73" r="12"/><path d="M535 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path data-muscle="secondary" d="M515 149l8-4 4 28-8 19-7-6m46-37-8-4-4 28 8 19 7-6" fill="#f59e0b" opacity="0.38" stroke="none"/></g>
+  <g data-muscle-map="back" stroke="#26313a" stroke-width="2" fill="none"><circle cx="596" cy="73" r="12"/><path d="M596 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path data-muscle="primary" d="M575 110l9-4 8 28-10 22-9-6m44-40-9-4-8 28 10 22 9-6" fill="#f59e0b" stroke="none"/></g>
+</svg>

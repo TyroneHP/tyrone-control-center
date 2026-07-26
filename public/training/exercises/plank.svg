@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" data-exercise-id="plank">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#f59e0b"/></marker></defs>
+  <g fill="none" stroke="#26313a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <g data-equipment="exercise-mat"><path d="M55 288h393l-35 32H90Z" fill="#e7eaec" stroke-width="4"/></g>
+    <g data-pose="end" opacity="0.38"><circle cx="111" cy="191" r="17"/><path d="M128 198l189 35 89 41m-248 6-47-40m47 40 58-3m101-44 31 47m-31-47 49 41"/></g>
+    <g data-pose="start"><circle cx="116" cy="223" r="17"/><path d="M133 228l169 16 89 36m-222 3-53-20m53 20 55 2m78-41-31 41m31-41 51 40"/></g>
+    <path data-motion="arrow" d="M188 220q81-53 166-10" stroke="#f59e0b" stroke-width="6" marker-end="url(#arrow)"/>
+  </g>
+  <g data-muscle-map="front" stroke="#26313a" stroke-width="2" fill="none"><circle cx="535" cy="73" r="12"/><path d="M535 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path data-muscle="primary" d="M520 116h30v48h-30Z" fill="#f59e0b" stroke="none"/><path data-muscle="secondary" d="M510 101q8-10 15 2l-5 18-13-6m53-14q-8-10-15 2l5 18 13-6" fill="#f59e0b" opacity="0.38" stroke="none"/></g>
+  <g data-muscle-map="back" stroke="#26313a" stroke-width="2" fill="none"><circle cx="596" cy="73" r="12"/><path d="M596 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path data-muscle="secondary" d="M583 148q13-8 26 0v21q-13 10-26 0Z" fill="#f59e0b" opacity="0.38" stroke="none"/></g>
+</svg>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" data-exercise-id="dumbbell-shoulder-press">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#f59e0b"/></marker></defs>
+  <g fill="none" stroke="#26313a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <g data-equipment="seat-dumbbells"><path d="M112 302h300M184 220h128m-102 0v82m76-82v82M198 104v116"/><path d="M131 155h38m-8-16v32m-22-32v32M327 155h38m-8-16v32m-22-32v32" stroke-width="6"/></g>
+    <g data-pose="end" opacity="0.38"><circle cx="249" cy="102" r="17"/><path d="M249 120v102m0-67-55-41-18-63m73 104 55-41 18-63m-73 171-34 73m34-73 34 73"/><path d="M158 47h36m110 0h36" stroke-width="6"/></g>
+    <g data-pose="start"><circle cx="249" cy="102" r="17"/><path d="M249 120v102m0-67-49 17-24-29m73 12 49 17 24-29m-73 79-34 73m34-73 34 73"/></g>
+    <path data-motion="arrow" d="M382 163l-8-84" stroke="#f59e0b" stroke-width="6" marker-end="url(#arrow)"/>
+  </g>
+  <g data-muscle-map="front" stroke="#26313a" stroke-width="2" fill="none"><circle cx="535" cy="73" r="12"/><path d="M535 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path data-muscle="primary" d="M510 101q8-10 15 2l-5 18-13-6m53-14q-8-10-15 2l5 18 13-6" fill="#f59e0b" stroke="none"/><path data-muscle="secondary" d="M520 108q15-9 30 0v16q-15 7-30 0m-8 4 9 21m34-21-9 21" fill="#f59e0b" opacity="0.38" stroke="none"/></g>
+  <g data-muscle-map="back" stroke="#26313a" stroke-width="2" fill="none"><circle cx="596" cy="73" r="12"/><path d="M596 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path d="M581 103q15-12 30 0v38q-15 10-30 0Z" fill="#e7eaec" stroke="none"/></g>
+</svg>

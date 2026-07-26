@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" data-exercise-id="machine-crunch">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#f59e0b"/></marker></defs>
+  <g fill="none" stroke="#26313a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <g data-equipment="selectorized-crunch-machine"><path d="M55 307h400M82 49v258m0-242h126l76 80m-108 91h108m-88 0v71m68-71v71M205 145l80 0 34 58"/><rect x="99" y="119" width="37" height="112" rx="4"/><path d="M270 139l60-18m-11 82 35 10" stroke-width="11"/></g>
+    <g data-pose="end" opacity="0.38"><circle cx="252" cy="158" r="17"/><path d="M242 174q-39 30-31 70m17-55-29-32m43 17 48 30 31 2m-110 38 48 22m-48-22-6 57"/></g>
+    <g data-pose="start"><circle cx="249" cy="98" r="17"/><path d="M242 115l-21 126m12-80-34-4m43-42 48 31 31 60m-100 35 48 25m-48-25-6 60"/></g>
+    <path data-motion="arrow" d="M367 105q-3 94-77 131" stroke="#f59e0b" stroke-width="6" marker-end="url(#arrow)"/>
+  </g>
+  <g data-muscle-map="front" stroke="#26313a" stroke-width="2" fill="none"><circle cx="535" cy="73" r="12"/><path d="M535 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path data-muscle="primary" d="M528 118h14v47h-14Z" fill="#f59e0b" stroke="none"/><path data-muscle="secondary" d="M520 119l8 1v43l-9-5m31-39-8 1v43l9-5" fill="#f59e0b" opacity="0.38" stroke="none"/></g>
+  <g data-muscle-map="back" stroke="#26313a" stroke-width="2" fill="none"><circle cx="596" cy="73" r="12"/><path d="M596 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path d="M581 103q15-12 30 0v38q-15 10-30 0Z" fill="#e7eaec" stroke="none"/></g>
+</svg>
