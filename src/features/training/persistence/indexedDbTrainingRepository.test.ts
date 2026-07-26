@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto'
 
-import { Blob as NodeBlob } from 'node:buffer'
+import { Blob as NodeBlob, File as NodeFile } from 'node:buffer'
 import { openDB, type DBSchema } from 'idb'
 import type { TrainingState } from '../model/trainingTypes'
 import { IndexedDbTrainingRepository } from './indexedDbTrainingRepository'
@@ -54,6 +54,17 @@ function makeTrainingState(
 function makeCloneableBlob(bytes: number[], type: string): Blob {
   // fake-indexeddb uses Node's structuredClone, which cannot clone jsdom's Blob.
   return new NodeBlob([new Uint8Array(bytes)], { type }) as unknown as Blob
+}
+
+function makeCloneableFile(
+  bytes: number[],
+  name: string,
+  type: string,
+): File {
+  return new NodeFile([new Uint8Array(bytes)], name, {
+    type,
+    lastModified: 123,
+  }) as unknown as File
 }
 
 async function openRawTrainingDatabase() {
@@ -228,6 +239,26 @@ describe('IndexedDbTrainingRepository', () => {
     expect(remaining).toBeInstanceOf(NodeBlob)
     expect(remaining).toMatchObject({ size: 2, type: 'image/png' })
     expect(await readBlobBytes(remaining!)).toEqual([4, 5])
+  })
+
+  it('round-trips a File image as a valid Blob subtype', async () => {
+    const profileId = 'file-image-profile'
+    const imageId = 'uploaded-file'
+    const file = makeCloneableFile(
+      [10, 20, 30, 40],
+      'uploaded-image.webp',
+      'image/webp',
+    )
+
+    await repository.saveImage(profileId, imageId, file)
+
+    const loaded = (await repository.loadImage(profileId, imageId)) as
+      | File
+      | undefined
+    expect(loaded).toBeInstanceOf(NodeFile)
+    expect(loaded?.name).toBe('uploaded-image.webp')
+    expect(loaded).toMatchObject({ size: 4, type: 'image/webp' })
+    expect(await readBlobBytes(loaded!)).toEqual([10, 20, 30, 40])
   })
 
   it('rejects an image record whose blob field is corrupt without overwriting it', async () => {

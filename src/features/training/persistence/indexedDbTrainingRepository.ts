@@ -59,8 +59,9 @@ async function readStoredImage(
 function isBlob(value: unknown): value is Blob {
   if (typeof value !== 'object' || value === null) return false
   const candidate = value as Blob
+  const tag = Object.prototype.toString.call(value)
   return (
-    Object.prototype.toString.call(value) === '[object Blob]' &&
+    (tag === '[object Blob]' || tag === '[object File]') &&
     typeof candidate.size === 'number' &&
     typeof candidate.type === 'string' &&
     typeof candidate.arrayBuffer === 'function' &&
