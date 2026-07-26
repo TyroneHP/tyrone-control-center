@@ -1,0 +1,297 @@
+import 'fake-indexeddb/auto'
+
+import { Blob as NodeBlob } from 'node:buffer'
+import { openDB, type DBSchema } from 'idb'
+import type { TrainingState } from '../model/trainingTypes'
+import { IndexedDbTrainingRepository } from './indexedDbTrainingRepository'
+import { TrainingDataCorruptionError } from './trainingMigrations'
+
+const DATABASE_NAME = 'coregrid-training'
+const DATABASE_VERSION = 1
+
+interface RawTrainingDb extends DBSchema {
+  states: { key: string; value: unknown }
+  images: { key: string; value: { profileId: string; blob: Blob } }
+}
+
+const EMPTY_STATE: TrainingState = {
+  schemaVersion: 1,
+  customExercises: [],
+  favoriteExerciseIds: [],
+  templates: [],
+  activeWorkout: null,
+  completedWorkouts: [],
+  preferences: {
+    showSetRating: true,
+    progressionEnabled: true,
+    successfulWorkoutCount: 3,
+    maximumAverageRating: 8,
+    defaultIncrementKg: 2.5,
+  },
+}
+
+function makeTrainingState(
+  favoriteExerciseId: string,
+  defaultIncrementKg = 2.5,
+): TrainingState {
+  return {
+    schemaVersion: 1,
+    customExercises: [],
+    favoriteExerciseIds: [favoriteExerciseId],
+    templates: [],
+    activeWorkout: null,
+    completedWorkouts: [],
+    preferences: {
+      showSetRating: true,
+      progressionEnabled: true,
+      successfulWorkoutCount: 3,
+      maximumAverageRating: 8,
+      defaultIncrementKg,
+    },
+  }
+}
+
+function makeCloneableBlob(bytes: number[], type: string): Blob {
+  // fake-indexeddb uses Node's structuredClone, which cannot clone jsdom's Blob.
+  return new NodeBlob([new Uint8Array(bytes)], { type }) as unknown as Blob
+}
+
+async function openRawTrainingDatabase() {
+  return openDB<RawTrainingDb>(DATABASE_NAME, DATABASE_VERSION, {
+    upgrade(database) {
+      if (!database.objectStoreNames.contains('states')) {
+        database.createObjectStore('states')
+      }
+      if (!database.objectStoreNames.contains('images')) {
+        database.createObjectStore('images')
+      }
+    },
+  })
+}
+
+async function putRawState(profileId: string, value: unknown) {
+  const database = await openRawTrainingDatabase()
+  try {
+    await database.put('states', value, profileId)
+  } finally {
+    database.close()
+  }
+}
+
+async function readRawState(profileId: string) {
+  const database = await openRawTrainingDatabase()
+  try {
+    return await database.get('states', profileId)
+  } finally {
+    database.close()
+  }
+}
+
+describe('IndexedDbTrainingRepository', () => {
+  const repository = new IndexedDbTrainingRepository()
+
+  it('creates the version-one states and images stores on first use', async () => {
+    await repository.load('schema-profile')
+
+    const database = await openRawTrainingDatabase()
+    try {
+      expect(database.version).toBe(1)
+      expect([...database.objectStoreNames]).toEqual(['images', 'states'])
+    } finally {
+      database.close()
+    }
+  })
+
+  it('returns the empty training state for a profile without a record', async () => {
+    await expect(repository.load('missing-profile')).resolves.toEqual(
+      EMPTY_STATE,
+    )
+  })
+
+  it('round-trips a complete training state', async () => {
+    const state = makeTrainingState('bench-press', 5)
+
+    await repository.save('round-trip-profile', state)
+
+    const loaded = await repository.load('round-trip-profile')
+    expect(loaded).toEqual(state)
+    expect(loaded).not.toBe(state)
+  })
+
+  it('keeps state isolated between profiles', async () => {
+    const firstState = makeTrainingState('bench-press')
+    const secondState = makeTrainingState('lat-pulldown')
+
+    await repository.save('isolation-profile-a', firstState)
+    await repository.save('isolation-profile-b', secondState)
+
+    await expect(repository.load('isolation-profile-a')).resolves.toEqual(
+      firstState,
+    )
+    await expect(repository.load('isolation-profile-b')).resolves.toEqual(
+      secondState,
+    )
+  })
+
+  it('replaces one atomic state record for the same profile', async () => {
+    const profileId = 'atomic-profile'
+    const replacement = makeTrainingState('squat', 1.5)
+
+    await repository.save(profileId, makeTrainingState('deadlift'))
+    await repository.save(profileId, replacement)
+
+    const database = await openRawTrainingDatabase()
+    try {
+      const matchingKeys = (await database.getAllKeys('states')).filter(
+        (key) => key === profileId,
+      )
+      expect(matchingKeys).toEqual([profileId])
+      expect(await database.get('states', profileId)).toEqual(replacement)
+    } finally {
+      database.close()
+    }
+  })
+
+  it('scopes image blobs by profile and image ID', async () => {
+    const firstBlob = makeCloneableBlob([1, 2, 3], 'image/webp')
+    const secondBlob = makeCloneableBlob([4, 5], 'image/png')
+
+    await repository.saveImage('image-profile-a', 'shared-image', firstBlob)
+    await repository.saveImage('image-profile-b', 'shared-image', secondBlob)
+
+    const firstLoaded = await repository.loadImage(
+      'image-profile-a',
+      'shared-image',
+    )
+    const secondLoaded = await repository.loadImage(
+      'image-profile-b',
+      'shared-image',
+    )
+    expect(firstLoaded).toMatchObject({ size: 3, type: 'image/webp' })
+    expect(secondLoaded).toMatchObject({ size: 2, type: 'image/png' })
+
+    const database = await openRawTrainingDatabase()
+    try {
+      expect(
+        await database.get('images', 'image-profile-a:shared-image'),
+      ).toMatchObject({ profileId: 'image-profile-a' })
+      expect(
+        await database.get('images', 'image-profile-b:shared-image'),
+      ).toMatchObject({ profileId: 'image-profile-b' })
+    } finally {
+      database.close()
+    }
+
+    await repository.deleteImage('image-profile-a', 'shared-image')
+    await expect(
+      repository.loadImage('image-profile-a', 'shared-image'),
+    ).resolves.toBeUndefined()
+    await expect(
+      repository.loadImage('image-profile-b', 'shared-image'),
+    ).resolves.toMatchObject({ size: 2, type: 'image/png' })
+  })
+
+  it('rejects invalid version-one state without overwriting its raw value', async () => {
+    const profileId = 'corrupt-profile'
+    const corruptState = {
+      schemaVersion: 1,
+      favoriteExerciseIds: ['bench-press'],
+    }
+    await putRawState(profileId, corruptState)
+
+    await expect(repository.load(profileId)).rejects.toBeInstanceOf(
+      TrainingDataCorruptionError,
+    )
+    await expect(readRawState(profileId)).resolves.toEqual(corruptState)
+  })
+
+  it('rejects an unknown data version with the recovery error message', async () => {
+    await putRawState('unknown-version-profile', { schemaVersion: 99 })
+
+    await expect(repository.load('unknown-version-profile')).rejects.toEqual(
+      expect.objectContaining({
+        name: 'TrainingDataCorruptionError',
+        message: 'Unbekannte Trainingsdaten-Version.',
+      }),
+    )
+  })
+
+  it('exports untouched raw JSON even when the state is corrupt', async () => {
+    const profileId = 'export-profile'
+    const rawState = {
+      schemaVersion: 1,
+      favoriteExerciseIds: ['bench-press', 'bench-press'],
+      recoveryNote: 'keep this exact raw record',
+    }
+    await putRawState(profileId, rawState)
+
+    const exported = await repository.exportRaw(profileId)
+
+    expect(JSON.parse(exported)).toEqual(rawState)
+    await expect(readRawState(profileId)).resolves.toEqual(rawState)
+  })
+
+  it('resets only the selected profile state and images', async () => {
+    const firstProfile = 'reset-profile-a'
+    const secondProfile = 'reset-profile-b'
+    const secondState = makeTrainingState('lat-pulldown')
+    await repository.save(firstProfile, makeTrainingState('bench-press'))
+    await repository.save(secondProfile, secondState)
+    await repository.saveImage(
+      firstProfile,
+      'shared-image',
+      makeCloneableBlob([1], 'image/webp'),
+    )
+    await repository.saveImage(
+      secondProfile,
+      'shared-image',
+      makeCloneableBlob([2, 3], 'image/webp'),
+    )
+
+    await repository.reset(firstProfile)
+
+    await expect(repository.load(firstProfile)).resolves.toEqual(EMPTY_STATE)
+    await expect(repository.load(secondProfile)).resolves.toEqual(secondState)
+    await expect(
+      repository.loadImage(firstProfile, 'shared-image'),
+    ).resolves.toBeUndefined()
+    await expect(
+      repository.loadImage(secondProfile, 'shared-image'),
+    ).resolves.toMatchObject({ size: 2, type: 'image/webp' })
+  })
+
+  it('migrates a version-zero state fixture to version one', async () => {
+    const profileId = 'migration-profile'
+    await putRawState(profileId, {
+      schemaVersion: 0,
+      customExercises: [],
+      favoriteExerciseIds: ['bench-press'],
+      templates: [],
+      activeWorkout: null,
+      completedWorkouts: [],
+      preferences: {
+        showSetRating: true,
+        progressionEnabled: true,
+        successfulWorkoutCount: 3,
+        maximumAverageRating: 8,
+        defaultIncrementKg: 2.5,
+      },
+    })
+
+    await expect(repository.load(profileId)).resolves.toEqual({
+      schemaVersion: 1,
+      customExercises: [],
+      favoriteExerciseIds: ['bench-press'],
+      templates: [],
+      activeWorkout: null,
+      completedWorkouts: [],
+      preferences: {
+        showSetRating: true,
+        progressionEnabled: true,
+        successfulWorkoutCount: 3,
+        maximumAverageRating: 8,
+        defaultIncrementKg: 2.5,
+      },
+    })
+  })
+})
