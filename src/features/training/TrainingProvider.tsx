@@ -41,6 +41,10 @@ const LOAD_ERROR_MESSAGE = 'Trainingsdaten konnten nicht geladen werden.'
 const IMAGE_SAVE_ERROR_MESSAGE = 'Trainingsbild konnte nicht gespeichert werden.'
 const IMAGE_LOAD_ERROR_MESSAGE = 'Trainingsbild konnte nicht geladen werden.'
 const IMAGE_DELETE_ERROR_MESSAGE = 'Trainingsbild konnte nicht gelöscht werden.'
+const CUSTOM_EXERCISE_SAVE_ERROR_MESSAGE =
+  'Übung konnte nicht gespeichert werden.'
+const CUSTOM_EXERCISE_DELETE_ERROR_MESSAGE =
+  'Übung konnte nicht gelöscht werden.'
 const IMAGE_MUTATION_BLOCKED_MESSAGE =
   'Trainingsbilder können erst nach erfolgreichem Laden geändert werden.'
 const EXPORT_ERROR_MESSAGE = 'Trainingsdaten konnten nicht exportiert werden.'
@@ -49,6 +53,10 @@ let browserTrainingRepository: TrainingRepository | undefined
 const repositorySaveQueues = new WeakMap<
   TrainingRepository,
   Map<string, Promise<void>>
+>()
+const repositoryPendingImageCleanup = new WeakMap<
+  TrainingRepository,
+  Map<string, string>
 >()
 
 function getBrowserTrainingRepository() {
@@ -63,6 +71,19 @@ function getRepositorySaveQueues(repository: TrainingRepository) {
     repositorySaveQueues.set(repository, queues)
   }
   return queues
+}
+
+function getPendingImageCleanup(repository: TrainingRepository) {
+  let cleanup = repositoryPendingImageCleanup.get(repository)
+  if (!cleanup) {
+    cleanup = new Map()
+    repositoryPendingImageCleanup.set(repository, cleanup)
+  }
+  return cleanup
+}
+
+function imageCleanupKey(profileId: string, exerciseId: string) {
+  return `${profileId}\u0000${exerciseId}`
 }
 
 export interface TrainingProviderProps {
@@ -86,6 +107,7 @@ export function TrainingProvider({
   const toast = useToast()
   const trainingRepository = repository ?? getBrowserTrainingRepository()
   const saveQueues = getRepositorySaveQueues(trainingRepository)
+  const pendingImageCleanup = getPendingImageCleanup(trainingRepository)
   const [view, setView] = useState<TrainingView>(() => ({
     loading: true,
     profileId,
@@ -222,17 +244,42 @@ export function TrainingProvider({
   )
 
   const saveCustomExercise = useCallback(
-    (exercise: ExerciseDefinition) => {
-      updateState((current) => ({
-        ...current,
-        customExercises: current.customExercises.some(
+    async (exercise: ExerciseDefinition) => {
+      let previousExercise: ExerciseDefinition | undefined
+      let optimisticExercises: ExerciseDefinition[] | undefined
+      const saved = await updateState((current) => {
+        previousExercise = current.customExercises.find(
+          ({ id }) => id === exercise.id,
+        )
+        optimisticExercises = current.customExercises.some(
           ({ id }) => id === exercise.id,
         )
           ? current.customExercises.map((candidate) =>
               candidate.id === exercise.id ? exercise : candidate,
             )
-          : [...current.customExercises, exercise],
-      }))
+          : [...current.customExercises, exercise]
+        return {
+          ...current,
+          customExercises: optimisticExercises,
+        }
+      })
+      if (saved) return
+
+      if (
+        optimisticExercises &&
+        stateRef.current.customExercises === optimisticExercises
+      ) {
+        await updateState((current) => ({
+          ...current,
+          customExercises: previousExercise
+            ? current.customExercises.map((candidate) =>
+                candidate.id === exercise.id ? previousExercise! : candidate,
+              )
+            : current.customExercises.filter(({ id }) => id !== exercise.id),
+        }))
+      }
+
+      throw new Error(CUSTOM_EXERCISE_SAVE_ERROR_MESSAGE)
     },
     [updateState],
   )
@@ -302,22 +349,77 @@ export function TrainingProvider({
       if (loadedProfileRef.current !== profileId) return
       const operationProfileId = profileId
       const operationGeneration = generationRef.current
-      const customImageId = stateRef.current.customExercises.find(
+      const cleanupKey = imageCleanupKey(operationProfileId, exerciseId)
+      const pendingImageId = pendingImageCleanup.get(cleanupKey)
+      if (pendingImageId) {
+        try {
+          await trainingRepository.deleteImage(operationProfileId, pendingImageId)
+          pendingImageCleanup.delete(cleanupKey)
+          return
+        } catch (cause) {
+          throw operationError(
+            IMAGE_DELETE_ERROR_MESSAGE,
+            cause,
+            operationProfileId,
+            operationGeneration,
+          )
+        }
+      }
+
+      const exerciseIndex = stateRef.current.customExercises.findIndex(
         ({ id }) => id === exerciseId,
-      )?.customImageId
+      )
+      const previousExercise = stateRef.current.customExercises[exerciseIndex]
+      const wasFavorite = stateRef.current.favoriteExerciseIds.includes(exerciseId)
+      const customImageId = previousExercise?.customImageId
+      let optimisticExercises: ExerciseDefinition[] | undefined
+      let optimisticFavorites: string[] | undefined
       const saved = await updateState((current) => ({
         ...current,
-        customExercises: current.customExercises.filter(
+        customExercises: (optimisticExercises = current.customExercises.filter(
           ({ id }) => id !== exerciseId,
-        ),
-        favoriteExerciseIds: current.favoriteExerciseIds.filter(
-          (id) => id !== exerciseId,
-        ),
+        )),
+        favoriteExerciseIds: (optimisticFavorites =
+          current.favoriteExerciseIds.filter((id) => id !== exerciseId)),
       }))
-      if (!saved || !customImageId) return
+      if (!saved) {
+        if (
+          (optimisticExercises &&
+            stateRef.current.customExercises === optimisticExercises) ||
+          (optimisticFavorites &&
+            stateRef.current.favoriteExerciseIds === optimisticFavorites)
+        ) {
+          await updateState((current) => {
+            const restoreExercise =
+              previousExercise && current.customExercises === optimisticExercises
+            const restoreFavorite =
+              wasFavorite && current.favoriteExerciseIds === optimisticFavorites
+            if (!restoreExercise && !restoreFavorite) return current
 
+            const customExercises = restoreExercise
+              ? [
+                  ...current.customExercises.slice(0, exerciseIndex),
+                  previousExercise,
+                  ...current.customExercises.slice(exerciseIndex),
+                ]
+              : current.customExercises
+            return {
+              ...current,
+              customExercises,
+              favoriteExerciseIds: restoreFavorite
+                ? [...current.favoriteExerciseIds, exerciseId]
+                : current.favoriteExerciseIds,
+            }
+          })
+        }
+        throw new Error(CUSTOM_EXERCISE_DELETE_ERROR_MESSAGE)
+      }
+      if (!customImageId) return
+
+      pendingImageCleanup.set(cleanupKey, customImageId)
       try {
         await trainingRepository.deleteImage(operationProfileId, customImageId)
+        pendingImageCleanup.delete(cleanupKey)
       } catch (cause) {
         throw operationError(
           IMAGE_DELETE_ERROR_MESSAGE,
@@ -327,7 +429,13 @@ export function TrainingProvider({
         )
       }
     },
-    [operationError, profileId, trainingRepository, updateState],
+    [
+      operationError,
+      pendingImageCleanup,
+      profileId,
+      trainingRepository,
+      updateState,
+    ],
   )
 
   const exportRaw = useCallback(async () => {

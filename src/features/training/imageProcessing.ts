@@ -1,5 +1,7 @@
 export const IMAGE_TOO_LARGE_MESSAGE =
   'Das verarbeitete Bild darf höchstens 1,5 MB groß sein.'
+export const IMAGE_FORMAT_ERROR_MESSAGE =
+  'Das Bild konnte nicht als WebP verarbeitet werden.'
 
 const MAX_IMAGE_EDGE = 1280
 const MAX_PROCESSED_IMAGE_BYTES = 1.5 * 1024 * 1024
@@ -130,6 +132,9 @@ export async function normalizeExerciseImage(
 
     context.drawImage(image, 0, 0, width, height)
     const processed = await encodeWebp(canvas)
+    if (processed.type.toLocaleLowerCase() !== 'image/webp') {
+      throw new Error(IMAGE_FORMAT_ERROR_MESSAGE)
+    }
     if (processed.size > MAX_PROCESSED_IMAGE_BYTES) {
       throw new Error(IMAGE_TOO_LARGE_MESSAGE)
     }

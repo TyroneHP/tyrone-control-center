@@ -281,6 +281,110 @@ describe('ExerciseLibraryPage', () => {
     )
   })
 
+  it('keeps a failed image-cleanup deletion visible and retries the captured blob only', async () => {
+    const customWithImage: ExerciseDefinition = {
+      ...CUSTOM_EXERCISE,
+      customImageId: 'image-row',
+    }
+    const initialState = trainingState({
+      customExercises: [customWithImage],
+      favoriteExerciseIds: [customWithImage.id],
+    })
+    const deleteImage = vi
+      .fn<TrainingRepository['deleteImage']>()
+      .mockRejectedValueOnce(new Error('cleanup unavailable'))
+      .mockResolvedValueOnce(undefined)
+    const repository = createRepository(initialState, { deleteImage })
+    const user = userEvent.setup()
+    renderLibrary(initialState, repository)
+
+    await screen.findByRole('heading', { name: 'Eigenes Rudern' })
+    await user.click(
+      screen.getByRole('button', { name: 'Details zu Eigenes Rudern' }),
+    )
+    await user.click(
+      within(await screen.findByRole('dialog', { name: 'Eigenes Rudern' }))
+        .getByRole('button', { name: 'Löschen' }),
+    )
+    const confirmation = await screen.findByRole('dialog', {
+      name: 'Übung löschen',
+    })
+    await user.click(within(confirmation).getByRole('button', { name: 'Löschen' }))
+
+    await waitFor(() => expect(deleteImage).toHaveBeenCalledTimes(1))
+    expect(confirmation).toBeInTheDocument()
+    expect(within(confirmation).getByRole('alert')).toHaveTextContent(
+      'Trainingsbild konnte nicht gelöscht werden.',
+    )
+    expect(
+      screen.queryByRole('heading', { name: 'Eigenes Rudern' }),
+    ).not.toBeInTheDocument()
+
+    await user.click(
+      within(confirmation).getByRole('button', {
+        name: 'Löschen erneut versuchen',
+      }),
+    )
+
+    await waitFor(() => expect(confirmation).not.toBeInTheDocument())
+    expect(repository.save).toHaveBeenCalledTimes(1)
+    expect(deleteImage).toHaveBeenNthCalledWith(1, 'profile-a', 'image-row')
+    expect(deleteImage).toHaveBeenNthCalledWith(2, 'profile-a', 'image-row')
+  })
+
+  it('restores metadata after a failed delete save and retries the whole deletion', async () => {
+    const customWithImage: ExerciseDefinition = {
+      ...CUSTOM_EXERCISE,
+      customImageId: 'image-row',
+    }
+    const initialState = trainingState({
+      customExercises: [customWithImage],
+      favoriteExerciseIds: [customWithImage.id],
+    })
+    const save = vi
+      .fn<TrainingRepository['save']>()
+      .mockRejectedValueOnce(new Error('metadata unavailable'))
+      .mockResolvedValue(undefined)
+    const deleteImage = vi.fn(async () => undefined)
+    const repository = createRepository(initialState, { deleteImage, save })
+    const user = userEvent.setup()
+    renderLibrary(initialState, repository)
+
+    await screen.findByRole('heading', { name: 'Eigenes Rudern' })
+    await user.click(
+      screen.getByRole('button', { name: 'Details zu Eigenes Rudern' }),
+    )
+    await user.click(
+      within(await screen.findByRole('dialog', { name: 'Eigenes Rudern' }))
+        .getByRole('button', { name: 'Löschen' }),
+    )
+    const confirmation = await screen.findByRole('dialog', {
+      name: 'Übung löschen',
+    })
+    await user.click(within(confirmation).getByRole('button', { name: 'Löschen' }))
+
+    await waitFor(() =>
+      expect(within(confirmation).getByRole('alert')).toHaveTextContent(
+        'Übung konnte nicht gelöscht werden.',
+      ),
+    )
+    expect(screen.getByRole('heading', { name: 'Eigenes Rudern' })).toBeInTheDocument()
+    expect(deleteImage).not.toHaveBeenCalled()
+
+    await user.click(
+      within(confirmation).getByRole('button', {
+        name: 'Löschen erneut versuchen',
+      }),
+    )
+
+    await waitFor(() => expect(confirmation).not.toBeInTheDocument())
+    expect(save).toHaveBeenCalledTimes(3)
+    expect(deleteImage).toHaveBeenCalledWith('profile-a', 'image-row')
+    expect(
+      screen.queryByRole('heading', { name: 'Eigenes Rudern' }),
+    ).not.toBeInTheDocument()
+  })
+
   it('stores the processed optional image instead of the uploaded original', async () => {
     const editorModulePath = '../components/ExerciseEditorDialog'
     const { ExerciseEditorDialog } = await import(

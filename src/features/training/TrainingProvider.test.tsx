@@ -865,6 +865,157 @@ describe('TrainingProvider', () => {
     expect(screen.getByText('Fehler: keiner')).toBeInTheDocument()
   })
 
+  it('awaits custom metadata and rebases a failed save without losing a concurrent preference update', async () => {
+    const firstSave = deferred<void>()
+    const savedStates: TrainingState[] = []
+    let saveCount = 0
+    const repository = createRepository({
+      save: vi.fn(async (_profileId, state) => {
+        savedStates.push(state)
+        saveCount += 1
+        if (saveCount === 1) await firstSave.promise
+      }),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Trainingsdaten bereit')
+
+    let settled = false
+    const customSave = Promise.resolve(
+      training!.saveCustomExercise(CUSTOM_EXERCISE),
+    ).then(
+      () => 'resolved' as const,
+      (error: unknown) => error,
+    ).finally(() => {
+      settled = true
+    })
+    act(() => training!.updatePreferences({ showSetRating: false }))
+    await waitFor(() => expect(savedStates).toHaveLength(1))
+    await act(async () => Promise.resolve())
+    const wasPendingWithMetadata = !settled
+
+    await act(async () => firstSave.reject(new Error('metadata unavailable')))
+    const result = await customSave
+    await waitFor(() => expect(savedStates).toHaveLength(3))
+
+    expect(wasPendingWithMetadata).toBe(true)
+    expect(result).toEqual(
+      expect.objectContaining({ message: 'Übung konnte nicht gespeichert werden.' }),
+    )
+    expect(training!.state.customExercises).toEqual([])
+    expect(training!.state.preferences.showSetRating).toBe(false)
+    expect(savedStates.at(-1)).toMatchObject({
+      customExercises: [],
+      preferences: { showSetRating: false },
+    })
+  })
+
+  it('retries only the captured image cleanup after custom metadata deletion succeeded', async () => {
+    const cleanupFailure = new Error('image cleanup unavailable')
+    const storedStates: TrainingState[] = []
+    const deleteImage = vi
+      .fn<TrainingRepository['deleteImage']>()
+      .mockRejectedValueOnce(cleanupFailure)
+      .mockResolvedValueOnce(undefined)
+    const repository = createRepository({
+      deleteImage,
+      load: vi.fn(async () =>
+        trainingState({
+          customExercises: [CUSTOM_EXERCISE_WITH_IMAGE],
+          favoriteExerciseIds: [CUSTOM_EXERCISE_WITH_IMAGE.id],
+        }),
+      ),
+      save: vi.fn(async (_profileId, state) => {
+        storedStates.push(state)
+      }),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Trainingsdaten bereit')
+
+    let firstResult: unknown
+    await act(async () => {
+      firstResult = await training!
+        .deleteCustomExercise(CUSTOM_EXERCISE_WITH_IMAGE.id)
+        .catch((error: unknown) => error)
+    })
+
+    expect(firstResult).toEqual(
+      expect.objectContaining({
+        message: 'Trainingsbild konnte nicht gelöscht werden.',
+      }),
+    )
+    expect(training!.state.customExercises).toEqual([])
+    expect(training!.state.favoriteExerciseIds).toEqual([])
+
+    await act(async () => {
+      await training!.deleteCustomExercise(CUSTOM_EXERCISE_WITH_IMAGE.id)
+    })
+
+    expect(repository.save).toHaveBeenCalledTimes(1)
+    expect(deleteImage).toHaveBeenNthCalledWith(1, 'profile-a', 'image-row')
+    expect(deleteImage).toHaveBeenNthCalledWith(2, 'profile-a', 'image-row')
+    expect(storedStates.at(-1)?.customExercises).toEqual([])
+  })
+
+  it('restores custom metadata after a failed delete save and retries the whole deletion', async () => {
+    const initialState = trainingState({
+      customExercises: [CUSTOM_EXERCISE_WITH_IMAGE],
+      favoriteExerciseIds: [CUSTOM_EXERCISE_WITH_IMAGE.id],
+    })
+    let storedState = initialState
+    const saveFailure = new Error('metadata delete unavailable')
+    const save = vi
+      .fn<TrainingRepository['save']>()
+      .mockRejectedValueOnce(saveFailure)
+      .mockImplementation(async (_profileId, state) => {
+        storedState = state
+      })
+    const deleteImage = vi.fn(async () => undefined)
+    const repository = createRepository({
+      deleteImage,
+      load: vi.fn(async () => initialState),
+      save,
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Trainingsdaten bereit')
+
+    let firstResult: unknown
+    await act(async () => {
+      firstResult = await training!
+        .deleteCustomExercise(CUSTOM_EXERCISE_WITH_IMAGE.id)
+        .catch((error: unknown) => error)
+    })
+
+    expect(firstResult).toEqual(
+      expect.objectContaining({ message: 'Übung konnte nicht gelöscht werden.' }),
+    )
+    expect(training!.state.customExercises).toEqual([
+      CUSTOM_EXERCISE_WITH_IMAGE,
+    ])
+    expect(training!.state.favoriteExerciseIds).toEqual([
+      CUSTOM_EXERCISE_WITH_IMAGE.id,
+    ])
+    expect(storedState.customExercises).toEqual([CUSTOM_EXERCISE_WITH_IMAGE])
+    expect(deleteImage).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await training!.deleteCustomExercise(CUSTOM_EXERCISE_WITH_IMAGE.id)
+    })
+
+    expect(save).toHaveBeenCalledTimes(3)
+    expect(storedState.customExercises).toEqual([])
+    expect(storedState.favoriteExerciseIds).toEqual([])
+    expect(deleteImage).toHaveBeenCalledWith('profile-a', 'image-row')
+  })
+
   it('exports untouched raw data for the current profile during recovery', async () => {
     const corruption = new TrainingDataCorruptionError(
       'Die gespeicherten Trainingsdaten sind beschädigt.',

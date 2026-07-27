@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useRef, useState } from 'react'
 import { ResponsiveDialog } from '../../../design-system'
 import { normalizeExerciseImage } from '../imageProcessing'
 import type { ExerciseDefinition, ExerciseUnit } from '../model/trainingTypes'
@@ -16,6 +16,12 @@ interface FieldErrors {
   image?: string
   name?: string
   primaryMuscles?: string
+}
+
+interface PendingImageCleanup {
+  imageId: string
+  savedExercise?: ExerciseDefinition
+  retryError?: string
 }
 
 function listValue(value: string) {
@@ -36,7 +42,10 @@ export function ExerciseEditorDialog({
   onSaved,
   open,
 }: ExerciseEditorDialogProps) {
-  const { saveCustomExercise, saveImage } = useTraining()
+  const { deleteImage, saveCustomExercise, saveImage } = useTraining()
+  const [exerciseId] = useState(
+    () => exercise?.id ?? `custom:${crypto.randomUUID()}`,
+  )
   const [name, setName] = useState(() => exercise?.name ?? '')
   const [primaryMuscles, setPrimaryMuscles] = useState(() =>
     initialList(exercise?.primaryMuscles),
@@ -58,12 +67,51 @@ export function ExerciseEditorDialog({
     () => exercise?.supportsBodyweightModes ?? false,
   )
   const [image, setImage] = useState<File | null>(null)
+  const [removeExistingImage, setRemoveExistingImage] = useState(false)
   const [errors, setErrors] = useState<FieldErrors>({})
   const [saving, setSaving] = useState(false)
+  const [pendingImageCleanup, setPendingImageCleanup] =
+    useState<PendingImageCleanup>()
+  const savingRef = useRef(false)
   const isEditing = Boolean(exercise)
+
+  const errorMessage = (cause: unknown, fallback: string) =>
+    cause instanceof Error ? cause.message : fallback
+
+  const closeIfIdle = () => {
+    if (!savingRef.current) onClose()
+  }
+
+  const retryImageCleanup = async () => {
+    if (!pendingImageCleanup || savingRef.current) return
+    savingRef.current = true
+    setSaving(true)
+    try {
+      await deleteImage(pendingImageCleanup.imageId)
+      const { retryError, savedExercise } = pendingImageCleanup
+      setPendingImageCleanup(undefined)
+      if (savedExercise) {
+        onSaved?.(savedExercise)
+        onClose()
+      } else {
+        setErrors(retryError ? { image: retryError } : {})
+      }
+    } catch (cause) {
+      setErrors({
+        image: errorMessage(
+          cause,
+          'Das gespeicherte Bild konnte nicht gelöscht werden.',
+        ),
+      })
+    } finally {
+      savingRef.current = false
+      setSaving(false)
+    }
+  }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (savingRef.current || pendingImageCleanup) return
     const trimmedName = name.trim()
     const normalizedPrimaryMuscles = listValue(primaryMuscles)
     const nextErrors: FieldErrors = {}
@@ -76,14 +124,22 @@ export function ExerciseEditorDialog({
       return
     }
 
+    savingRef.current = true
     setSaving(true)
+    setErrors({})
+    let newImageId: string | undefined
+    let newImageStored = false
+    let metadataSaved = false
     try {
-      const id = exercise?.id ?? `custom:${crypto.randomUUID()}`
-      let customImageId = exercise?.customImageId
+      let customImageId = removeExistingImage
+        ? undefined
+        : exercise?.customImageId
       if (image) {
         const processedImage = await normalizeImage(image)
-        customImageId ??= id
-        await saveImage(customImageId, processedImage)
+        newImageId = `custom:image:${crypto.randomUUID()}`
+        await saveImage(newImageId, processedImage)
+        newImageStored = true
+        customImageId = newImageId
       }
 
       const savedExercise: ExerciseDefinition = {
@@ -91,7 +147,7 @@ export function ExerciseEditorDialog({
         description: description.trim(),
         equipment: listValue(equipment),
         gripOptions: listValue(gripOptions),
-        id,
+        id: exerciseId,
         name: trimmedName,
         primaryMuscles: normalizedPrimaryMuscles,
         secondaryMuscles: listValue(secondaryMuscles),
@@ -99,24 +155,65 @@ export function ExerciseEditorDialog({
         supportsBodyweightModes,
         unit,
       }
-      saveCustomExercise(savedExercise)
+      await saveCustomExercise(savedExercise)
+      metadataSaved = true
+
+      const previousImageId = exercise?.customImageId
+      if (previousImageId && previousImageId !== customImageId) {
+        try {
+          await deleteImage(previousImageId)
+        } catch (cause) {
+          setPendingImageCleanup({
+            imageId: previousImageId,
+            savedExercise,
+          })
+          setErrors({
+            image: errorMessage(
+              cause,
+              'Das bisherige Bild konnte nicht gelöscht werden.',
+            ),
+          })
+          return
+        }
+      }
+
       onSaved?.(savedExercise)
       onClose()
     } catch (cause) {
+      const originalError = errorMessage(
+        cause,
+        'Die Übung konnte nicht gespeichert werden.',
+      )
+      if (newImageId && newImageStored && !metadataSaved) {
+        try {
+          await deleteImage(newImageId)
+        } catch (cleanupCause) {
+          setPendingImageCleanup({
+            imageId: newImageId,
+            retryError: originalError,
+          })
+          setErrors({
+            image: errorMessage(
+              cleanupCause,
+              'Das neue Bild konnte nicht zurückgerollt werden.',
+            ),
+          })
+          return
+        }
+      }
       setErrors({
-        image:
-          cause instanceof Error
-            ? cause.message
-            : 'Das Bild konnte nicht verarbeitet werden.',
+        image: originalError,
       })
     } finally {
+      savingRef.current = false
       setSaving(false)
     }
   }
 
   return (
     <ResponsiveDialog
-      onClose={onClose}
+      dismissible={!saving}
+      onClose={closeIfIdle}
       open={open}
       title={isEditing ? 'Übung bearbeiten' : 'Eigene Übung erstellen'}
     >
@@ -197,23 +294,58 @@ export function ExerciseEditorDialog({
           Bild (optional)
           <input
             accept="image/*"
-            onChange={(event) => setImage(event.target.files?.[0] ?? null)}
+            onChange={(event) => {
+              const nextImage = event.target.files?.[0] ?? null
+              setImage(nextImage)
+              if (nextImage) setRemoveExistingImage(false)
+            }}
             type="file"
           />
         </label>
+        {exercise?.customImageId ? (
+          <label>
+            <input
+              checked={removeExistingImage}
+              onChange={(event) => {
+                setRemoveExistingImage(event.target.checked)
+                if (event.target.checked) setImage(null)
+              }}
+              type="checkbox"
+            />
+            Vorhandenes Bild entfernen
+          </label>
+        ) : null}
         {errors.image ? <p role="alert">{errors.image}</p> : null}
 
         <div className="exercise-editor__actions">
-          <button className="button--secondary" onClick={onClose} type="button">
+          <button
+            className="button--secondary"
+            disabled={saving}
+            onClick={closeIfIdle}
+            type="button"
+          >
             Abbrechen
           </button>
-          <button className="button--primary" disabled={saving} type="submit">
-            {saving
-              ? 'Wird gespeichert …'
-              : isEditing
-                ? 'Änderungen speichern'
-                : 'Übung erstellen'}
-          </button>
+          {pendingImageCleanup ? (
+            <button
+              className="button--primary"
+              disabled={saving}
+              onClick={() => void retryImageCleanup()}
+              type="button"
+            >
+              {saving
+                ? 'Bildlöschung wird wiederholt …'
+                : 'Bildlöschung erneut versuchen'}
+            </button>
+          ) : (
+            <button className="button--primary" disabled={saving} type="submit">
+              {saving
+                ? 'Wird gespeichert …'
+                : isEditing
+                  ? 'Änderungen speichern'
+                  : 'Übung erstellen'}
+            </button>
+          )}
         </div>
       </form>
     </ResponsiveDialog>

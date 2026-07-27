@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ResponsiveDialog } from '../../../design-system'
 import { ExerciseCard } from '../components/ExerciseCard'
 import {
@@ -6,61 +6,8 @@ import {
 } from '../components/ExercisePickerDialog'
 import { ExerciseEditorDialog } from '../components/ExerciseEditorDialog'
 import type { ExerciseDefinition } from '../model/trainingTypes'
+import { useCustomExerciseImageUrls } from '../useCustomExerciseImageUrls'
 import { useTraining } from '../useTraining'
-
-function useCustomExerciseImageUrls(catalog: readonly ExerciseDefinition[]) {
-  const { loadImage } = useTraining()
-  const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
-
-  useEffect(() => {
-    let disposed = false
-    const createdUrls: string[] = []
-    const imageExercises = catalog.filter(
-      (exercise) => exercise.source === 'custom' && exercise.customImageId,
-    )
-
-    void Promise.all(
-      imageExercises.map(async (exercise) => {
-        try {
-          const blob = await loadImage(exercise.customImageId!)
-          if (
-            !blob ||
-            disposed ||
-            typeof URL.createObjectURL !== 'function' ||
-            typeof URL.revokeObjectURL !== 'function'
-          ) {
-            return undefined
-          }
-          const url = URL.createObjectURL(blob)
-          if (disposed) {
-            URL.revokeObjectURL(url)
-            return undefined
-          }
-          createdUrls.push(url)
-          return [exercise.id, url] as const
-        } catch {
-          return undefined
-        }
-      }),
-    ).then((images) => {
-      if (disposed) return
-      setImageUrls(
-        Object.fromEntries(
-          images.filter(
-            (image): image is readonly [string, string] => image !== undefined,
-          ),
-        ),
-      )
-    })
-
-    return () => {
-      disposed = true
-      createdUrls.forEach((url) => URL.revokeObjectURL(url))
-    }
-  }, [catalog, loadImage])
-
-  return imageUrls
-}
 
 export function ExerciseLibraryPage() {
   const {
@@ -77,6 +24,8 @@ export function ExerciseLibraryPage() {
   const [selectedExercise, setSelectedExercise] = useState<ExerciseDefinition>()
   const [editingExercise, setEditingExercise] = useState<ExerciseDefinition>()
   const [deletingExercise, setDeletingExercise] = useState<ExerciseDefinition>()
+  const [deletionError, setDeletionError] = useState<string>()
+  const [deletionPending, setDeletionPending] = useState(false)
   const [creatingExercise, setCreatingExercise] = useState(false)
 
   const primaryMuscles = useMemo(
@@ -114,13 +63,20 @@ export function ExerciseLibraryPage() {
   }, [catalog, equipment, favoritesOnly, primaryMuscle, query, state.favoriteExerciseIds])
 
   const confirmDeletion = async () => {
-    if (!deletingExercise) return
+    if (!deletingExercise || deletionPending) return
+    setDeletionPending(true)
+    setDeletionError(undefined)
     try {
       await deleteCustomExercise(deletingExercise.id)
-    } catch {
-      // The provider already exposes the profile-bound mutation error as a toast.
-    } finally {
       setDeletingExercise(undefined)
+    } catch (cause) {
+      setDeletionError(
+        cause instanceof Error
+          ? cause.message
+          : 'Die Übung konnte nicht gelöscht werden.',
+      )
+    } finally {
+      setDeletionPending(false)
     }
   }
 
@@ -213,6 +169,7 @@ export function ExerciseLibraryPage() {
           selectedExercise?.source === 'custom'
             ? (exercise) => {
                 setSelectedExercise(undefined)
+                setDeletionError(undefined)
                 setDeletingExercise(exercise)
               }
             : undefined
@@ -245,27 +202,42 @@ export function ExerciseLibraryPage() {
           <>
             <button
               className="button--secondary"
-              onClick={() => setDeletingExercise(undefined)}
+              disabled={deletionPending}
+              onClick={() => {
+                setDeletionError(undefined)
+                setDeletingExercise(undefined)
+              }}
               type="button"
             >
               Abbrechen
             </button>
             <button
               className="button--danger"
+              disabled={deletionPending}
               onClick={() => void confirmDeletion()}
               type="button"
             >
-              Löschen
+              {deletionPending
+                ? 'Wird gelöscht …'
+                : deletionError
+                  ? 'Löschen erneut versuchen'
+                  : 'Löschen'}
             </button>
           </>
         }
-        onClose={() => setDeletingExercise(undefined)}
+        dismissible={!deletionPending}
+        onClose={() => {
+          if (deletionPending) return
+          setDeletionError(undefined)
+          setDeletingExercise(undefined)
+        }}
         open={Boolean(deletingExercise)}
         title="Übung löschen"
       >
         <p>
           Möchtest du „{deletingExercise?.name}“ wirklich löschen?
         </p>
+        {deletionError ? <p role="alert">{deletionError}</p> : null}
       </ResponsiveDialog>
     </section>
   )

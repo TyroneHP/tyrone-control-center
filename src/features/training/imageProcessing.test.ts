@@ -96,6 +96,25 @@ describe('normalizeExerciseImage', () => {
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:uploaded-exercise-image')
   })
 
+  it('rejects a canvas result that is not actually WebP and releases browser resources', async () => {
+    const wrongFormat = new Blob(['processed'], { type: 'image/png' })
+    const { close, environment, revokeObjectURL } = createEnvironment({
+      height: 800,
+      output: wrongFormat,
+      width: 800,
+    })
+
+    await expect(
+      normalizeExerciseImage(
+        new Blob(['original'], { type: 'image/png' }),
+        environment,
+      ),
+    ).rejects.toThrow('Das Bild konnte nicht als WebP verarbeitet werden.')
+
+    expect(close).toHaveBeenCalledTimes(1)
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:uploaded-exercise-image')
+  })
+
   it('releases the object URL when decoding fails before a canvas is created', async () => {
     const revokeObjectURL = vi.fn()
     const environment: ImageProcessingEnvironment = {

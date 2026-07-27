@@ -2,6 +2,7 @@ import { ImageOff } from 'lucide-react'
 import { useState } from 'react'
 import { ResponsiveDialog } from '../../../design-system'
 import type { ExerciseDefinition } from '../model/trainingTypes'
+import { useCustomExerciseImageUrls } from '../useCustomExerciseImageUrls'
 import { useTraining } from '../useTraining'
 import { ExerciseCard } from './ExerciseCard'
 
@@ -131,6 +132,7 @@ export function ExercisePickerDialog({
   open,
 }: ExercisePickerDialogProps) {
   const { catalog, state } = useTraining()
+  const imageUrls = useCustomExerciseImageUrls(catalog)
   const [selectedExercise, setSelectedExercise] = useState<ExerciseDefinition>()
 
   return (
@@ -141,6 +143,7 @@ export function ExercisePickerDialog({
             <ExerciseCard
               exercise={exercise}
               favorite={state.favoriteExerciseIds.includes(exercise.id)}
+              imageUrl={imageUrls[exercise.id]}
               key={exercise.id}
               onDetails={setSelectedExercise}
             />
@@ -149,6 +152,9 @@ export function ExercisePickerDialog({
       </ResponsiveDialog>
       <ExerciseDetailsDialog
         exercise={selectedExercise}
+        imageUrl={
+          selectedExercise ? imageUrls[selectedExercise.id] : undefined
+        }
         onClose={() => setSelectedExercise(undefined)}
         onSelect={(exercise) => {
           onSelect(exercise)
