@@ -51,7 +51,10 @@ function getExerciseOccurrences(
         .filter((entry) => entry.exerciseId === exerciseId)
         .map((entry) => ({ completedAt: workout.completedAt, entry })),
     )
-    .sort((left, right) => right.completedAt.localeCompare(left.completedAt))
+    .sort(
+      (left, right) =>
+        Date.parse(right.completedAt) - Date.parse(left.completedAt),
+    )
 }
 
 function getCountedSets(

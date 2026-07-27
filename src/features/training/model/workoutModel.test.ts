@@ -473,6 +473,95 @@ describe('active workouts', () => {
     expect(newSetIds).not.toContain('latest-set-2')
   })
 
+  it('prefills the chronologically latest occurrence when ISO offsets sort differently as text', () => {
+    const arrayFirstOlder = makeCompletedWorkout({
+      id: 'array-first-older',
+      completedAt: '2026-07-24T12:00:00.000Z',
+      exercises: [
+        makeWorkoutExercise({ note: 'Array order must not win.' }),
+      ],
+    })
+    const chronologicallyLatest = makeCompletedWorkout({
+      id: 'chronologically-latest',
+      completedAt: '2026-07-25T09:00:00.000-02:00',
+      exercises: [
+        makeWorkoutExercise({
+          note: 'Chronologically latest.',
+          sets: [
+            {
+              id: 'chronologically-latest-set',
+              weightKg: 90,
+              reps: 12,
+              rating: 7,
+              completed: true,
+            },
+          ],
+        }),
+      ],
+    })
+    const lexicallyLaterButOlder = makeCompletedWorkout({
+      id: 'lexically-later-but-older',
+      completedAt: '2026-07-25T10:30:00.000Z',
+      exercises: [
+        makeWorkoutExercise({
+          note: 'Lexical order must not win.',
+          sets: [
+            {
+              id: 'lexically-later-set',
+              weightKg: 70,
+              reps: 12,
+              rating: 7,
+              completed: true,
+            },
+          ],
+        }),
+      ],
+    })
+    const completedWorkouts = [
+      arrayFirstOlder,
+      chronologicallyLatest,
+      lexicallyLaterButOlder,
+    ]
+    const state = makeState({ completedWorkouts })
+    const template = createWorkoutTemplate({
+      name: 'Offset ordering',
+      weekdays: [1],
+      exercises: [
+        {
+          id: 'template-bench',
+          exerciseId: 'bench-press',
+          order: 0,
+          targetSets: 3,
+          repMin: 8,
+          repMax: 12,
+        },
+      ],
+      timestamp: MORNING,
+    })
+
+    const result = startWorkout(state, template, STARTED)
+
+    expect(findLastExerciseEntry(completedWorkouts, 'bench-press')).toBe(
+      chronologicallyLatest.exercises[0],
+    )
+    expect(result.activeWorkout?.exercises[0]).toMatchObject({
+      note: 'Chronologically latest.',
+      sets: [
+        {
+          weightKg: 90,
+          reps: 12,
+          rating: 7,
+          completed: false,
+        },
+      ],
+    })
+    expect(completedWorkouts.map(({ id }) => id)).toEqual([
+      'array-first-older',
+      'chronologically-latest',
+      'lexically-later-but-older',
+    ])
+  })
+
   it('adds, reorders, and removes workout exercises without mutating prior states', () => {
     const bench = makeWorkoutExercise()
     const row = makeWorkoutExercise({

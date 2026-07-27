@@ -252,7 +252,10 @@ export function findLastExerciseEntry(
         .filter((exercise) => exercise.exerciseId === exerciseId)
         .map((entry) => ({ completedAt: workout.completedAt, entry })),
     )
-    .sort((left, right) => right.completedAt.localeCompare(left.completedAt))[0]
+    .sort(
+      (left, right) =>
+        Date.parse(right.completedAt) - Date.parse(left.completedAt),
+    )[0]
     ?.entry
 }
 

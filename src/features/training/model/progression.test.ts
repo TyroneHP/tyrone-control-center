@@ -102,6 +102,68 @@ describe('getProgressionRecommendation', () => {
     })
   })
 
+  it('uses chronological instants for the latest consecutive offset-timestamp occurrences', () => {
+    const arrayFirstOlderFailure = makeOccurrence({
+      id: 'array-first-older-failure',
+      completedAt: '2026-07-24T12:00:00.000Z',
+      sets: [
+        {
+          id: 'array-first-failed-set',
+          weightKg: 80,
+          reps: 11,
+          rating: 7,
+          completed: true,
+        },
+      ],
+    })
+    const chronologicallyLatest = makeOccurrence({
+      id: 'chronologically-latest',
+      completedAt: '2026-07-25T09:00:00.000-02:00',
+    })
+    const chronologicallySecond = makeOccurrence({
+      id: 'chronologically-second',
+      completedAt: '2026-07-25T10:45:00.000Z',
+    })
+    const lexicalIntruder = makeOccurrence({
+      id: 'lexical-intruder',
+      completedAt: '2026-07-25T10:30:00.000Z',
+      sets: [
+        {
+          id: 'lexical-intruder-failed-set',
+          weightKg: 80,
+          reps: 11,
+          rating: 7,
+          completed: true,
+        },
+      ],
+    })
+    const completedWorkouts = [
+      arrayFirstOlderFailure,
+      chronologicallyLatest,
+      chronologicallySecond,
+      lexicalIntruder,
+    ]
+
+    const recommendation = getProgressionRecommendation(
+      'bench-press',
+      completedWorkouts,
+      { ...DEFAULT_PREFERENCES, successfulWorkoutCount: 2 },
+    )
+
+    expect(recommendation).toEqual({
+      exerciseId: 'bench-press',
+      currentWeightKg: 80,
+      suggestedWeightKg: 82.5,
+      successfulWorkoutCount: 2,
+    })
+    expect(completedWorkouts.map(({ id }) => id)).toEqual([
+      'array-first-older-failure',
+      'chronologically-latest',
+      'chronologically-second',
+      'lexical-intruder',
+    ])
+  })
+
   it('does not skip a recent failed occurrence to use an older success', () => {
     const olderSuccess = makeOccurrence({
       id: 'older-success',
