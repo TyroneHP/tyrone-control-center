@@ -421,6 +421,53 @@ describe('TrainingProvider', () => {
     expect(save).not.toHaveBeenCalled()
   })
 
+  it('rejects image mutations until the current profile has loaded successfully', async () => {
+    const corruption = new TrainingDataCorruptionError(
+      'Die gespeicherten Trainingsdaten sind beschädigt.',
+    )
+    const saveImage = vi.fn(async () => undefined)
+    const deleteImage = vi.fn(async () => undefined)
+    const repository = createRepository({
+      deleteImage,
+      load: vi.fn(async () => {
+        throw corruption
+      }),
+      saveImage,
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByRole('alert', {
+      name: 'Fehler: Trainingsdaten konnten nicht geladen werden.',
+    })
+
+    const image = new Blob(['processed image'], { type: 'image/webp' })
+    const saveResult = await training!
+      .saveImage('image-row', image)
+      .catch((error: unknown) => error)
+    const deleteResult = await training!
+      .deleteImage('image-row')
+      .catch((error: unknown) => error)
+
+    expect(saveResult).toEqual(
+      expect.objectContaining({
+        message:
+          'Trainingsbilder können erst nach erfolgreichem Laden geändert werden.',
+      }),
+    )
+    expect(deleteResult).toEqual(
+      expect.objectContaining({
+        message:
+          'Trainingsbilder können erst nach erfolgreichem Laden geändert werden.',
+      }),
+    )
+    expect(saveImage).not.toHaveBeenCalled()
+    expect(deleteImage).not.toHaveBeenCalled()
+    expect(training?.recoveryError).toBe(corruption)
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+  })
+
   it('resets immediately on profile switch and ignores the previous late load', async () => {
     const firstLoad = deferred<TrainingState>()
     const secondLoad = deferred<TrainingState>()
@@ -743,42 +790,79 @@ describe('TrainingProvider', () => {
     expect(screen.getByText('Fehler: keiner')).toBeInTheDocument()
   })
 
-  it('deletes a custom exercise image before removing and autosaving the exercise', async () => {
+  it('persists custom exercise removal before delayed image cleanup survives a profile switch', async () => {
+    const imageDeletion = deferred<void>()
     const operations: string[] = []
-    const savedStates: TrainingState[] = []
+    const profileAState = trainingState({
+      customExercises: [CUSTOM_EXERCISE_WITH_IMAGE],
+      favoriteExerciseIds: [CUSTOM_EXERCISE_WITH_IMAGE.id],
+    })
+    const profileBState = trainingState({ favoriteExerciseIds: ['squat'] })
+    const storedStates = new Map<string, TrainingState>([
+      ['profile-a', profileAState],
+      ['profile-b', profileBState],
+    ])
     const repository = createRepository({
-      load: vi.fn(async () =>
-        trainingState({
-          customExercises: [CUSTOM_EXERCISE_WITH_IMAGE],
-          favoriteExerciseIds: [CUSTOM_EXERCISE_WITH_IMAGE.id],
-        }),
-      ),
+      load: vi.fn(async (profileId) => storedStates.get(profileId)!),
       deleteImage: vi.fn(async (profileId, imageId) => {
         operations.push(`delete:${profileId}:${imageId}`)
+        await imageDeletion.promise
       }),
       save: vi.fn(async (profileId, state) => {
         operations.push(`save:${profileId}`)
-        savedStates.push(state)
+        storedStates.set(profileId, state)
       }),
     })
     let training: TrainingContextValue | undefined
-    renderTraining(repository, 'profile-a', (value) => {
+    const capture = (value: TrainingContextValue) => {
       training = value
-    })
+    }
+    const page = render(
+      <KeyedTrainingTree
+        capture={capture}
+        profileId="profile-a"
+        repository={repository}
+      />,
+    )
     await screen.findByText('Trainingsdaten bereit')
 
-    await act(async () =>
-      training!.deleteCustomExercise(CUSTOM_EXERCISE_WITH_IMAGE.id),
+    const deletion = training!.deleteCustomExercise(
+      CUSTOM_EXERCISE_WITH_IMAGE.id,
+    )
+    await waitFor(() =>
+      expect(repository.deleteImage).toHaveBeenCalledWith(
+        'profile-a',
+        'image-row',
+      ),
     )
 
+    page.rerender(
+      <KeyedTrainingTree
+        capture={capture}
+        profileId="profile-b"
+        repository={repository}
+      />,
+    )
+    expect(await screen.findByText('Favoriten: squat')).toBeInTheDocument()
+
+    await act(async () => imageDeletion.resolve())
+    await act(async () => deletion)
+
     expect(operations).toEqual([
-      'delete:profile-a:image-row',
       'save:profile-a',
+      'delete:profile-a:image-row',
     ])
-    expect(savedStates).toHaveLength(1)
-    expect(savedStates[0].customExercises).toEqual([])
-    expect(savedStates[0].favoriteExerciseIds).toEqual([])
+    expect(storedStates.get('profile-a')?.customExercises).toEqual([])
+    expect(storedStates.get('profile-a')?.favoriteExerciseIds).toEqual([])
+    expect(storedStates.get('profile-b')).toBe(profileBState)
+    expect(repository.save).not.toHaveBeenCalledWith(
+      'profile-b',
+      expect.anything(),
+    )
+    expect(screen.getByText('Favoriten: squat')).toBeInTheDocument()
     expect(screen.queryByText(/Rudern mit eigenem Bild/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByText('Fehler: keiner')).toBeInTheDocument()
   })
 
   it('exports untouched raw data for the current profile during recovery', async () => {

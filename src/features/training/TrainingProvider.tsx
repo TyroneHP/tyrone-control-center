@@ -41,6 +41,8 @@ const LOAD_ERROR_MESSAGE = 'Trainingsdaten konnten nicht geladen werden.'
 const IMAGE_SAVE_ERROR_MESSAGE = 'Trainingsbild konnte nicht gespeichert werden.'
 const IMAGE_LOAD_ERROR_MESSAGE = 'Trainingsbild konnte nicht geladen werden.'
 const IMAGE_DELETE_ERROR_MESSAGE = 'Trainingsbild konnte nicht gelöscht werden.'
+const IMAGE_MUTATION_BLOCKED_MESSAGE =
+  'Trainingsbilder können erst nach erfolgreichem Laden geändert werden.'
 const EXPORT_ERROR_MESSAGE = 'Trainingsdaten konnten nicht exportiert werden.'
 const RESET_ERROR_MESSAGE = 'Trainingsbereich konnte nicht zurückgesetzt werden.'
 let browserTrainingRepository: TrainingRepository | undefined
@@ -165,7 +167,7 @@ export function TrainingProvider({
 
   const updateState = useCallback(
     (mutation: (current: TrainingState) => TrainingState) => {
-      if (loadedProfileRef.current !== profileId) return
+      if (loadedProfileRef.current !== profileId) return Promise.resolve(false)
 
       const nextState = mutation(stateRef.current)
       stateRef.current = nextState
@@ -180,14 +182,15 @@ export function TrainingProvider({
       const savedProfileId = profileId
       const savedGeneration = generationRef.current
       const previousSave = saveQueues.get(savedProfileId) ?? Promise.resolve()
-      const queuedSave = previousSave
+      const saveResult = previousSave
         .then(() => trainingRepository.save(savedProfileId, nextState))
+        .then(() => true)
         .catch((cause: unknown) => {
           if (
             generationRef.current !== savedGeneration ||
             loadedProfileRef.current !== savedProfileId
           ) {
-            return
+            return false
           }
           setView((current) =>
             current.profileId === savedProfileId
@@ -198,8 +201,10 @@ export function TrainingProvider({
               : current,
           )
           toast.show({ message: SAVE_ERROR_MESSAGE, variant: 'error' })
+          return false
         })
-      saveQueues.set(savedProfileId, queuedSave)
+      saveQueues.set(savedProfileId, saveResult.then(() => undefined))
+      return saveResult
     },
     [profileId, saveQueues, toast, trainingRepository],
   )
@@ -236,6 +241,9 @@ export function TrainingProvider({
     async (imageId: string, blob: Blob) => {
       const operationProfileId = profileId
       const operationGeneration = generationRef.current
+      if (loadedProfileRef.current !== operationProfileId) {
+        throw new Error(IMAGE_MUTATION_BLOCKED_MESSAGE)
+      }
       try {
         await trainingRepository.saveImage(operationProfileId, imageId, blob)
       } catch (cause) {
@@ -272,6 +280,9 @@ export function TrainingProvider({
     async (imageId: string) => {
       const operationProfileId = profileId
       const operationGeneration = generationRef.current
+      if (loadedProfileRef.current !== operationProfileId) {
+        throw new Error(IMAGE_MUTATION_BLOCKED_MESSAGE)
+      }
       try {
         await trainingRepository.deleteImage(operationProfileId, imageId)
       } catch (cause) {
@@ -289,13 +300,12 @@ export function TrainingProvider({
   const deleteCustomExercise = useCallback(
     async (exerciseId: string) => {
       if (loadedProfileRef.current !== profileId) return
+      const operationProfileId = profileId
+      const operationGeneration = generationRef.current
       const customImageId = stateRef.current.customExercises.find(
         ({ id }) => id === exerciseId,
       )?.customImageId
-      if (customImageId) await deleteImage(customImageId)
-      if (loadedProfileRef.current !== profileId) return
-
-      updateState((current) => ({
+      const saved = await updateState((current) => ({
         ...current,
         customExercises: current.customExercises.filter(
           ({ id }) => id !== exerciseId,
@@ -304,8 +314,20 @@ export function TrainingProvider({
           (id) => id !== exerciseId,
         ),
       }))
+      if (!saved || !customImageId) return
+
+      try {
+        await trainingRepository.deleteImage(operationProfileId, customImageId)
+      } catch (cause) {
+        throw operationError(
+          IMAGE_DELETE_ERROR_MESSAGE,
+          cause,
+          operationProfileId,
+          operationGeneration,
+        )
+      }
     },
-    [deleteImage, profileId, updateState],
+    [operationError, profileId, trainingRepository, updateState],
   )
 
   const exportRaw = useCallback(async () => {
