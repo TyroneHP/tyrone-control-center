@@ -28,6 +28,13 @@ const CUSTOM_EXERCISE: ExerciseDefinition = {
   supportsBodyweightModes: false,
 }
 
+const CUSTOM_EXERCISE_WITH_IMAGE: ExerciseDefinition = {
+  ...CUSTOM_EXERCISE,
+  id: 'custom:photo-row',
+  name: 'Rudern mit eigenem Bild',
+  customImageId: 'image-row',
+}
+
 const WORKOUT_TEMPLATE: WorkoutTemplate = {
   id: 'template-upper',
   name: 'Oberkörper',
@@ -607,5 +614,317 @@ describe('TrainingProvider', () => {
       training?.state.completedWorkouts[0].exercises[0].sets[0],
     ).toMatchObject({ completed: true, reps: 10, weightKg: 80 })
     await waitFor(() => expect(savedStates).toHaveLength(3))
+  })
+
+  it('binds image save, load, and delete operations to the current profile', async () => {
+    const image = new Blob(['processed image'], { type: 'image/webp' })
+    const saveImage = vi.fn(async () => undefined)
+    const loadImage = vi.fn(async () => image)
+    const deleteImage = vi.fn(async () => undefined)
+    const repository = createRepository({ deleteImage, loadImage, saveImage })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Trainingsdaten bereit')
+
+    let loadedImage: Blob | undefined
+    await act(async () => {
+      await training!.saveImage('image-row', image)
+      loadedImage = await training!.loadImage('image-row')
+      await training!.deleteImage('image-row')
+    })
+
+    expect(loadedImage).toBe(image)
+    expect(saveImage).toHaveBeenCalledWith('profile-a', 'image-row', image)
+    expect(loadImage).toHaveBeenCalledWith('profile-a', 'image-row')
+    expect(deleteImage).toHaveBeenCalledWith('profile-a', 'image-row')
+  })
+
+  it.each([
+    {
+      configure: (repository: TrainingRepository, failure: Error) =>
+        vi.mocked(repository.saveImage).mockRejectedValueOnce(failure),
+      invoke: (training: TrainingContextValue) =>
+        training.saveImage(
+          'image-row',
+          new Blob(['processed image'], { type: 'image/webp' }),
+        ),
+      message: 'Trainingsbild konnte nicht gespeichert werden.',
+      operation: 'saving',
+    },
+    {
+      configure: (repository: TrainingRepository, failure: Error) =>
+        vi.mocked(repository.loadImage).mockRejectedValueOnce(failure),
+      invoke: (training: TrainingContextValue) =>
+        training.loadImage('image-row'),
+      message: 'Trainingsbild konnte nicht geladen werden.',
+      operation: 'loading',
+    },
+    {
+      configure: (repository: TrainingRepository, failure: Error) =>
+        vi.mocked(repository.deleteImage).mockRejectedValueOnce(failure),
+      invoke: (training: TrainingContextValue) =>
+        training.deleteImage('image-row'),
+      message: 'Trainingsbild konnte nicht gelöscht werden.',
+      operation: 'deleting',
+    },
+  ])(
+    'propagates a German error when $operation an image fails',
+    async ({ configure, invoke, message }) => {
+      const failure = new Error('image storage unavailable')
+      const repository = createRepository()
+      configure(repository, failure)
+      let training: TrainingContextValue | undefined
+      renderTraining(repository, 'profile-a', (value) => {
+        training = value
+      })
+      await screen.findByText('Trainingsdaten bereit')
+
+      let caught: unknown
+      await act(async () => {
+        caught = await invoke(training!).catch((error: unknown) => error)
+      })
+
+      expect(caught).toEqual(expect.objectContaining({ message, cause: failure }))
+      expect(training?.recoveryError).toEqual(
+        expect.objectContaining({ message, cause: failure }),
+      )
+      expect(
+        screen.getByRole('alert', { name: `Fehler: ${message}` }),
+      ).toBeInTheDocument()
+    },
+  )
+
+  it('does not surface a late image failure after switching profiles', async () => {
+    const imageSave = deferred<void>()
+    const saveImage = vi.fn(async () => imageSave.promise)
+    const repository = createRepository({ saveImage })
+    let training: TrainingContextValue | undefined
+    const capture = (value: TrainingContextValue) => {
+      training = value
+    }
+    const page = renderTraining(repository, 'profile-a', capture)
+    await screen.findByText('Trainingsdaten bereit')
+    const result = training!
+      .saveImage(
+        'image-row',
+        new Blob(['processed image'], { type: 'image/webp' }),
+      )
+      .catch((error: unknown) => error)
+
+    page.rerender(
+      <TrainingTree
+        capture={capture}
+        profileId="profile-b"
+        repository={repository}
+      />,
+    )
+    await waitFor(() =>
+      expect(repository.load).toHaveBeenCalledWith('profile-b'),
+    )
+    await screen.findByText('Trainingsdaten bereit')
+
+    const failure = new Error('profile A image failure')
+    await act(async () => imageSave.reject(failure))
+
+    expect(await result).toEqual(
+      expect.objectContaining({
+        message: 'Trainingsbild konnte nicht gespeichert werden.',
+        cause: failure,
+      }),
+    )
+    expect(saveImage).toHaveBeenCalledWith(
+      'profile-a',
+      'image-row',
+      expect.any(Blob),
+    )
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByText('Fehler: keiner')).toBeInTheDocument()
+  })
+
+  it('deletes a custom exercise image before removing and autosaving the exercise', async () => {
+    const operations: string[] = []
+    const savedStates: TrainingState[] = []
+    const repository = createRepository({
+      load: vi.fn(async () =>
+        trainingState({
+          customExercises: [CUSTOM_EXERCISE_WITH_IMAGE],
+          favoriteExerciseIds: [CUSTOM_EXERCISE_WITH_IMAGE.id],
+        }),
+      ),
+      deleteImage: vi.fn(async (profileId, imageId) => {
+        operations.push(`delete:${profileId}:${imageId}`)
+      }),
+      save: vi.fn(async (profileId, state) => {
+        operations.push(`save:${profileId}`)
+        savedStates.push(state)
+      }),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Trainingsdaten bereit')
+
+    await act(async () =>
+      training!.deleteCustomExercise(CUSTOM_EXERCISE_WITH_IMAGE.id),
+    )
+
+    expect(operations).toEqual([
+      'delete:profile-a:image-row',
+      'save:profile-a',
+    ])
+    expect(savedStates).toHaveLength(1)
+    expect(savedStates[0].customExercises).toEqual([])
+    expect(savedStates[0].favoriteExerciseIds).toEqual([])
+    expect(screen.queryByText(/Rudern mit eigenem Bild/)).not.toBeInTheDocument()
+  })
+
+  it('exports untouched raw data for the current profile during recovery', async () => {
+    const corruption = new TrainingDataCorruptionError(
+      'Die gespeicherten Trainingsdaten sind beschädigt.',
+    )
+    const raw = '{"schemaVersion":1,"broken":"untouched"}'
+    const exportRaw = vi.fn(async () => raw)
+    const repository = createRepository({
+      exportRaw,
+      load: vi.fn(async () => {
+        throw corruption
+      }),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByRole('alert', {
+      name: 'Fehler: Trainingsdaten konnten nicht geladen werden.',
+    })
+
+    await expect(training!.exportRaw()).resolves.toBe(raw)
+    expect(exportRaw).toHaveBeenCalledWith('profile-a')
+    expect(training?.recoveryError).toBe(corruption)
+  })
+
+  it('resets and reloads the current profile before clearing recovery state', async () => {
+    const corruption = new TrainingDataCorruptionError(
+      'Die gespeicherten Trainingsdaten sind beschädigt.',
+    )
+    const load = vi
+      .fn<TrainingRepository['load']>()
+      .mockRejectedValueOnce(corruption)
+      .mockResolvedValueOnce(trainingState())
+    const reset = vi.fn(async () => undefined)
+    const repository = createRepository({ load, reset })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByRole('alert', {
+      name: 'Fehler: Trainingsdaten konnten nicht geladen werden.',
+    })
+
+    await act(async () => training!.reset())
+
+    expect(reset).toHaveBeenCalledWith('profile-a')
+    expect(load).toHaveBeenNthCalledWith(2, 'profile-a')
+    expect(training?.loading).toBe(false)
+    expect(training?.recoveryError).toBeNull()
+    expect(training?.state).toEqual(trainingState())
+  })
+
+  it('preserves recovery state and propagates a German reset failure', async () => {
+    const corruption = new TrainingDataCorruptionError(
+      'Die gespeicherten Trainingsdaten sind beschädigt.',
+    )
+    const failure = new Error('reset transaction failed')
+    const reset = vi.fn(async () => {
+      throw failure
+    })
+    const repository = createRepository({
+      load: vi.fn(async () => {
+        throw corruption
+      }),
+      reset,
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByRole('alert', {
+      name: 'Fehler: Trainingsdaten konnten nicht geladen werden.',
+    })
+
+    let caught: unknown
+    await act(async () => {
+      caught = await training!.reset().catch((error: unknown) => error)
+    })
+
+    expect(caught).toEqual(
+      expect.objectContaining({
+        message: 'Trainingsbereich konnte nicht zurückgesetzt werden.',
+        cause: failure,
+      }),
+    )
+    expect(reset).toHaveBeenCalledWith('profile-a')
+    expect(training?.recoveryError).toBe(corruption)
+    expect(
+      screen.getByRole('alert', {
+        name: 'Fehler: Trainingsbereich konnte nicht zurückgesetzt werden.',
+      }),
+    ).toBeInTheDocument()
+  })
+
+  it('ignores a late reset failure after a keyed provider unmounts', async () => {
+    const corruption = new TrainingDataCorruptionError(
+      'Die gespeicherten Trainingsdaten sind beschädigt.',
+    )
+    const resetOperation = deferred<void>()
+    const repository = createRepository({
+      load: vi.fn(async (profileId) => {
+        if (profileId === 'profile-a') throw corruption
+        return trainingState()
+      }),
+      reset: vi.fn(async () => resetOperation.promise),
+    })
+    let training: TrainingContextValue | undefined
+    const capture = (value: TrainingContextValue) => {
+      training = value
+    }
+    const page = render(
+      <KeyedTrainingTree
+        capture={capture}
+        profileId="profile-a"
+        repository={repository}
+      />,
+    )
+    await screen.findByRole('alert', {
+      name: 'Fehler: Trainingsdaten konnten nicht geladen werden.',
+    })
+    const result = training!.reset().catch((error: unknown) => error)
+
+    page.rerender(
+      <KeyedTrainingTree
+        capture={capture}
+        profileId="profile-b"
+        repository={repository}
+      />,
+    )
+    await screen.findByText('Trainingsdaten bereit')
+    const failure = new Error('profile A reset failure')
+    await act(async () => resetOperation.reject(failure))
+
+    expect(await result).toEqual(
+      expect.objectContaining({
+        message: 'Trainingsbereich konnte nicht zurückgesetzt werden.',
+        cause: failure,
+      }),
+    )
+    expect(
+      screen.queryByRole('alert', {
+        name: 'Fehler: Trainingsbereich konnte nicht zurückgesetzt werden.',
+      }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('Fehler: keiner')).toBeInTheDocument()
   })
 })

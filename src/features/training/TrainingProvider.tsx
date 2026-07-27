@@ -38,6 +38,11 @@ import { TrainingContext } from './trainingContext'
 
 const SAVE_ERROR_MESSAGE = 'Trainingsdaten konnten nicht gespeichert werden.'
 const LOAD_ERROR_MESSAGE = 'Trainingsdaten konnten nicht geladen werden.'
+const IMAGE_SAVE_ERROR_MESSAGE = 'Trainingsbild konnte nicht gespeichert werden.'
+const IMAGE_LOAD_ERROR_MESSAGE = 'Trainingsbild konnte nicht geladen werden.'
+const IMAGE_DELETE_ERROR_MESSAGE = 'Trainingsbild konnte nicht gelöscht werden.'
+const EXPORT_ERROR_MESSAGE = 'Trainingsdaten konnten nicht exportiert werden.'
+const RESET_ERROR_MESSAGE = 'Trainingsbereich konnte nicht zurückgesetzt werden.'
 let browserTrainingRepository: TrainingRepository | undefined
 const repositorySaveQueues = new WeakMap<
   TrainingRepository,
@@ -88,6 +93,30 @@ export function TrainingProvider({
   const stateRef = useRef(view.state)
   const loadedProfileRef = useRef<string | null>(null)
   const generationRef = useRef(0)
+
+  const operationError = useCallback(
+    (
+      message: string,
+      cause: unknown,
+      operationProfileId: string,
+      operationGeneration: number,
+      preserveRecoveryError = false,
+    ) => {
+      const error = new Error(message, { cause })
+      if (generationRef.current === operationGeneration) {
+        if (!preserveRecoveryError) {
+          setView((current) =>
+            current.profileId === operationProfileId
+              ? { ...current, recoveryError: error }
+              : current,
+          )
+        }
+        toast.show({ message, variant: 'error' })
+      }
+      return error
+    },
+    [toast],
+  )
 
   useEffect(() => {
     const generation = generationRef.current + 1
@@ -203,8 +232,69 @@ export function TrainingProvider({
     [updateState],
   )
 
+  const saveImage = useCallback(
+    async (imageId: string, blob: Blob) => {
+      const operationProfileId = profileId
+      const operationGeneration = generationRef.current
+      try {
+        await trainingRepository.saveImage(operationProfileId, imageId, blob)
+      } catch (cause) {
+        throw operationError(
+          IMAGE_SAVE_ERROR_MESSAGE,
+          cause,
+          operationProfileId,
+          operationGeneration,
+        )
+      }
+    },
+    [operationError, profileId, trainingRepository],
+  )
+
+  const loadImage = useCallback(
+    async (imageId: string) => {
+      const operationProfileId = profileId
+      const operationGeneration = generationRef.current
+      try {
+        return await trainingRepository.loadImage(operationProfileId, imageId)
+      } catch (cause) {
+        throw operationError(
+          IMAGE_LOAD_ERROR_MESSAGE,
+          cause,
+          operationProfileId,
+          operationGeneration,
+        )
+      }
+    },
+    [operationError, profileId, trainingRepository],
+  )
+
+  const deleteImage = useCallback(
+    async (imageId: string) => {
+      const operationProfileId = profileId
+      const operationGeneration = generationRef.current
+      try {
+        await trainingRepository.deleteImage(operationProfileId, imageId)
+      } catch (cause) {
+        throw operationError(
+          IMAGE_DELETE_ERROR_MESSAGE,
+          cause,
+          operationProfileId,
+          operationGeneration,
+        )
+      }
+    },
+    [operationError, profileId, trainingRepository],
+  )
+
   const deleteCustomExercise = useCallback(
-    (exerciseId: string) => {
+    async (exerciseId: string) => {
+      if (loadedProfileRef.current !== profileId) return
+      const customImageId = stateRef.current.customExercises.find(
+        ({ id }) => id === exerciseId,
+      )?.customImageId
+      if (customImageId) await deleteImage(customImageId)
+      if (loadedProfileRef.current !== profileId) return
+
       updateState((current) => ({
         ...current,
         customExercises: current.customExercises.filter(
@@ -215,8 +305,63 @@ export function TrainingProvider({
         ),
       }))
     },
-    [updateState],
+    [deleteImage, profileId, updateState],
   )
+
+  const exportRaw = useCallback(async () => {
+    const operationProfileId = profileId
+    const operationGeneration = generationRef.current
+    try {
+      return await trainingRepository.exportRaw(operationProfileId)
+    } catch (cause) {
+      throw operationError(
+        EXPORT_ERROR_MESSAGE,
+        cause,
+        operationProfileId,
+        operationGeneration,
+        true,
+      )
+    }
+  }, [operationError, profileId, trainingRepository])
+
+  const reset = useCallback(async () => {
+    const operationProfileId = profileId
+    const operationGeneration = generationRef.current
+    const previousOperation =
+      saveQueues.get(operationProfileId) ?? Promise.resolve()
+    const resetOperation = previousOperation.then(async () => {
+      await trainingRepository.reset(operationProfileId)
+      return trainingRepository.load(operationProfileId)
+    })
+    saveQueues.set(
+      operationProfileId,
+      resetOperation.then(
+        () => undefined,
+        () => undefined,
+      ),
+    )
+
+    try {
+      const loadedState = await resetOperation
+      if (generationRef.current !== operationGeneration) return
+      loadedProfileRef.current = operationProfileId
+      stateRef.current = loadedState
+      setView({
+        loading: false,
+        profileId: operationProfileId,
+        recoveryError: null,
+        state: loadedState,
+      })
+    } catch (cause) {
+      throw operationError(
+        RESET_ERROR_MESSAGE,
+        cause,
+        operationProfileId,
+        operationGeneration,
+        true,
+      )
+    }
+  }, [operationError, profileId, saveQueues, trainingRepository])
 
   const saveWorkoutTemplate = useCallback(
     (template: WorkoutTemplate) => {
@@ -401,15 +546,20 @@ export function TrainingProvider({
         completeWorkout,
         deleteCompletedWorkout,
         deleteCustomExercise,
+        deleteImage,
         deleteWorkoutTemplate,
         discardWorkout,
+        exportRaw,
+        loadImage,
         loading: visibleView.loading,
         removeWorkoutExercise,
         removeWorkoutSet,
         reorderWorkoutExercise,
         replaceCompletedWorkout,
         recoveryError: visibleView.recoveryError,
+        reset,
         saveCustomExercise,
+        saveImage,
         saveWorkoutTemplate,
         startWorkout,
         state: visibleView.state,

@@ -24,9 +24,12 @@ export interface TrainingContextValue {
   addWorkoutSet: (exerciseEntryId: string, updatedAt: string) => void
   completeWorkout: (completedAt: string) => void
   deleteCompletedWorkout: (workoutId: string) => void
-  deleteCustomExercise: (exerciseId: string) => void
+  deleteCustomExercise: (exerciseId: string) => Promise<void>
+  deleteImage: (imageId: string) => Promise<void>
   deleteWorkoutTemplate: (templateId: string) => void
   discardWorkout: () => void
+  exportRaw: () => Promise<string>
+  loadImage: (imageId: string) => Promise<Blob | undefined>
   removeWorkoutExercise: (
     exerciseEntryId: string,
     updatedAt: string,
@@ -45,7 +48,9 @@ export interface TrainingContextValue {
     workoutId: string,
     replacement: CompletedWorkout,
   ) => void
+  reset: () => Promise<void>
   saveCustomExercise: (exercise: ExerciseDefinition) => void
+  saveImage: (imageId: string, blob: Blob) => Promise<void>
   saveWorkoutTemplate: (template: WorkoutTemplate) => void
   startWorkout: (template: WorkoutTemplate, startedAt: string) => void
   toggleFavoriteExercise: (exerciseId: string) => void
