@@ -912,6 +912,104 @@ describe('TrainingProvider', () => {
     })
   })
 
+  it('rolls back only a failed custom save while preserving an unrelated exercise added concurrently', async () => {
+    const otherExercise: ExerciseDefinition = {
+      ...CUSTOM_EXERCISE,
+      id: 'custom:press',
+      name: 'Eigene Brustpresse',
+      primaryMuscles: ['Brust'],
+    }
+    const firstSave = deferred<void>()
+    const savedStates: TrainingState[] = []
+    let saveCount = 0
+    const repository = createRepository({
+      save: vi.fn(async (_profileId, state) => {
+        savedStates.push(state)
+        saveCount += 1
+        if (saveCount === 1) await firstSave.promise
+      }),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Trainingsdaten bereit')
+
+    let failedSave!: Promise<unknown>
+    let otherSave!: Promise<void>
+    act(() => {
+      failedSave = training!
+        .saveCustomExercise(CUSTOM_EXERCISE)
+        .catch((error: unknown) => error)
+      otherSave = training!.saveCustomExercise(otherExercise)
+    })
+    await waitFor(() => expect(savedStates).toHaveLength(1))
+
+    let result: unknown
+    await act(async () => {
+      firstSave.reject(new Error('metadata unavailable'))
+      result = await failedSave
+      await otherSave
+    })
+    await waitFor(() => expect(savedStates).toHaveLength(3))
+
+    expect(result).toEqual(
+      expect.objectContaining({ message: 'Übung konnte nicht gespeichert werden.' }),
+    )
+    expect(training!.state.customExercises).toEqual([otherExercise])
+    expect(savedStates.at(-1)?.customExercises).toEqual([otherExercise])
+  })
+
+  it('does not roll back over a newer save of the same custom exercise', async () => {
+    const failedExercise: ExerciseDefinition = {
+      ...CUSTOM_EXERCISE,
+      name: 'Fehlgeschlagene Bearbeitung',
+    }
+    const newerExercise: ExerciseDefinition = {
+      ...CUSTOM_EXERCISE,
+      description: 'Diese spätere Bearbeitung muss erhalten bleiben.',
+      name: 'Neuere Bearbeitung',
+    }
+    const initialState = trainingState({
+      customExercises: [CUSTOM_EXERCISE],
+    })
+    const firstSave = deferred<void>()
+    const savedStates: TrainingState[] = []
+    let saveCount = 0
+    const repository = createRepository({
+      load: vi.fn(async () => initialState),
+      save: vi.fn(async (_profileId, state) => {
+        savedStates.push(state)
+        saveCount += 1
+        if (saveCount === 1) await firstSave.promise
+      }),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Trainingsdaten bereit')
+
+    let failedSave!: Promise<unknown>
+    let newerSave!: Promise<void>
+    act(() => {
+      failedSave = training!
+        .saveCustomExercise(failedExercise)
+        .catch((error: unknown) => error)
+      newerSave = training!.saveCustomExercise(newerExercise)
+    })
+    await waitFor(() => expect(savedStates).toHaveLength(1))
+
+    await act(async () => {
+      firstSave.reject(new Error('metadata unavailable'))
+      await failedSave
+      await newerSave
+    })
+
+    expect(training!.state.customExercises).toEqual([newerExercise])
+    expect(savedStates.at(-1)?.customExercises).toEqual([newerExercise])
+  })
+
   it('retries only the captured image cleanup after custom metadata deletion succeeded', async () => {
     const cleanupFailure = new Error('image cleanup unavailable')
     const storedStates: TrainingState[] = []
@@ -1014,6 +1112,130 @@ describe('TrainingProvider', () => {
     expect(storedState.customExercises).toEqual([])
     expect(storedState.favoriteExerciseIds).toEqual([])
     expect(deleteImage).toHaveBeenCalledWith('profile-a', 'image-row')
+  })
+
+  it('restores only a failed delete target while preserving an unrelated exercise edit', async () => {
+    const otherExercise: ExerciseDefinition = {
+      ...CUSTOM_EXERCISE,
+      id: 'custom:press',
+      name: 'Eigene Brustpresse',
+      primaryMuscles: ['Brust'],
+    }
+    const editedOtherExercise: ExerciseDefinition = {
+      ...otherExercise,
+      description: 'Mit kontrolliertem Tempo drücken.',
+      name: 'Eigene Brustpresse aktualisiert',
+    }
+    const initialState = trainingState({
+      customExercises: [CUSTOM_EXERCISE_WITH_IMAGE, otherExercise],
+      favoriteExerciseIds: [CUSTOM_EXERCISE_WITH_IMAGE.id],
+    })
+    const firstSave = deferred<void>()
+    const savedStates: TrainingState[] = []
+    let saveCount = 0
+    const deleteImage = vi.fn(async () => undefined)
+    const repository = createRepository({
+      deleteImage,
+      load: vi.fn(async () => initialState),
+      save: vi.fn(async (_profileId, state) => {
+        savedStates.push(state)
+        saveCount += 1
+        if (saveCount === 1) await firstSave.promise
+      }),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Trainingsdaten bereit')
+
+    let failedDelete!: Promise<unknown>
+    let otherSave!: Promise<void>
+    act(() => {
+      failedDelete = training!
+        .deleteCustomExercise(CUSTOM_EXERCISE_WITH_IMAGE.id)
+        .catch((error: unknown) => error)
+      otherSave = training!.saveCustomExercise(editedOtherExercise)
+    })
+    await waitFor(() => expect(savedStates).toHaveLength(1))
+
+    let result: unknown
+    await act(async () => {
+      firstSave.reject(new Error('metadata unavailable'))
+      result = await failedDelete
+      await otherSave
+    })
+    await waitFor(() => expect(savedStates).toHaveLength(3))
+
+    expect(result).toEqual(
+      expect.objectContaining({ message: 'Übung konnte nicht gelöscht werden.' }),
+    )
+    expect(training!.state.customExercises).toEqual([
+      CUSTOM_EXERCISE_WITH_IMAGE,
+      editedOtherExercise,
+    ])
+    expect(training!.state.favoriteExerciseIds).toEqual([
+      CUSTOM_EXERCISE_WITH_IMAGE.id,
+    ])
+    expect(savedStates.at(-1)).toMatchObject({
+      customExercises: [CUSTOM_EXERCISE_WITH_IMAGE, editedOtherExercise],
+      favoriteExerciseIds: [CUSTOM_EXERCISE_WITH_IMAGE.id],
+    })
+    expect(deleteImage).not.toHaveBeenCalled()
+  })
+
+  it('does not restore deleted metadata over a newer save of the same exercise', async () => {
+    const newerExercise: ExerciseDefinition = {
+      ...CUSTOM_EXERCISE_WITH_IMAGE,
+      customImageId: 'image-row-newer',
+      description: 'Diese spätere Bearbeitung muss erhalten bleiben.',
+      name: 'Neuere Bearbeitung mit Bild',
+    }
+    const initialState = trainingState({
+      customExercises: [CUSTOM_EXERCISE_WITH_IMAGE],
+      favoriteExerciseIds: [CUSTOM_EXERCISE_WITH_IMAGE.id],
+    })
+    const firstSave = deferred<void>()
+    const savedStates: TrainingState[] = []
+    let saveCount = 0
+    const repository = createRepository({
+      load: vi.fn(async () => initialState),
+      save: vi.fn(async (_profileId, state) => {
+        savedStates.push(state)
+        saveCount += 1
+        if (saveCount === 1) await firstSave.promise
+      }),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Trainingsdaten bereit')
+
+    let failedDelete!: Promise<unknown>
+    let newerSave!: Promise<void>
+    act(() => {
+      failedDelete = training!
+        .deleteCustomExercise(CUSTOM_EXERCISE_WITH_IMAGE.id)
+        .catch((error: unknown) => error)
+      newerSave = training!.saveCustomExercise(newerExercise)
+    })
+    await waitFor(() => expect(savedStates).toHaveLength(1))
+
+    await act(async () => {
+      firstSave.reject(new Error('metadata unavailable'))
+      await failedDelete
+      await newerSave
+    })
+
+    expect(training!.state.customExercises).toEqual([newerExercise])
+    expect(training!.state.favoriteExerciseIds).toEqual([
+      CUSTOM_EXERCISE_WITH_IMAGE.id,
+    ])
+    expect(savedStates.at(-1)).toMatchObject({
+      customExercises: [newerExercise],
+      favoriteExerciseIds: [CUSTOM_EXERCISE_WITH_IMAGE.id],
+    })
   })
 
   it('exports untouched raw data for the current profile during recovery', async () => {

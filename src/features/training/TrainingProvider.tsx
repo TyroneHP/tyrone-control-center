@@ -246,37 +246,43 @@ export function TrainingProvider({
   const saveCustomExercise = useCallback(
     async (exercise: ExerciseDefinition) => {
       let previousExercise: ExerciseDefinition | undefined
-      let optimisticExercises: ExerciseDefinition[] | undefined
       const saved = await updateState((current) => {
         previousExercise = current.customExercises.find(
           ({ id }) => id === exercise.id,
         )
-        optimisticExercises = current.customExercises.some(
-          ({ id }) => id === exercise.id,
-        )
-          ? current.customExercises.map((candidate) =>
-              candidate.id === exercise.id ? exercise : candidate,
-            )
-          : [...current.customExercises, exercise]
         return {
           ...current,
-          customExercises: optimisticExercises,
+          customExercises: current.customExercises.some(
+            ({ id }) => id === exercise.id,
+          )
+            ? current.customExercises.map((candidate) =>
+                candidate.id === exercise.id ? exercise : candidate,
+              )
+            : [...current.customExercises, exercise],
         }
       })
       if (saved) return
 
       if (
-        optimisticExercises &&
-        stateRef.current.customExercises === optimisticExercises
+        stateRef.current.customExercises.find(({ id }) => id === exercise.id) ===
+        exercise
       ) {
-        await updateState((current) => ({
-          ...current,
-          customExercises: previousExercise
-            ? current.customExercises.map((candidate) =>
-                candidate.id === exercise.id ? previousExercise! : candidate,
-              )
-            : current.customExercises.filter(({ id }) => id !== exercise.id),
-        }))
+        await updateState((current) => {
+          if (
+            current.customExercises.find(({ id }) => id === exercise.id) !==
+            exercise
+          ) {
+            return current
+          }
+          return {
+            ...current,
+            customExercises: previousExercise
+              ? current.customExercises.map((candidate) =>
+                  candidate.id === exercise.id ? previousExercise! : candidate,
+                )
+              : current.customExercises.filter(({ id }) => id !== exercise.id),
+          }
+        })
       }
 
       throw new Error(CUSTOM_EXERCISE_SAVE_ERROR_MESSAGE)
@@ -372,34 +378,36 @@ export function TrainingProvider({
       const previousExercise = stateRef.current.customExercises[exerciseIndex]
       const wasFavorite = stateRef.current.favoriteExerciseIds.includes(exerciseId)
       const customImageId = previousExercise?.customImageId
-      let optimisticExercises: ExerciseDefinition[] | undefined
-      let optimisticFavorites: string[] | undefined
       const saved = await updateState((current) => ({
         ...current,
-        customExercises: (optimisticExercises = current.customExercises.filter(
+        customExercises: current.customExercises.filter(
           ({ id }) => id !== exerciseId,
-        )),
-        favoriteExerciseIds: (optimisticFavorites =
-          current.favoriteExerciseIds.filter((id) => id !== exerciseId)),
+        ),
+        favoriteExerciseIds: current.favoriteExerciseIds.filter(
+          (id) => id !== exerciseId,
+        ),
       }))
       if (!saved) {
-        if (
-          (optimisticExercises &&
-            stateRef.current.customExercises === optimisticExercises) ||
-          (optimisticFavorites &&
-            stateRef.current.favoriteExerciseIds === optimisticFavorites)
-        ) {
+        const shouldRestoreExercise =
+          previousExercise !== undefined &&
+          !stateRef.current.customExercises.some(({ id }) => id === exerciseId)
+        const shouldRestoreFavorite =
+          wasFavorite &&
+          !stateRef.current.favoriteExerciseIds.includes(exerciseId)
+        if (shouldRestoreExercise || shouldRestoreFavorite) {
           await updateState((current) => {
             const restoreExercise =
-              previousExercise && current.customExercises === optimisticExercises
+              previousExercise !== undefined &&
+              !current.customExercises.some(({ id }) => id === exerciseId)
             const restoreFavorite =
-              wasFavorite && current.favoriteExerciseIds === optimisticFavorites
+              wasFavorite &&
+              !current.favoriteExerciseIds.includes(exerciseId)
             if (!restoreExercise && !restoreFavorite) return current
 
             const customExercises = restoreExercise
               ? [
                   ...current.customExercises.slice(0, exerciseIndex),
-                  previousExercise,
+                  previousExercise!,
                   ...current.customExercises.slice(exerciseIndex),
                 ]
               : current.customExercises
