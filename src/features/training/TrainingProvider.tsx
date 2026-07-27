@@ -58,6 +58,16 @@ const repositoryPendingImageCleanup = new WeakMap<
   TrainingRepository,
   Map<string, string>
 >()
+interface PersistedExerciseBaseline {
+  exercise?: ExerciseDefinition
+  favorite: boolean
+  favoriteIndex?: number
+  index?: number
+}
+const repositoryPersistedExerciseBaselines = new WeakMap<
+  TrainingRepository,
+  Map<string, Map<string, PersistedExerciseBaseline>>
+>()
 
 function getBrowserTrainingRepository() {
   browserTrainingRepository ??= new IndexedDbTrainingRepository()
@@ -80,6 +90,63 @@ function getPendingImageCleanup(repository: TrainingRepository) {
     repositoryPendingImageCleanup.set(repository, cleanup)
   }
   return cleanup
+}
+
+function getPersistedExerciseBaselines(repository: TrainingRepository) {
+  let baselines = repositoryPersistedExerciseBaselines.get(repository)
+  if (!baselines) {
+    baselines = new Map()
+    repositoryPersistedExerciseBaselines.set(repository, baselines)
+  }
+  return baselines
+}
+
+function replaceProfileExerciseBaselines(
+  baselines: Map<string, Map<string, PersistedExerciseBaseline>>,
+  profileId: string,
+  state: TrainingState,
+) {
+  baselines.set(
+    profileId,
+    new Map(
+      state.customExercises.map((exercise, index) => [
+        exercise.id,
+        {
+          exercise,
+          favorite: state.favoriteExerciseIds.includes(exercise.id),
+          favoriteIndex: state.favoriteExerciseIds.indexOf(exercise.id),
+          index,
+        },
+      ]),
+    ),
+  )
+}
+
+function readExerciseBaseline(
+  baselines: Map<string, Map<string, PersistedExerciseBaseline>>,
+  profileId: string,
+  exerciseId: string,
+) {
+  return (
+    baselines.get(profileId)?.get(exerciseId) ?? {
+      exercise: undefined,
+      favorite: false,
+    }
+  )
+}
+
+function writeExerciseBaseline(
+  baselines: Map<string, Map<string, PersistedExerciseBaseline>>,
+  profileId: string,
+  exerciseId: string,
+  baseline: PersistedExerciseBaseline,
+) {
+  let profileBaselines = baselines.get(profileId)
+  if (!profileBaselines) {
+    profileBaselines = new Map()
+    baselines.set(profileId, profileBaselines)
+  }
+  profileBaselines.set(exerciseId, baseline)
 }
 
 function imageCleanupKey(profileId: string, exerciseId: string) {
@@ -108,6 +175,8 @@ export function TrainingProvider({
   const trainingRepository = repository ?? getBrowserTrainingRepository()
   const saveQueues = getRepositorySaveQueues(trainingRepository)
   const pendingImageCleanup = getPendingImageCleanup(trainingRepository)
+  const persistedExerciseBaselines =
+    getPersistedExerciseBaselines(trainingRepository)
   const [view, setView] = useState<TrainingView>(() => ({
     loading: true,
     profileId,
@@ -154,6 +223,11 @@ export function TrainingProvider({
       .then(() => trainingRepository.load(profileId))
       .then((loadedState) => {
         if (!current || generationRef.current !== generation) return
+        replaceProfileExerciseBaselines(
+          persistedExerciseBaselines,
+          profileId,
+          loadedState,
+        )
         loadedProfileRef.current = profileId
         stateRef.current = loadedState
         setView({
@@ -185,10 +259,19 @@ export function TrainingProvider({
         loadedProfileRef.current = null
       }
     }
-  }, [profileId, saveQueues, toast, trainingRepository])
+  }, [
+    persistedExerciseBaselines,
+    profileId,
+    saveQueues,
+    toast,
+    trainingRepository,
+  ])
 
   const updateState = useCallback(
-    (mutation: (current: TrainingState) => TrainingState) => {
+    (
+      mutation: (current: TrainingState) => TrainingState,
+      afterSave?: (savedState: TrainingState) => void,
+    ) => {
       if (loadedProfileRef.current !== profileId) return Promise.resolve(false)
 
       const nextState = mutation(stateRef.current)
@@ -206,7 +289,10 @@ export function TrainingProvider({
       const previousSave = saveQueues.get(savedProfileId) ?? Promise.resolve()
       const saveResult = previousSave
         .then(() => trainingRepository.save(savedProfileId, nextState))
-        .then(() => true)
+        .then(() => {
+          afterSave?.(nextState)
+          return true
+        })
         .catch((cause: unknown) => {
           if (
             generationRef.current !== savedGeneration ||
@@ -245,12 +331,9 @@ export function TrainingProvider({
 
   const saveCustomExercise = useCallback(
     async (exercise: ExerciseDefinition) => {
-      let previousExercise: ExerciseDefinition | undefined
-      const saved = await updateState((current) => {
-        previousExercise = current.customExercises.find(
-          ({ id }) => id === exercise.id,
-        )
-        return {
+      const operationProfileId = profileId
+      const saved = await updateState(
+        (current) => ({
           ...current,
           customExercises: current.customExercises.some(
             ({ id }) => id === exercise.id,
@@ -259,10 +342,34 @@ export function TrainingProvider({
                 candidate.id === exercise.id ? exercise : candidate,
               )
             : [...current.customExercises, exercise],
-        }
-      })
+        }),
+        (savedState) => {
+          const baseline = readExerciseBaseline(
+            persistedExerciseBaselines,
+            operationProfileId,
+            exercise.id,
+          )
+          writeExerciseBaseline(
+            persistedExerciseBaselines,
+            operationProfileId,
+            exercise.id,
+            {
+              ...baseline,
+              exercise,
+              index: savedState.customExercises.findIndex(
+                ({ id }) => id === exercise.id,
+              ),
+            },
+          )
+        },
+      )
       if (saved) return
 
+      const baseline = readExerciseBaseline(
+        persistedExerciseBaselines,
+        operationProfileId,
+        exercise.id,
+      )
       if (
         stateRef.current.customExercises.find(({ id }) => id === exercise.id) ===
         exercise
@@ -274,20 +381,29 @@ export function TrainingProvider({
           ) {
             return current
           }
+          const withoutTarget = current.customExercises.filter(
+            ({ id }) => id !== exercise.id,
+          )
+          const restoreIndex = Math.min(
+            baseline.index ?? withoutTarget.length,
+            withoutTarget.length,
+          )
           return {
             ...current,
-            customExercises: previousExercise
-              ? current.customExercises.map((candidate) =>
-                  candidate.id === exercise.id ? previousExercise! : candidate,
-                )
-              : current.customExercises.filter(({ id }) => id !== exercise.id),
+            customExercises: baseline.exercise
+              ? [
+                  ...withoutTarget.slice(0, restoreIndex),
+                  baseline.exercise,
+                  ...withoutTarget.slice(restoreIndex),
+                ]
+              : withoutTarget,
           }
         })
       }
 
       throw new Error(CUSTOM_EXERCISE_SAVE_ERROR_MESSAGE)
     },
-    [updateState],
+    [persistedExerciseBaselines, profileId, updateState],
   )
 
   const saveImage = useCallback(
@@ -372,50 +488,88 @@ export function TrainingProvider({
         }
       }
 
-      const exerciseIndex = stateRef.current.customExercises.findIndex(
-        ({ id }) => id === exerciseId,
+      let customImageId: string | undefined
+      const saved = await updateState(
+        (current) => ({
+          ...current,
+          customExercises: current.customExercises.filter(
+            ({ id }) => id !== exerciseId,
+          ),
+          favoriteExerciseIds: current.favoriteExerciseIds.filter(
+            (id) => id !== exerciseId,
+          ),
+        }),
+        () => {
+          const baseline = readExerciseBaseline(
+            persistedExerciseBaselines,
+            operationProfileId,
+            exerciseId,
+          )
+          customImageId = baseline.exercise?.customImageId
+          writeExerciseBaseline(
+            persistedExerciseBaselines,
+            operationProfileId,
+            exerciseId,
+            {
+              exercise: undefined,
+              favorite: false,
+              favoriteIndex: baseline.favoriteIndex,
+              index: baseline.index,
+            },
+          )
+        },
       )
-      const previousExercise = stateRef.current.customExercises[exerciseIndex]
-      const wasFavorite = stateRef.current.favoriteExerciseIds.includes(exerciseId)
-      const customImageId = previousExercise?.customImageId
-      const saved = await updateState((current) => ({
-        ...current,
-        customExercises: current.customExercises.filter(
-          ({ id }) => id !== exerciseId,
-        ),
-        favoriteExerciseIds: current.favoriteExerciseIds.filter(
-          (id) => id !== exerciseId,
-        ),
-      }))
       if (!saved) {
+        const baseline = readExerciseBaseline(
+          persistedExerciseBaselines,
+          operationProfileId,
+          exerciseId,
+        )
         const shouldRestoreExercise =
-          previousExercise !== undefined &&
+          baseline.exercise !== undefined &&
           !stateRef.current.customExercises.some(({ id }) => id === exerciseId)
         const shouldRestoreFavorite =
-          wasFavorite &&
+          baseline.favorite &&
           !stateRef.current.favoriteExerciseIds.includes(exerciseId)
         if (shouldRestoreExercise || shouldRestoreFavorite) {
           await updateState((current) => {
             const restoreExercise =
-              previousExercise !== undefined &&
+              baseline.exercise !== undefined &&
               !current.customExercises.some(({ id }) => id === exerciseId)
             const restoreFavorite =
-              wasFavorite &&
+              baseline.favorite &&
               !current.favoriteExerciseIds.includes(exerciseId)
             if (!restoreExercise && !restoreFavorite) return current
 
             const customExercises = restoreExercise
-              ? [
-                  ...current.customExercises.slice(0, exerciseIndex),
-                  previousExercise!,
-                  ...current.customExercises.slice(exerciseIndex),
-                ]
+              ? (() => {
+                  const restoreIndex = Math.min(
+                    baseline.index ?? current.customExercises.length,
+                    current.customExercises.length,
+                  )
+                  return [
+                    ...current.customExercises.slice(0, restoreIndex),
+                    baseline.exercise!,
+                    ...current.customExercises.slice(restoreIndex),
+                  ]
+                })()
               : current.customExercises
             return {
               ...current,
               customExercises,
               favoriteExerciseIds: restoreFavorite
-                ? [...current.favoriteExerciseIds, exerciseId]
+                ? (() => {
+                    const restoreIndex = Math.min(
+                      baseline.favoriteIndex ??
+                        current.favoriteExerciseIds.length,
+                      current.favoriteExerciseIds.length,
+                    )
+                    return [
+                      ...current.favoriteExerciseIds.slice(0, restoreIndex),
+                      exerciseId,
+                      ...current.favoriteExerciseIds.slice(restoreIndex),
+                    ]
+                  })()
                 : current.favoriteExerciseIds,
             }
           })
@@ -440,6 +594,7 @@ export function TrainingProvider({
     [
       operationError,
       pendingImageCleanup,
+      persistedExerciseBaselines,
       profileId,
       trainingRepository,
       updateState,
@@ -482,6 +637,11 @@ export function TrainingProvider({
     try {
       const loadedState = await resetOperation
       if (generationRef.current !== operationGeneration) return
+      replaceProfileExerciseBaselines(
+        persistedExerciseBaselines,
+        operationProfileId,
+        loadedState,
+      )
       loadedProfileRef.current = operationProfileId
       stateRef.current = loadedState
       setView({
@@ -499,7 +659,13 @@ export function TrainingProvider({
         true,
       )
     }
-  }, [operationError, profileId, saveQueues, trainingRepository])
+  }, [
+    operationError,
+    persistedExerciseBaselines,
+    profileId,
+    saveQueues,
+    trainingRepository,
+  ])
 
   const saveWorkoutTemplate = useCallback(
     (template: WorkoutTemplate) => {
