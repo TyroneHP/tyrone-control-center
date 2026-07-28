@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { ToastProvider } from '../../design-system'
 import type {
   ActiveWorkout,
+  CompletedWorkout,
   ExerciseDefinition,
   TrainingState,
   WorkoutTemplate,
@@ -76,6 +77,14 @@ const ACTIVE_WORKOUT: ActiveWorkout = {
   name: 'Bestehendes Training',
   startedAt: '2026-07-27T05:00:00.000Z',
   updatedAt: '2026-07-27T05:30:00.000Z',
+  exercises: [],
+}
+
+const COMPLETED_WORKOUT: CompletedWorkout = {
+  id: 'workout-completed',
+  name: 'Abgeschlossenes Training',
+  startedAt: '2026-07-26T05:00:00.000Z',
+  completedAt: '2026-07-26T06:00:00.000Z',
   exercises: [],
 }
 
@@ -2587,6 +2596,125 @@ describe('TrainingProvider', () => {
       await act(async () => saveGate.resolve())
       expect(await resultPromise).toBe(false)
       expect(training?.state.activeWorkout).toBeNull()
+    },
+  )
+
+  it.each([
+    {
+      label: 'editing',
+      mutate: (
+        training: TrainingContextValue,
+        replacement: CompletedWorkout,
+      ) => training.replaceCompletedWorkout(COMPLETED_WORKOUT.id, replacement),
+    },
+    {
+      label: 'deletion',
+      mutate: (training: TrainingContextValue) =>
+        training.deleteCompletedWorkout(COMPLETED_WORKOUT.id),
+    },
+  ])(
+    'rolls back failed completed-workout $label while preserving a newer unrelated mutation',
+    async ({ label, mutate }) => {
+      const failedSave = deferred<void>()
+      const initialState = trainingState({
+        completedWorkouts: [COMPLETED_WORKOUT],
+      })
+      let storedState = initialState
+      let saveCount = 0
+      const repository = createRepository({
+        load: vi.fn(async () => initialState),
+        save: vi.fn(async (_profileId, state) => {
+          saveCount += 1
+          if (saveCount === 1) await failedSave.promise
+          storedState = state
+        }),
+      })
+      let training: TrainingContextValue | undefined
+      renderTraining(repository, 'profile-a', (value) => {
+        training = value
+      })
+      await screen.findByText('Trainingsdaten bereit')
+      const replacement = {
+        ...COMPLETED_WORKOUT,
+        name: 'Geändertes Training',
+      }
+
+      let resultPromise!: Promise<boolean>
+      act(() => {
+        resultPromise = mutate(training!, replacement)
+      })
+      await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(1))
+      act(() => training!.updatePreferences({ showSetRating: false }))
+
+      await act(async () => failedSave.reject(new Error(`${label} unavailable`)))
+      expect(await resultPromise).toBe(false)
+      await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(3))
+      expect(training?.state.completedWorkouts).toEqual([COMPLETED_WORKOUT])
+      expect(training?.state.preferences.showSetRating).toBe(false)
+      expect(storedState.completedWorkouts).toEqual([COMPLETED_WORKOUT])
+      expect(storedState.preferences.showSetRating).toBe(false)
+    },
+  )
+
+  it.each([
+    {
+      label: 'edit',
+      mutate: (training: TrainingContextValue) =>
+        training.replaceCompletedWorkout(COMPLETED_WORKOUT.id, {
+          ...COMPLETED_WORKOUT,
+          name: 'Geändertes Training',
+        }),
+    },
+    {
+      label: 'delete',
+      mutate: (training: TrainingContextValue) =>
+        training.deleteCompletedWorkout(COMPLETED_WORKOUT.id),
+    },
+  ])(
+    'reports a successful completed-workout $label only for its originating profile generation',
+    async ({ mutate }) => {
+      const saveGate = deferred<void>()
+      const profileAState = trainingState({
+        completedWorkouts: [COMPLETED_WORKOUT],
+      })
+      const repository = createRepository({
+        load: vi.fn(async (profileId) =>
+          profileId === 'profile-a' ? profileAState : trainingState(),
+        ),
+        save: vi.fn(async (profileId) => {
+          if (profileId === 'profile-a') await saveGate.promise
+        }),
+      })
+      let training: TrainingContextValue | undefined
+      const page = renderTraining(repository, 'profile-a', (value) => {
+        training = value
+      })
+      await screen.findByText('Trainingsdaten bereit')
+
+      let resultPromise!: Promise<boolean>
+      act(() => {
+        resultPromise = mutate(training!)
+      })
+      await waitFor(() =>
+        expect(repository.save).toHaveBeenCalledWith(
+          'profile-a',
+          expect.any(Object),
+        ),
+      )
+      page.rerender(
+        <TrainingTree
+          capture={(value) => {
+            training = value
+          }}
+          profileId="profile-b"
+          repository={repository}
+        />,
+      )
+      await screen.findByText('Trainingsdaten bereit')
+
+      await act(async () => saveGate.resolve())
+      expect(await resultPromise).toBe(false)
+      expect(training?.state.completedWorkouts).toEqual([])
     },
   )
 })

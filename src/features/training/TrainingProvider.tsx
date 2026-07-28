@@ -963,20 +963,86 @@ export function TrainingProvider({
   )
 
   const replaceCompletedWorkout = useCallback(
-    (workoutId: string, replacement: CompletedWorkout) => {
-      updateState((current) =>
-        replaceCompletedWorkoutModel(current, workoutId, replacement),
-      )
-    },
+    (workoutId: string, replacement: CompletedWorkout) =>
+      updateState(
+        (current) =>
+          replaceCompletedWorkoutModel(current, workoutId, replacement),
+        undefined,
+        {
+          requireCurrentGenerationOnSuccess: true,
+          rollbackOnFailure: (current, previous, failed) => {
+            const previousWorkout = previous.completedWorkouts.find(
+              ({ id }) => id === workoutId,
+            )
+            const failedWorkout = failed.completedWorkouts.find(
+              ({ id }) => id === workoutId,
+            )
+            const currentWorkout = current.completedWorkouts.find(
+              ({ id }) => id === workoutId,
+            )
+            if (
+              !previousWorkout ||
+              !failedWorkout ||
+              currentWorkout !== failedWorkout
+            ) {
+              return current
+            }
+
+            return {
+              ...current,
+              completedWorkouts: current.completedWorkouts.map((workout) =>
+                workout === failedWorkout ? previousWorkout : workout,
+              ),
+            }
+          },
+        },
+      ),
     [updateState],
   )
 
   const deleteCompletedWorkout = useCallback(
-    (workoutId: string) => {
-      updateState((current) =>
-        deleteCompletedWorkoutModel(current, workoutId),
-      )
-    },
+    (workoutId: string) =>
+      updateState(
+        (current) => deleteCompletedWorkoutModel(current, workoutId),
+        undefined,
+        {
+          requireCurrentGenerationOnSuccess: true,
+          rollbackOnFailure: (current, previous, failed) => {
+            const previousIndex = previous.completedWorkouts.findIndex(
+              ({ id }) => id === workoutId,
+            )
+            if (
+              previousIndex < 0 ||
+              current.completedWorkouts.some(({ id }) => id === workoutId)
+            ) {
+              return current
+            }
+
+            const failedEntriesRemain = failed.completedWorkouts.every(
+              (workout) => current.completedWorkouts.includes(workout),
+            )
+            const repeatedDelete =
+              current.completedWorkouts !== failed.completedWorkouts &&
+              current.completedWorkouts.length ===
+                failed.completedWorkouts.length &&
+              failedEntriesRemain
+            if (repeatedDelete || !failedEntriesRemain) return current
+
+            const insertionIndex = Math.min(
+              previousIndex,
+              current.completedWorkouts.length,
+            )
+            return {
+              ...current,
+              completedWorkouts: [
+                ...current.completedWorkouts.slice(0, insertionIndex),
+                previous.completedWorkouts[previousIndex],
+                ...current.completedWorkouts.slice(insertionIndex),
+              ],
+            }
+          },
+        },
+      ),
     [updateState],
   )
 

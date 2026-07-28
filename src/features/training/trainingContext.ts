@@ -23,7 +23,7 @@ export interface TrainingContextValue {
   ) => void
   addWorkoutSet: (exerciseEntryId: string, updatedAt: string) => void
   completeWorkout: (completedAt: string) => Promise<boolean>
-  deleteCompletedWorkout: (workoutId: string) => void
+  deleteCompletedWorkout: (workoutId: string) => Promise<boolean>
   deleteCustomExercise: (exerciseId: string) => Promise<void>
   deleteImage: (imageId: string) => Promise<void>
   deleteWorkoutTemplate: (templateId: string) => void
@@ -47,7 +47,7 @@ export interface TrainingContextValue {
   replaceCompletedWorkout: (
     workoutId: string,
     replacement: CompletedWorkout,
-  ) => void
+  ) => Promise<boolean>
   reset: () => Promise<void>
   resolveActiveWorkoutAndStart: (
     template: WorkoutTemplate,
