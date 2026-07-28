@@ -54,6 +54,22 @@ const WORKOUT_TEMPLATE: WorkoutTemplate = {
   updatedAt: '2026-07-20T08:00:00.000Z',
 }
 
+const BODYWEIGHT_WORKOUT_TEMPLATE: WorkoutTemplate = {
+  ...WORKOUT_TEMPLATE,
+  id: 'template-bodyweight',
+  name: 'Eigengewicht',
+  exercises: [
+    {
+      id: 'template-exercise-pull-up',
+      exerciseId: 'pull-up',
+      order: 0,
+      targetSets: 1,
+      repMin: 6,
+      repMax: 10,
+    },
+  ],
+}
+
 const ACTIVE_WORKOUT: ActiveWorkout = {
   id: 'workout-active',
   templateId: 'template-existing',
@@ -310,6 +326,34 @@ describe('TrainingProvider', () => {
     expect(savedStates[0].activeWorkout).toMatchObject({
       name: 'Oberkörper',
       startedAt: '2026-07-27T06:00:00.000Z',
+    })
+  })
+
+  it('uses the catalog default when an atomic resolution starts a bodyweight workout', async () => {
+    const repository = createRepository({
+      load: vi.fn(async () =>
+        trainingState({ activeWorkout: ACTIVE_WORKOUT }),
+      ),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Aktiv: Bestehendes Training')
+
+    let result: boolean | undefined
+    await act(async () => {
+      result = await training!.resolveActiveWorkoutAndStart(
+        BODYWEIGHT_WORKOUT_TEMPLATE,
+        '2026-07-27T06:00:00.000Z',
+        'discard',
+      )
+    })
+
+    expect(result).toBe(true)
+    expect(training?.state.activeWorkout?.exercises[0]).toMatchObject({
+      exerciseId: 'pull-up',
+      loadMode: 'bodyweight',
     })
   })
 

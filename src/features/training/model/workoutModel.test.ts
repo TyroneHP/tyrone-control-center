@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { STANDARD_EXERCISES } from './exerciseCatalog'
 import type {
   ActiveWorkout,
   CompletedWorkout,
@@ -25,6 +26,7 @@ import {
   updateTemplateExercise,
   updateWorkoutExercise,
   updateWorkoutSet,
+  type WorkoutSetChanges,
 } from './workoutModel'
 
 const MORNING = '2026-07-26T08:00:00.000Z'
@@ -297,6 +299,91 @@ describe('workout templates', () => {
 })
 
 describe('active workouts', () => {
+  it.each<{ changes: WorkoutSetChanges; label: string }>([
+    { changes: { weightKg: -1 }, label: 'negative weight' },
+    { changes: { weightKg: Number.NaN }, label: 'NaN weight' },
+    { changes: { weightKg: Number.POSITIVE_INFINITY }, label: 'infinite weight' },
+    { changes: { reps: -1 }, label: 'negative repetitions' },
+    { changes: { reps: 1.5 }, label: 'fractional repetitions' },
+    { changes: { reps: Number.NaN }, label: 'NaN repetitions' },
+    { changes: { reps: Number.POSITIVE_INFINITY }, label: 'infinite repetitions' },
+    { changes: { rating: 0 }, label: 'rating below the supported range' },
+    { changes: { rating: 11 }, label: 'rating above the supported range' },
+    { changes: { rating: 1.5 }, label: 'fractional rating' },
+  ])('rejects $label at the workout model boundary', ({ changes }) => {
+    const original = makeState({ activeWorkout: makeActiveWorkout() })
+
+    const result = updateWorkoutSet(
+      original,
+      'entry-bench',
+      'set-bench-1',
+      changes,
+      UPDATED,
+    )
+
+    expect(result).toBe(original)
+    expect(result.activeWorkout?.exercises[0].sets[0]).toEqual(
+      original.activeWorkout?.exercises[0].sets[0],
+    )
+  })
+
+  it('uses catalog defaults while preserving valid history and normalizing legacy external bodyweight mode', () => {
+    const history = makeCompletedWorkout({
+      exercises: [
+        makeWorkoutExercise({
+          id: 'history-pull-up',
+          exerciseId: 'pull-up',
+          loadMode: 'external',
+        }),
+        makeWorkoutExercise({
+          id: 'history-dip',
+          exerciseId: 'dip',
+          loadMode: 'assisted',
+        }),
+      ],
+    })
+    const template = createWorkoutTemplate({
+      name: 'Catalog defaults',
+      weekdays: [],
+      exercises: [
+        createTemplateExercise('bench-press', 0),
+        createTemplateExercise('pull-up', 1),
+        createTemplateExercise('dip', 2),
+        createTemplateExercise('hanging-leg-raise', 3),
+        createTemplateExercise('plank', 4),
+      ],
+      timestamp: MORNING,
+    })
+
+    const result = startWorkout(
+      makeState({ completedWorkouts: [history] }),
+      template,
+      STARTED,
+      STANDARD_EXERCISES,
+    )
+
+    expect(
+      result.activeWorkout?.exercises.map(({ exerciseId, loadMode }) => ({
+        exerciseId,
+        loadMode,
+      })),
+    ).toEqual([
+      { exerciseId: 'bench-press', loadMode: 'external' },
+      { exerciseId: 'pull-up', loadMode: 'bodyweight' },
+      { exerciseId: 'dip', loadMode: 'assisted' },
+      { exerciseId: 'hanging-leg-raise', loadMode: 'external' },
+      { exerciseId: 'plank', loadMode: 'external' },
+    ])
+
+    const added = addWorkoutExercise(
+      makeState({ activeWorkout: makeActiveWorkout([]) }),
+      { exerciseId: 'dip', targetSets: 1 },
+      UPDATED,
+      STANDARD_EXERCISES,
+    )
+    expect(added.activeWorkout?.exercises[0].loadMode).toBe('bodyweight')
+  })
+
   it('starts a workout with custom targets and the planned number of empty sets', () => {
     const template = createWorkoutTemplate({
       name: 'Strength',

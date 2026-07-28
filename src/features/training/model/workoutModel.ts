@@ -1,6 +1,7 @@
 import type {
   ActiveWorkout,
   CompletedWorkout,
+  ExerciseDefinition,
   TrainingState,
   Weekday,
   WorkoutExerciseEntry,
@@ -129,8 +130,16 @@ function createWorkoutExerciseEntry(
     preferredGrip?: string
   },
   previousEntry: WorkoutExerciseEntry | undefined,
+  definition: ExerciseDefinition | undefined,
 ): WorkoutExerciseEntry {
   const grip = previousEntry ? previousEntry.grip : exercise.preferredGrip
+  const loadMode = definition?.supportsBodyweightModes
+    ? previousEntry && previousEntry.loadMode !== 'external'
+      ? previousEntry.loadMode
+      : 'bodyweight'
+    : definition
+      ? 'external'
+      : (previousEntry?.loadMode ?? 'external')
   return {
     id: crypto.randomUUID(),
     exerciseId: exercise.exerciseId,
@@ -139,7 +148,7 @@ function createWorkoutExerciseEntry(
     repMin: exercise.repMin,
     repMax: exercise.repMax,
     ...(grip === undefined ? {} : { grip }),
-    loadMode: previousEntry?.loadMode ?? 'external',
+    loadMode,
     note: previousEntry?.note ?? '',
     sets: previousEntry
       ? previousEntry.sets.map(clonePrefilledSet)
@@ -263,6 +272,7 @@ export function startWorkout(
   state: TrainingState,
   template: WorkoutTemplate,
   startedAt: string,
+  catalog: readonly ExerciseDefinition[] = [],
 ): TrainingState {
   if (state.activeWorkout) {
     throw new Error('An active workout already exists')
@@ -274,6 +284,7 @@ export function startWorkout(
       createWorkoutExerciseEntry(
         { ...exercise, order },
         findLastExerciseEntry(state.completedWorkouts, exercise.exerciseId),
+        catalog.find(({ id }) => id === exercise.exerciseId),
       ),
     )
 
@@ -294,6 +305,7 @@ export function addWorkoutExercise(
   state: TrainingState,
   input: AddWorkoutExerciseInput,
   updatedAt: string,
+  catalog: readonly ExerciseDefinition[] = [],
 ): TrainingState {
   return updateActiveExercises(state, updatedAt, (exercises) => [
     ...exercises,
@@ -307,6 +319,7 @@ export function addWorkoutExercise(
         preferredGrip: input.preferredGrip,
       },
       findLastExerciseEntry(state.completedWorkouts, input.exerciseId),
+      catalog.find(({ id }) => id === input.exerciseId),
     ),
   ])
 }
@@ -370,6 +383,22 @@ export function updateWorkoutSet(
   changes: WorkoutSetChanges,
   updatedAt: string,
 ): TrainingState {
+  const validWeight =
+    changes.weightKg === undefined ||
+    changes.weightKg === null ||
+    (Number.isFinite(changes.weightKg) && changes.weightKg >= 0)
+  const validReps =
+    changes.reps === undefined ||
+    changes.reps === null ||
+    (Number.isInteger(changes.reps) && changes.reps >= 0)
+  const validRating =
+    changes.rating === undefined ||
+    changes.rating === null ||
+    (Number.isInteger(changes.rating) &&
+      changes.rating >= 1 &&
+      changes.rating <= 10)
+  if (!validWeight || !validReps || !validRating) return state
+
   return updateActiveExercises(state, updatedAt, (exercises) =>
     exercises.map((exercise) =>
       exercise.id === exerciseEntryId

@@ -1,4 +1,5 @@
 import type {
+  ExerciseUnit,
   LoadMode,
   WorkoutSetEntry,
 } from '../model/trainingTypes'
@@ -11,10 +12,16 @@ export interface WorkoutSetRowProps {
   onDelete: () => void
   set: WorkoutSetEntry
   showRating: boolean
+  unit: ExerciseUnit
 }
 
-function optionalNumber(value: string) {
-  return value === '' ? null : Number(value)
+function optionalNumber(value: string, integer: boolean) {
+  if (value === '') return null
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed < 0 || (integer && !Number.isInteger(parsed))) {
+    return undefined
+  }
+  return parsed
 }
 
 function weightLabel(loadMode: LoadMode) {
@@ -30,9 +37,14 @@ export function WorkoutSetRow({
   onDelete,
   set,
   showRating,
+  unit,
 }: WorkoutSetRowProps) {
   const setNumber = index + 1
-  const showWeight = loadMode !== 'bodyweight'
+  const showWeight =
+    loadMode === 'added' ||
+    loadMode === 'assisted' ||
+    (loadMode === 'external' && unit === 'kg-reps')
+  const repetitionsLabel = unit === 'seconds' ? 'Sekunden' : 'Wiederholungen'
 
   return (
     <li className="workout-set-row">
@@ -44,9 +56,10 @@ export function WorkoutSetRow({
             aria-label={`Satz ${setNumber} Gewicht`}
             inputMode="decimal"
             min="0"
-            onChange={(event) =>
-              onChange({ weightKg: optionalNumber(event.target.value) })
-            }
+            onChange={(event) => {
+              const weightKg = optionalNumber(event.target.value, false)
+              if (weightKg !== undefined) onChange({ weightKg })
+            }}
             step="any"
             type="number"
             value={set.weightKg ?? ''}
@@ -54,14 +67,15 @@ export function WorkoutSetRow({
         </label>
       ) : null}
       <label>
-        Wiederholungen
+        {repetitionsLabel}
         <input
-          aria-label={`Satz ${setNumber} Wiederholungen`}
+          aria-label={`Satz ${setNumber} ${repetitionsLabel}`}
           inputMode="numeric"
           min="0"
-          onChange={(event) =>
-            onChange({ reps: optionalNumber(event.target.value) })
-          }
+          onChange={(event) => {
+            const reps = optionalNumber(event.target.value, true)
+            if (reps !== undefined) onChange({ reps })
+          }}
           step="1"
           type="number"
           value={set.reps ?? ''}
@@ -72,9 +86,10 @@ export function WorkoutSetRow({
           Bewertung
           <select
             aria-label={`Satz ${setNumber} Bewertung`}
-            onChange={(event) =>
-              onChange({ rating: optionalNumber(event.target.value) })
-            }
+            onChange={(event) => {
+              const rating = optionalNumber(event.target.value, true)
+              if (rating !== undefined) onChange({ rating })
+            }}
             value={set.rating ?? ''}
           >
             <option value="">Keine</option>

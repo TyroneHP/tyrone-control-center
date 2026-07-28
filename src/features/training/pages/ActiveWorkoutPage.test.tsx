@@ -19,6 +19,7 @@ import type {
   WorkoutTemplate,
 } from '../model/trainingTypes'
 import type { TrainingRepository } from '../persistence/trainingRepository'
+import { migrateTrainingState } from '../persistence/trainingMigrations'
 import { ActiveWorkoutPage } from './ActiveWorkoutPage'
 import { TrainingHomePage } from './TrainingHomePage'
 
@@ -83,6 +84,26 @@ const PULL_UP_ENTRY: WorkoutExerciseEntry = {
   ],
 }
 
+const PLANK_ENTRY: WorkoutExerciseEntry = {
+  id: 'entry-plank',
+  exerciseId: 'plank',
+  order: 1,
+  targetSets: 1,
+  repMin: 30,
+  repMax: 60,
+  loadMode: 'external',
+  note: '',
+  sets: [
+    {
+      id: 'set-plank-1',
+      weightKg: null,
+      reps: 30,
+      rating: null,
+      completed: false,
+    },
+  ],
+}
+
 const ACTIVE_WORKOUT: ActiveWorkout = {
   id: 'workout-active',
   templateId: 'template-upper',
@@ -113,6 +134,40 @@ const PULLDOWN_TEMPLATE: WorkoutTemplate = {
       repMin: 8,
       repMax: 12,
       preferredGrip: 'Neutral',
+    },
+  ],
+  createdAt: '2026-07-20T08:00:00.000Z',
+  updatedAt: '2026-07-20T08:00:00.000Z',
+}
+
+const CATALOG_UNITS_TEMPLATE: WorkoutTemplate = {
+  id: 'template-catalog-units',
+  name: 'Einheiten-Training',
+  weekdays: [],
+  exercises: [
+    {
+      id: 'template-entry-bench',
+      exerciseId: 'bench-press',
+      order: 0,
+      targetSets: 1,
+      repMin: 8,
+      repMax: 12,
+    },
+    {
+      id: 'template-entry-pull-up',
+      exerciseId: 'pull-up',
+      order: 1,
+      targetSets: 1,
+      repMin: 6,
+      repMax: 10,
+    },
+    {
+      id: 'template-entry-leg-raise',
+      exerciseId: 'hanging-leg-raise',
+      order: 2,
+      targetSets: 1,
+      repMin: 8,
+      repMax: 12,
     },
   ],
   createdAt: '2026-07-20T08:00:00.000Z',
@@ -227,6 +282,19 @@ async function expectOneSemanticSave(
   assertion(repository.read())
 }
 
+async function expectNoSemanticSave(
+  repository: StatefulRepository,
+  action: () => unknown | Promise<unknown>,
+  assertion: (state: TrainingState) => void,
+) {
+  const save = vi.mocked(repository.save)
+  const previousSaveCount = save.mock.calls.length
+  await action()
+  await act(async () => Promise.resolve())
+  expect(save).toHaveBeenCalledTimes(previousSaveCount)
+  assertion(repository.read())
+}
+
 async function addExercise(
   user: ReturnType<typeof userEvent.setup>,
   name: string,
@@ -317,6 +385,172 @@ describe('ActiveWorkoutPage', () => {
     expect(reloadedBenchCard).not.toBeNull()
     expect(within(reloadedBenchCard!).getByLabelText('Satz 1 Gewicht')).toHaveValue(80)
     expect(within(reloadedBenchCard!).getByLabelText('Satz 1 Wiederholungen')).toHaveValue(10)
+  })
+
+  it('rejects invalid row numbers without saving and reloads later valid or explicitly empty values', async () => {
+    const repository = createRepository(
+      trainingState({
+        activeWorkout: {
+          ...ACTIVE_WORKOUT,
+          exercises: [BENCH_ENTRY, PLANK_ENTRY],
+        },
+      }),
+    )
+    const page = renderActive(repository)
+
+    await screen.findByRole('heading', { name: 'Oberkörper' })
+    const benchCard = screen
+      .getByRole('heading', { name: 'Bankdrücken' })
+      .closest('.card') as HTMLElement
+    const weight = within(benchCard).getByLabelText('Satz 1 Gewicht')
+    const reps = within(benchCard).getByLabelText('Satz 1 Wiederholungen')
+
+    await expectNoSemanticSave(
+      repository,
+      () => fireEvent.change(weight, { target: { value: '-1' } }),
+      (state) =>
+        expect(state.activeWorkout?.exercises[0].sets[0].weightKg).toBe(80),
+    )
+    await expectNoSemanticSave(
+      repository,
+      () => fireEvent.change(reps, { target: { value: '-1' } }),
+      (state) =>
+        expect(state.activeWorkout?.exercises[0].sets[0].reps).toBe(10),
+    )
+    await expectNoSemanticSave(
+      repository,
+      () => fireEvent.change(reps, { target: { value: '1.5' } }),
+      (state) =>
+        expect(state.activeWorkout?.exercises[0].sets[0].reps).toBe(10),
+    )
+    await expectOneSemanticSave(
+      repository,
+      () => fireEvent.change(weight, { target: { value: '' } }),
+      (state) =>
+        expect(state.activeWorkout?.exercises[0].sets[0].weightKg).toBeNull(),
+    )
+    await expectOneSemanticSave(
+      repository,
+      () => fireEvent.change(weight, { target: { value: '72.5' } }),
+      (state) =>
+        expect(state.activeWorkout?.exercises[0].sets[0].weightKg).toBe(72.5),
+    )
+    await expectOneSemanticSave(
+      repository,
+      () => fireEvent.change(reps, { target: { value: '12' } }),
+      (state) =>
+        expect(state.activeWorkout?.exercises[0].sets[0].reps).toBe(12),
+    )
+
+    const plankCard = screen
+      .getByRole('heading', { name: 'Unterarmstütz' })
+      .closest('.card') as HTMLElement
+    const seconds = within(plankCard).getByLabelText('Satz 1 Sekunden')
+    await expectNoSemanticSave(
+      repository,
+      () => fireEvent.change(seconds, { target: { value: '-1' } }),
+      (state) =>
+        expect(state.activeWorkout?.exercises[1].sets[0].reps).toBe(30),
+    )
+    await expectNoSemanticSave(
+      repository,
+      () => fireEvent.change(seconds, { target: { value: '1.5' } }),
+      (state) =>
+        expect(state.activeWorkout?.exercises[1].sets[0].reps).toBe(30),
+    )
+    await expectOneSemanticSave(
+      repository,
+      () => fireEvent.change(seconds, { target: { value: '45' } }),
+      (state) =>
+        expect(state.activeWorkout?.exercises[1].sets[0].reps).toBe(45),
+    )
+
+    expect(() =>
+      migrateTrainingState(structuredClone(repository.read())),
+    ).not.toThrow()
+    page.unmount()
+    renderActive(repository)
+    expect(await screen.findByLabelText('Satz 1 Gewicht')).toHaveValue(72.5)
+    expect(screen.getByLabelText('Satz 1 Sekunden')).toHaveValue(45)
+  })
+
+  it('derives load modes and row units from the real catalog on start and picker add', async () => {
+    const user = userEvent.setup()
+    const repository = createRepository(
+      trainingState({
+        activeWorkout: null,
+        templates: [CATALOG_UNITS_TEMPLATE],
+      }),
+    )
+    renderTrainingFlow(repository)
+
+    await screen.findByRole('heading', { name: 'Training' })
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Training starten: Einheiten-Training',
+      }),
+    )
+    await screen.findByRole('heading', { name: 'Einheiten-Training' })
+
+    const cardFor = (name: string) =>
+      screen.getByRole('heading', { name }).closest('.card') as HTMLElement
+    const benchCard = cardFor('Bankdrücken')
+    expect(within(benchCard).getByLabelText('Satz 1 Gewicht')).toBeVisible()
+    expect(
+      within(benchCard).getByLabelText('Satz 1 Gewicht').closest('label'),
+    ).toHaveTextContent('Gewicht')
+    expect(within(benchCard).getByLabelText('Satz 1 Wiederholungen')).toBeVisible()
+    expect(repository.read().activeWorkout?.exercises[0].loadMode).toBe(
+      'external',
+    )
+
+    const pullUpCard = cardFor('Klimmzug')
+    const pullUpMode = within(pullUpCard).getByLabelText(
+      'Belastungsmodus für Klimmzug',
+    )
+    expect(pullUpMode).toHaveValue('bodyweight')
+    expect(
+      within(pullUpMode).getAllByRole('option').map((option) => ({
+        label: option.textContent,
+        value: (option as HTMLOptionElement).value,
+      })),
+    ).toEqual([
+      { label: 'Eigengewicht', value: 'bodyweight' },
+      { label: 'Zusatzgewicht', value: 'added' },
+      { label: 'Unterstützung', value: 'assisted' },
+    ])
+    expect(within(pullUpCard).queryByLabelText('Satz 1 Gewicht')).toBeNull()
+    expect(within(pullUpCard).getByLabelText('Satz 1 Wiederholungen')).toBeVisible()
+
+    const legRaiseCard = cardFor('Hängendes Beinheben')
+    expect(
+      within(legRaiseCard).queryByLabelText(/Belastungsmodus/),
+    ).not.toBeInTheDocument()
+    expect(within(legRaiseCard).queryByLabelText('Satz 1 Gewicht')).toBeNull()
+    expect(
+      within(legRaiseCard).getByLabelText('Satz 1 Wiederholungen'),
+    ).toBeVisible()
+
+    await addExercise(user, 'Dip')
+    const dipCard = cardFor('Dip')
+    const dipMode = within(dipCard).getByLabelText('Belastungsmodus für Dip')
+    expect(dipMode).toHaveValue('bodyweight')
+    expect(
+      within(dipMode).getAllByRole('option').map((option) => ({
+        label: option.textContent,
+        value: (option as HTMLOptionElement).value,
+      })),
+    ).toEqual([
+      { label: 'Eigengewicht', value: 'bodyweight' },
+      { label: 'Zusatzgewicht', value: 'added' },
+      { label: 'Unterstützung', value: 'assisted' },
+    ])
+    expect(within(dipCard).queryByLabelText('Satz 1 Gewicht')).toBeNull()
+
+    await addExercise(user, 'Unterarmstütz')
+    const plankCard = cardFor('Unterarmstütz')
+    expect(within(plankCard).queryByLabelText('Satz 1 Gewicht')).toBeNull()
+    expect(within(plankCard).getByLabelText('Satz 1 Sekunden')).toBeVisible()
   })
 
   it('prefills the active page from completed history when the provider starts a template', async () => {

@@ -36,11 +36,8 @@ function timestamp() {
   return new Date().toISOString()
 }
 
-function loadModeOptions(currentMode: LoadMode) {
+function loadModeOptions() {
   return [
-    ...(currentMode === 'external'
-      ? [{ label: 'Gewicht', value: 'external' as const }]
-      : []),
     { label: 'Eigengewicht', value: 'bodyweight' as const },
     { label: 'Zusatzgewicht', value: 'added' as const },
     { label: 'Unterstützung', value: 'assisted' as const },
@@ -83,6 +80,10 @@ function WorkoutExerciseCard({
     transition,
   } = useSortable({ id: entry.id })
   const name = catalogExercise?.name ?? 'Unbekannte Übung'
+  const loadMode =
+    catalogExercise?.supportsBodyweightModes && entry.loadMode === 'external'
+      ? 'bodyweight'
+      : entry.loadMode
   const gripOptions = Array.from(
     new Set([
       ...(entry.grip ? [entry.grip] : []),
@@ -154,9 +155,9 @@ function WorkoutExerciseCard({
               onChange={(event) =>
                 onUpdate({ loadMode: event.target.value as LoadMode })
               }
-              value={entry.loadMode}
+              value={loadMode}
             >
-              {loadModeOptions(entry.loadMode).map(({ label, value }) => (
+              {loadModeOptions().map(({ label, value }) => (
                 <option key={value} value={value}>
                   {label}
                 </option>
@@ -199,11 +200,12 @@ function WorkoutExerciseCard({
             <WorkoutSetRow
               index={setIndex}
               key={set.id}
-              loadMode={entry.loadMode}
+              loadMode={loadMode}
               onChange={(changes) => onUpdateSet(set.id, changes)}
               onDelete={() => onRemoveSet(set.id)}
               set={set}
               showRating={showRating}
+              unit={catalogExercise?.unit ?? 'kg-reps'}
             />
           ))}
         </ol>

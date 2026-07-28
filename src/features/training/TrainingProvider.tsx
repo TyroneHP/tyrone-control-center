@@ -78,6 +78,10 @@ function getBrowserTrainingRepository() {
   return browserTrainingRepository
 }
 
+function getExerciseCatalog(state: TrainingState) {
+  return [...STANDARD_EXERCISES, ...state.customExercises]
+}
+
 function getRepositorySaveQueues(repository: TrainingRepository) {
   let queues = repositorySaveQueues.get(repository)
   if (!queues) {
@@ -769,7 +773,12 @@ export function TrainingProvider({
   const startWorkout = useCallback(
     (template: WorkoutTemplate, startedAt: string) => {
       updateState((current) =>
-        startWorkoutModel(current, template, startedAt),
+        startWorkoutModel(
+          current,
+          template,
+          startedAt,
+          getExerciseCatalog(current),
+        ),
       )
     },
     [updateState],
@@ -828,7 +837,12 @@ export function TrainingProvider({
             resolution === 'complete'
               ? completeWorkoutModel(current, startedAt)
               : { ...current, activeWorkout: null }
-          return startWorkoutModel(resolvedState, template, startedAt)
+          return startWorkoutModel(
+            resolvedState,
+            template,
+            startedAt,
+            getExerciseCatalog(resolvedState),
+          )
         },
         undefined,
         workoutResolutionOptions,
@@ -839,7 +853,12 @@ export function TrainingProvider({
   const addWorkoutExercise = useCallback(
     (input: AddWorkoutExerciseInput, updatedAt: string) => {
       updateState((current) =>
-        addWorkoutExerciseModel(current, input, updatedAt),
+        addWorkoutExerciseModel(
+          current,
+          input,
+          updatedAt,
+          getExerciseCatalog(current),
+        ),
       )
     },
     [updateState],
