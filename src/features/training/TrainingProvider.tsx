@@ -156,6 +156,10 @@ function imageCleanupKey(profileId: string, exerciseId: string) {
   return `${profileId}\u0000${exerciseId}`
 }
 
+function completedWorkoutOperationKey(profileId: string, workoutId: string) {
+  return `${profileId}\u0000${workoutId}`
+}
+
 export interface TrainingProviderProps {
   children: ReactNode
   profileId: string
@@ -199,6 +203,9 @@ export function TrainingProvider({
   const stateRef = useRef(view.state)
   const loadedProfileRef = useRef<string | null>(null)
   const generationRef = useRef(0)
+  const completedWorkoutOperationTokensRef = useRef(
+    new Map<string, symbol>(),
+  )
 
   const operationError = useCallback(
     (
@@ -1001,13 +1008,32 @@ export function TrainingProvider({
   )
 
   const deleteCompletedWorkout = useCallback(
-    (workoutId: string) =>
-      updateState(
+    async (workoutId: string) => {
+      const operationKey = completedWorkoutOperationKey(profileId, workoutId)
+      const operationToken = Symbol(workoutId)
+      completedWorkoutOperationTokensRef.current.set(
+        operationKey,
+        operationToken,
+      )
+      const result = await updateState(
         (current) => deleteCompletedWorkoutModel(current, workoutId),
-        undefined,
+        () => {
+          if (
+            completedWorkoutOperationTokensRef.current.get(operationKey) ===
+            operationToken
+          ) {
+            completedWorkoutOperationTokensRef.current.delete(operationKey)
+          }
+        },
         {
           requireCurrentGenerationOnSuccess: true,
-          rollbackOnFailure: (current, previous, failed) => {
+          rollbackOnFailure: (current, previous) => {
+            if (
+              completedWorkoutOperationTokensRef.current.get(operationKey) !==
+              operationToken
+            ) {
+              return current
+            }
             const previousIndex = previous.completedWorkouts.findIndex(
               ({ id }) => id === workoutId,
             )
@@ -1018,20 +1044,31 @@ export function TrainingProvider({
               return current
             }
 
-            const failedEntriesRemain = failed.completedWorkouts.every(
-              (workout) => current.completedWorkouts.includes(workout),
-            )
-            const repeatedDelete =
-              current.completedWorkouts !== failed.completedWorkouts &&
-              current.completedWorkouts.length ===
-                failed.completedWorkouts.length &&
-              failedEntriesRemain
-            if (repeatedDelete || !failedEntriesRemain) return current
-
-            const insertionIndex = Math.min(
-              previousIndex,
-              current.completedWorkouts.length,
-            )
+            const successorIndex = previous.completedWorkouts
+              .slice(previousIndex + 1)
+              .map(({ id }) => id)
+              .map((id) =>
+                current.completedWorkouts.findIndex(
+                  (workout) => workout.id === id,
+                ),
+              )
+              .find((index) => index >= 0)
+            const predecessorIndex = [...previous.completedWorkouts]
+              .slice(0, previousIndex)
+              .reverse()
+              .map(({ id }) => id)
+              .map((id) =>
+                current.completedWorkouts.findIndex(
+                  (workout) => workout.id === id,
+                ),
+              )
+              .find((index) => index >= 0)
+            const insertionIndex =
+              successorIndex !== undefined
+                ? successorIndex
+                : predecessorIndex !== undefined
+                  ? predecessorIndex + 1
+                  : Math.min(previousIndex, current.completedWorkouts.length)
             return {
               ...current,
               completedWorkouts: [
@@ -1042,8 +1079,16 @@ export function TrainingProvider({
             }
           },
         },
-      ),
-    [updateState],
+      )
+      if (
+        completedWorkoutOperationTokensRef.current.get(operationKey) ===
+        operationToken
+      ) {
+        completedWorkoutOperationTokensRef.current.delete(operationKey)
+      }
+      return result
+    },
+    [profileId, updateState],
   )
 
   const updatePreferences = useCallback(

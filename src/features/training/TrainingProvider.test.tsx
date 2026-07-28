@@ -2717,4 +2717,185 @@ describe('TrainingProvider', () => {
       expect(training?.state.completedWorkouts).toEqual([])
     },
   )
+
+  it('restores a failed deleted workout in order while preserving a concurrent edit and compensating persistence', async () => {
+    const failedDeleteSave = deferred<void>()
+    const olderWorkout: CompletedWorkout = {
+      ...COMPLETED_WORKOUT,
+      id: 'workout-older',
+      name: 'Älteres Training',
+      completedAt: '2026-07-20T06:00:00.000Z',
+    }
+    const laterWorkout: CompletedWorkout = {
+      ...COMPLETED_WORKOUT,
+      id: 'workout-later',
+      name: 'Späteres Training',
+      completedAt: '2026-07-27T06:00:00.000Z',
+    }
+    const editedLaterWorkout = {
+      ...laterWorkout,
+      name: 'Späteres Training bearbeitet',
+    }
+    const initialState = trainingState({
+      completedWorkouts: [olderWorkout, COMPLETED_WORKOUT, laterWorkout],
+    })
+    let storedState = initialState
+    let saveCount = 0
+    const repository = createRepository({
+      load: vi.fn(async () => initialState),
+      save: vi.fn(async (_profileId, state) => {
+        saveCount += 1
+        if (saveCount === 1) await failedDeleteSave.promise
+        storedState = state
+      }),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Trainingsdaten bereit')
+
+    let deleteResult!: Promise<boolean>
+    let editResult!: Promise<boolean>
+    act(() => {
+      deleteResult = training!.deleteCompletedWorkout(COMPLETED_WORKOUT.id)
+    })
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(1))
+    act(() => {
+      editResult = training!.replaceCompletedWorkout(
+        laterWorkout.id,
+        editedLaterWorkout,
+      )
+    })
+
+    await act(async () =>
+      failedDeleteSave.reject(new Error('delete persistence unavailable')),
+    )
+    expect(await deleteResult).toBe(false)
+    expect(await editResult).toBe(true)
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(3))
+
+    expect(training?.state.completedWorkouts).toEqual([
+      olderWorkout,
+      COMPLETED_WORKOUT,
+      editedLaterWorkout,
+    ])
+    expect(storedState.completedWorkouts).toEqual([
+      olderWorkout,
+      COMPLETED_WORKOUT,
+      editedLaterWorkout,
+    ])
+  })
+
+  it('restores a failed deleted workout around surviving anchors while preserving another deletion and a newer completion', async () => {
+    const failedDeleteSave = deferred<void>()
+    const olderWorkout: CompletedWorkout = {
+      ...COMPLETED_WORKOUT,
+      id: 'workout-older-anchor',
+      name: 'Älterer Anker',
+      completedAt: '2026-07-20T06:00:00.000Z',
+    }
+    const laterWorkout: CompletedWorkout = {
+      ...COMPLETED_WORKOUT,
+      id: 'workout-delete-later',
+      name: 'Ebenfalls löschen',
+      completedAt: '2026-07-27T06:00:00.000Z',
+    }
+    const initialState = trainingState({
+      activeWorkout: ACTIVE_WORKOUT,
+      completedWorkouts: [olderWorkout, COMPLETED_WORKOUT, laterWorkout],
+    })
+    let storedState = initialState
+    let saveCount = 0
+    const repository = createRepository({
+      load: vi.fn(async () => initialState),
+      save: vi.fn(async (_profileId, state) => {
+        saveCount += 1
+        if (saveCount === 1) await failedDeleteSave.promise
+        storedState = state
+      }),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Aktiv: Bestehendes Training')
+
+    let failedDeleteResult!: Promise<boolean>
+    let laterDeleteResult!: Promise<boolean>
+    let completionResult!: Promise<boolean>
+    act(() => {
+      failedDeleteResult = training!.deleteCompletedWorkout(
+        COMPLETED_WORKOUT.id,
+      )
+    })
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(1))
+    act(() => {
+      laterDeleteResult = training!.deleteCompletedWorkout(laterWorkout.id)
+      completionResult = training!.completeWorkout(
+        '2026-07-28T08:00:00.000Z',
+      )
+    })
+
+    await act(async () =>
+      failedDeleteSave.reject(new Error('delete persistence unavailable')),
+    )
+    expect(await failedDeleteResult).toBe(false)
+    expect(await laterDeleteResult).toBe(true)
+    expect(await completionResult).toBe(true)
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(4))
+
+    expect(
+      training?.state.completedWorkouts.map(({ id }) => id),
+    ).toEqual([
+      olderWorkout.id,
+      COMPLETED_WORKOUT.id,
+      ACTIVE_WORKOUT.id,
+    ])
+    expect(storedState.completedWorkouts).toEqual(
+      training?.state.completedWorkouts,
+    )
+    expect(storedState.completedWorkouts).not.toContain(laterWorkout)
+  })
+
+  it('does not restore a failed deletion after a newer same-target deletion supersedes it', async () => {
+    const failedDeleteSave = deferred<void>()
+    const initialState = trainingState({
+      completedWorkouts: [COMPLETED_WORKOUT],
+    })
+    let storedState = initialState
+    let saveCount = 0
+    const repository = createRepository({
+      load: vi.fn(async () => initialState),
+      save: vi.fn(async (_profileId, state) => {
+        saveCount += 1
+        if (saveCount === 1) await failedDeleteSave.promise
+        storedState = state
+      }),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Trainingsdaten bereit')
+
+    let firstDelete!: Promise<boolean>
+    let newerDelete!: Promise<boolean>
+    act(() => {
+      firstDelete = training!.deleteCompletedWorkout(COMPLETED_WORKOUT.id)
+    })
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(1))
+    act(() => {
+      newerDelete = training!.deleteCompletedWorkout(COMPLETED_WORKOUT.id)
+    })
+
+    await act(async () =>
+      failedDeleteSave.reject(new Error('first deletion unavailable')),
+    )
+    expect(await firstDelete).toBe(false)
+    expect(await newerDelete).toBe(true)
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(2))
+    expect(training?.state.completedWorkouts).toEqual([])
+    expect(storedState.completedWorkouts).toEqual([])
+  })
 })

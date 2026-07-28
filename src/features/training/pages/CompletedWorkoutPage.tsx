@@ -52,13 +52,6 @@ function loadModeLabel(loadMode: LoadMode) {
   }
 }
 
-function exerciseName(
-  exerciseId: string,
-  catalog: readonly ExerciseDefinition[],
-) {
-  return catalog.find(({ id }) => id === exerciseId)?.name ?? 'Unbekannte Übung'
-}
-
 function setWeight(set: WorkoutSetEntry, loadMode: LoadMode) {
   if (loadMode === 'bodyweight') return 'Eigengewicht'
   return set.weightKg === null ? '–' : `${formatNumber(set.weightKg)} kg`
@@ -122,7 +115,16 @@ function WorkoutExerciseDetails({
   state: TrainingState
 }) {
   const titleId = useId()
-  const name = exerciseName(entry.exerciseId, catalog)
+  const catalogExercise = catalog.find(({ id }) => id === entry.exerciseId)
+  const name = catalogExercise?.name ?? 'Unbekannte Übung'
+  const measurementLabel =
+    catalogExercise?.unit === 'seconds' ? 'Sekunden' : 'Wiederholungen'
+  const showWeight =
+    entry.loadMode === 'added' ||
+    entry.loadMode === 'assisted' ||
+    (entry.loadMode === 'external' &&
+      (catalogExercise?.unit ?? 'kg-reps') === 'kg-reps')
+  const showLoad = showWeight || Boolean(catalogExercise?.supportsBodyweightModes)
 
   return (
     <section aria-labelledby={titleId}>
@@ -130,9 +132,9 @@ function WorkoutExerciseDetails({
         <h2 id={titleId}>{name}</h2>
         <p>
           Ziel: {entry.targetSets} Sätze mit {entry.repMin}–{entry.repMax}{' '}
-          Wiederholungen
+          {measurementLabel}
         </p>
-        <p>Belastung: {loadModeLabel(entry.loadMode)}</p>
+        {showLoad ? <p>Belastung: {loadModeLabel(entry.loadMode)}</p> : null}
         <p>Griff: {entry.grip ?? 'Keine Angabe'}</p>
         <p>Notiz: {entry.note || 'Keine Notiz'}</p>
         <div className="table-scroll" tabIndex={0}>
@@ -141,8 +143,8 @@ function WorkoutExerciseDetails({
             <thead>
               <tr>
                 <th scope="col">Satz</th>
-                <th scope="col">Gewicht</th>
-                <th scope="col">Wiederholungen</th>
+                {showWeight ? <th scope="col">Gewicht</th> : null}
+                <th scope="col">{measurementLabel}</th>
                 {showRating ? <th scope="col">Bewertung</th> : null}
                 <th scope="col">Status</th>
               </tr>
@@ -151,7 +153,7 @@ function WorkoutExerciseDetails({
               {entry.sets.map((set, index) => (
                 <tr key={set.id}>
                   <th scope="row">{index + 1}</th>
-                  <td>{setWeight(set, entry.loadMode)}</td>
+                  {showWeight ? <td>{setWeight(set, entry.loadMode)}</td> : null}
                   <td>{set.reps ?? '–'}</td>
                   {showRating ? <td>{set.rating ?? '–'}</td> : null}
                   <td>{set.completed ? 'Abgeschlossen' : 'Offen'}</td>
@@ -184,6 +186,8 @@ function WorkoutExerciseEditor({
   showRating: boolean
 }) {
   const name = catalogExercise?.name ?? 'Unbekannte Übung'
+  const measurementLabel =
+    catalogExercise?.unit === 'seconds' ? 'Sekunden' : 'Wiederholungen'
   const updateSet = (setId: string, changes: Partial<WorkoutSetEntry>) => {
     onChange({
       ...entry,
@@ -212,9 +216,9 @@ function WorkoutExerciseEditor({
           />
         </label>
         <label>
-          Minimale Wiederholungen
+          Minimale {measurementLabel}
           <input
-            aria-label={`Minimale Wiederholungen für ${name}`}
+            aria-label={`Minimale ${measurementLabel} für ${name}`}
             inputMode="numeric"
             min="1"
             onChange={(event) =>
@@ -226,9 +230,9 @@ function WorkoutExerciseEditor({
           />
         </label>
         <label>
-          Maximale Wiederholungen
+          Maximale {measurementLabel}
           <input
-            aria-label={`Maximale Wiederholungen für ${name}`}
+            aria-label={`Maximale ${measurementLabel} für ${name}`}
             inputMode="numeric"
             min="1"
             onChange={(event) =>

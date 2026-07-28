@@ -228,9 +228,18 @@ describe('CompletedWorkoutPage', () => {
     expect(within(bench).getByText('Belastung: Externes Gewicht')).toBeInTheDocument()
     expect(within(bench).getByText('Griff: Breit')).toBeInTheDocument()
     expect(within(bench).getByText('Notiz: Kontrolliert absenken')).toBeInTheDocument()
+    expect(
+      within(bench).getByRole('columnheader', { name: 'Gewicht' }),
+    ).toBeInTheDocument()
+    expect(
+      within(bench).getByRole('columnheader', { name: 'Wiederholungen' }),
+    ).toBeInTheDocument()
     expect(within(bench).getByRole('cell', { name: '80 kg' })).toBeInTheDocument()
     expect(within(bench).getByRole('cell', { name: '12' })).toBeInTheDocument()
     expect(within(bench).getByRole('cell', { name: '7' })).toBeInTheDocument()
+    const pullUp = screen.getByRole('region', { name: 'Klimmzug' })
+    expect(within(pullUp).getByText('Belastung: Unterstützung')).toBeInTheDocument()
+    expect(within(pullUp).getByRole('cell', { name: '25 kg' })).toBeInTheDocument()
 
     expect(screen.getAllByRole('heading', { name: 'Steigerung möglich' })).toHaveLength(2)
     expect(
@@ -241,6 +250,84 @@ describe('CompletedWorkoutPage', () => {
     expect(
       screen.getByText('Weniger Unterstützung ausprobieren: 22,5 kg'),
     ).toBeInTheDocument()
+  })
+
+  it('uses seconds throughout actual plank details and editing while persisting the rep-backed fields', async () => {
+    const user = userEvent.setup()
+    const plankWorkout = completedWorkout({
+      id: 'workout-plank',
+      name: 'Rumpftraining',
+      exercises: [
+        workoutExercise({
+          id: 'entry-plank',
+          exerciseId: 'plank',
+          targetSets: 3,
+          repMin: 30,
+          repMax: 60,
+          grip: undefined,
+          note: 'Rumpf stabil halten',
+          sets: [
+            {
+              id: 'set-plank',
+              weightKg: null,
+              reps: 45,
+              rating: 7,
+              completed: true,
+            },
+          ],
+        }),
+      ],
+    })
+    const repository = renderTrainingPage(
+      trainingState([plankWorkout]),
+      '/training/history/workout-plank',
+    )
+
+    await screen.findByRole('heading', { name: 'Rumpftraining' })
+    const details = screen.getByRole('region', { name: 'Unterarmstütz' })
+    expect(
+      within(details).getByText('Ziel: 3 Sätze mit 30–60 Sekunden'),
+    ).toBeInTheDocument()
+    expect(
+      within(details).getByRole('columnheader', { name: 'Sekunden' }),
+    ).toBeInTheDocument()
+    expect(
+      within(details).queryByRole('columnheader', { name: 'Gewicht' }),
+    ).not.toBeInTheDocument()
+    expect(within(details).getByRole('cell', { name: '45' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Training bearbeiten' }))
+    const editor = screen.getByRole('group', {
+      name: 'Unterarmstütz bearbeiten',
+    })
+    const minimum = within(editor).getByRole('spinbutton', {
+      name: 'Minimale Sekunden für Unterarmstütz',
+    })
+    const maximum = within(editor).getByRole('spinbutton', {
+      name: 'Maximale Sekunden für Unterarmstütz',
+    })
+    const seconds = within(editor).getByRole('spinbutton', {
+      name: 'Satz 1 Sekunden',
+    })
+    expect(
+      within(editor).queryByRole('spinbutton', { name: 'Satz 1 Gewicht' }),
+    ).not.toBeInTheDocument()
+    await user.clear(minimum)
+    await user.type(minimum, '35')
+    await user.clear(maximum)
+    await user.type(maximum, '75')
+    await user.clear(seconds)
+    await user.type(seconds, '60')
+    await user.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
+
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(1))
+    const saved = vi.mocked(repository.save).mock.calls[0][1]
+      .completedWorkouts[0]
+    expect(saved.exercises[0]).toMatchObject({
+      repMin: 35,
+      repMax: 75,
+      sets: [expect.objectContaining({ reps: 60, weightKg: null })],
+    })
   })
 
   it('does not show a recommendation when progression is disabled', async () => {
