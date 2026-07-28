@@ -247,11 +247,11 @@ async function addExercise(
 function installActiveSortableGeometry() {
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
     function getBoundingClientRect(this: HTMLElement) {
-      const top =
-        this instanceof HTMLLIElement &&
-        this.textContent?.includes('Latziehen zur Brust')
-          ? 100
+      const siblingIndex =
+        this instanceof HTMLLIElement && this.parentElement
+          ? Array.from(this.parentElement.children).indexOf(this)
           : 0
+      const top = Math.max(siblingIndex, 0) * 96
       return {
         bottom: top + 80,
         height: 80,
@@ -870,6 +870,57 @@ describe('ActiveWorkoutPage', () => {
         ['bench-press', 1],
       ]),
     )
+  })
+
+  it('reorders active exercises in both directions with the real keyboard sensor', async () => {
+    installActiveSortableGeometry()
+    const user = userEvent.setup()
+    const repository = createRepository()
+    renderActive(repository)
+
+    await screen.findByRole('heading', { name: 'Oberkörper' })
+    const exerciseList = screen
+      .getByRole('heading', { name: 'Bankdrücken' })
+      .closest('ol') as HTMLOListElement
+    const exerciseNames = () =>
+      within(exerciseList)
+        .getAllByRole('heading', { level: 2 })
+        .map(({ textContent }) => textContent)
+
+    const benchHandle = screen.getByRole('button', {
+      name: 'Übung verschieben: Bankdrücken',
+    })
+    benchHandle.focus()
+    await user.keyboard('[Space][ArrowDown][Space]')
+
+    await waitFor(() => {
+      expect(exerciseNames()).toEqual(['Latziehen zur Brust', 'Bankdrücken'])
+      expect(
+        repository.read().activeWorkout?.exercises.map(
+          ({ exerciseId, order }) => [exerciseId, order],
+        ),
+      ).toEqual([
+        ['lat-pulldown', 0],
+        ['bench-press', 1],
+      ])
+    })
+
+    screen
+      .getByRole('button', { name: 'Übung verschieben: Bankdrücken' })
+      .focus()
+    await user.keyboard('[Space][ArrowUp][Space]')
+
+    await waitFor(() => {
+      expect(exerciseNames()).toEqual(['Bankdrücken', 'Latziehen zur Brust'])
+      expect(
+        repository.read().activeWorkout?.exercises.map(
+          ({ exerciseId, order }) => [exerciseId, order],
+        ),
+      ).toEqual([
+        ['bench-press', 0],
+        ['lat-pulldown', 1],
+      ])
+    })
   })
 
   it('finishes only after persistence succeeds and opens the completed workout', async () => {
