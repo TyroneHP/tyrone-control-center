@@ -1,4 +1,11 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -9,9 +16,11 @@ import type {
   CompletedWorkout,
   TrainingState,
   WorkoutExerciseEntry,
+  WorkoutTemplate,
 } from '../model/trainingTypes'
 import type { TrainingRepository } from '../persistence/trainingRepository'
 import { ActiveWorkoutPage } from './ActiveWorkoutPage'
+import { TrainingHomePage } from './TrainingHomePage'
 
 const BENCH_ENTRY: WorkoutExerciseEntry = {
   id: 'entry-bench',
@@ -91,6 +100,25 @@ const PREVIOUS_WORKOUT: CompletedWorkout = {
   exercises: [],
 }
 
+const PULLDOWN_TEMPLATE: WorkoutTemplate = {
+  id: 'template-pulldown',
+  name: 'Rückentraining',
+  weekdays: [],
+  exercises: [
+    {
+      id: 'template-entry-pulldown',
+      exerciseId: 'lat-pulldown',
+      order: 0,
+      targetSets: 1,
+      repMin: 8,
+      repMax: 12,
+      preferredGrip: 'Neutral',
+    },
+  ],
+  createdAt: '2026-07-20T08:00:00.000Z',
+  updatedAt: '2026-07-20T08:00:00.000Z',
+}
+
 function trainingState(overrides: Partial<TrainingState> = {}): TrainingState {
   return {
     schemaVersion: 1,
@@ -168,6 +196,37 @@ function renderActive(repository = createRepository()) {
   )
 }
 
+function renderTrainingFlow(repository: StatefulRepository) {
+  return render(
+    <ToastProvider>
+      <MemoryRouter initialEntries={['/training']}>
+        <TrainingProvider profileId="profile-a" repository={repository}>
+          <Routes>
+            <Route path="/training" element={<TrainingHomePage />} />
+            <Route path="/training/active" element={<ActiveWorkoutPage />} />
+            <Route
+              path="/training/history/:workoutId"
+              element={<LocationMarker />}
+            />
+          </Routes>
+        </TrainingProvider>
+      </MemoryRouter>
+    </ToastProvider>,
+  )
+}
+
+async function expectOneSemanticSave(
+  repository: StatefulRepository,
+  action: () => unknown | Promise<unknown>,
+  assertion: (state: TrainingState) => void,
+) {
+  const save = vi.mocked(repository.save)
+  const previousSaveCount = save.mock.calls.length
+  await action()
+  await waitFor(() => expect(save).toHaveBeenCalledTimes(previousSaveCount + 1))
+  assertion(repository.read())
+}
+
 async function addExercise(
   user: ReturnType<typeof userEvent.setup>,
   name: string,
@@ -182,6 +241,29 @@ async function addExercise(
     within(details).getByRole('button', {
       name: 'Zum Training hinzufügen',
     }),
+  )
+}
+
+function installActiveSortableGeometry() {
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+    function getBoundingClientRect(this: HTMLElement) {
+      const top =
+        this instanceof HTMLLIElement &&
+        this.textContent?.includes('Latziehen zur Brust')
+          ? 100
+          : 0
+      return {
+        bottom: top + 80,
+        height: 80,
+        left: 0,
+        right: 320,
+        toJSON: () => undefined,
+        top,
+        width: 320,
+        x: 0,
+        y: top,
+      } as DOMRect
+    },
   )
 }
 
@@ -237,45 +319,300 @@ describe('ActiveWorkoutPage', () => {
     expect(within(reloadedBenchCard!).getByLabelText('Satz 1 Wiederholungen')).toHaveValue(10)
   })
 
-  it('autosaves every set field, the supported grip, and an explicitly cleared note', async () => {
+  it('prefills the active page from completed history when the provider starts a template', async () => {
+    const user = userEvent.setup()
+    const historicalEntry: WorkoutExerciseEntry = {
+      ...PULLDOWN_ENTRY,
+      sets: [{ ...PULLDOWN_ENTRY.sets[0], completed: true }],
+    }
+    const repository = createRepository(
+      trainingState({
+        activeWorkout: null,
+        completedWorkouts: [
+          {
+            id: 'workout-historical-pulldown',
+            name: 'Historischer Rücken',
+            startedAt: '2026-07-27T07:00:00.000Z',
+            completedAt: '2026-07-27T08:00:00.000Z',
+            exercises: [historicalEntry],
+          },
+        ],
+        templates: [PULLDOWN_TEMPLATE],
+      }),
+    )
+    renderTrainingFlow(repository)
+
+    await screen.findByRole('heading', { name: 'Training' })
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Training starten: Rückentraining',
+      }),
+    )
+
+    expect(
+      await screen.findByRole('heading', { name: 'Rückentraining' }),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Satz 1 Gewicht')).toHaveValue(65)
+    expect(screen.getByLabelText('Satz 1 Wiederholungen')).toHaveValue(9)
+    expect(screen.getByLabelText('Satz 1 Bewertung')).toHaveValue('7')
+    expect(screen.getByLabelText('Griff für Latziehen zur Brust')).toHaveValue(
+      'Breit',
+    )
+    expect(screen.getByLabelText('Notiz für Latziehen zur Brust')).toHaveValue(
+      'Zur oberen Brust ziehen',
+    )
+    expect(repository.read().activeWorkout?.exercises[0].sets[0].id).not.toBe(
+      'set-pulldown-1',
+    )
+  })
+
+  it('persists note and grip across remounts and carries an explicit note clear forward', async () => {
     const user = userEvent.setup()
     const repository = createRepository(
       trainingState({
         activeWorkout: {
           ...ACTIVE_WORKOUT,
-          exercises: [PULLDOWN_ENTRY],
+          templateId: PULLDOWN_TEMPLATE.id,
+          name: PULLDOWN_TEMPLATE.name,
+          exercises: [{ ...PULLDOWN_ENTRY, order: 0 }],
+        },
+        templates: [PULLDOWN_TEMPLATE],
+      }),
+    )
+    let page = renderActive(repository)
+
+    await screen.findByRole('heading', { name: 'Rückentraining' })
+    await expectOneSemanticSave(
+      repository,
+      () =>
+        fireEvent.change(
+          screen.getByLabelText('Notiz für Latziehen zur Brust'),
+          { target: { value: 'Schulterblätter tief halten' } },
+        ),
+      (state) =>
+        expect(state.activeWorkout?.exercises[0].note).toBe(
+          'Schulterblätter tief halten',
+        ),
+    )
+    await expectOneSemanticSave(
+      repository,
+      () =>
+        fireEvent.change(
+          screen.getByLabelText('Griff für Latziehen zur Brust'),
+          { target: { value: 'Eng' } },
+        ),
+      (state) => expect(state.activeWorkout?.exercises[0].grip).toBe('Eng'),
+    )
+
+    page.unmount()
+    page = renderActive(repository)
+    expect(
+      await screen.findByLabelText('Notiz für Latziehen zur Brust'),
+    ).toHaveValue('Schulterblätter tief halten')
+    expect(screen.getByLabelText('Griff für Latziehen zur Brust')).toHaveValue(
+      'Eng',
+    )
+
+    await expectOneSemanticSave(
+      repository,
+      () =>
+        fireEvent.change(
+          screen.getByLabelText('Notiz für Latziehen zur Brust'),
+          { target: { value: '' } },
+        ),
+      (state) => expect(state.activeWorkout?.exercises[0].note).toBe(''),
+    )
+    page.unmount()
+    page = renderActive(repository)
+    expect(
+      await screen.findByLabelText('Notiz für Latziehen zur Brust'),
+    ).toHaveValue('')
+    expect(screen.getByLabelText('Griff für Latziehen zur Brust')).toHaveValue(
+      'Eng',
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Training abschließen' }))
+    const finishDialog = await screen.findByRole('dialog', {
+      name: 'Training abschließen?',
+    })
+    await user.click(
+      within(finishDialog).getByRole('button', {
+        name: 'Training abschließen',
+      }),
+    )
+    await screen.findByLabelText('Aktueller Pfad')
+    expect(repository.read().completedWorkouts.at(-1)?.exercises[0]).toMatchObject(
+      { grip: 'Eng', note: '' },
+    )
+
+    page.unmount()
+    renderTrainingFlow(repository)
+    await screen.findByRole('heading', { name: 'Training' })
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Training starten: Rückentraining',
+      }),
+    )
+
+    expect(
+      await screen.findByLabelText('Notiz für Latziehen zur Brust'),
+    ).toHaveValue('')
+    expect(screen.getByLabelText('Griff für Latziehen zur Brust')).toHaveValue(
+      'Eng',
+    )
+  })
+
+  it('writes once immediately for every semantic active-workout edit category', async () => {
+    const user = userEvent.setup()
+    const repository = createRepository(
+      trainingState({
+        activeWorkout: {
+          ...ACTIVE_WORKOUT,
+          exercises: [
+            { ...PULLDOWN_ENTRY, order: 0 },
+            { ...PULL_UP_ENTRY, order: 1 },
+          ],
         },
       }),
     )
     renderActive(repository)
 
     await screen.findByRole('heading', { name: 'Latziehen zur Brust' })
-    const weight = screen.getByLabelText('Satz 1 Gewicht')
-    const reps = screen.getByLabelText('Satz 1 Wiederholungen')
+    const pulldownCard = screen
+      .getByRole('heading', { name: 'Latziehen zur Brust' })
+      .closest('.card') as HTMLElement
+    const weight = within(pulldownCard).getByLabelText('Satz 1 Gewicht')
+    const reps = within(pulldownCard).getByLabelText('Satz 1 Wiederholungen')
     expect(weight).toHaveAttribute('inputmode', 'decimal')
     expect(reps).toHaveAttribute('inputmode', 'numeric')
-    await user.clear(weight)
-    await user.type(weight, '70.5')
-    await user.clear(reps)
-    await user.type(reps, '12')
-    await user.selectOptions(screen.getByLabelText('Satz 1 Bewertung'), '9')
-    await user.click(screen.getByLabelText('Satz 1 abgeschlossen'))
-    await user.selectOptions(
-      screen.getByLabelText('Griff für Latziehen zur Brust'),
-      'Eng',
-    )
-    await user.clear(screen.getByLabelText('Notiz für Latziehen zur Brust'))
 
-    await waitFor(() => {
-      const entry = repository.read().activeWorkout?.exercises[0]
-      expect(entry).toMatchObject({ grip: 'Eng', note: '' })
-      expect(entry?.sets[0]).toMatchObject({
-        completed: true,
-        rating: 9,
-        reps: 12,
-        weightKg: 70.5,
-      })
-    })
+    await expectOneSemanticSave(
+      repository,
+      () => fireEvent.change(weight, { target: { value: '70.5' } }),
+      (state) =>
+        expect(state.activeWorkout?.exercises[0].sets[0].weightKg).toBe(70.5),
+    )
+    await expectOneSemanticSave(
+      repository,
+      () => fireEvent.change(reps, { target: { value: '12' } }),
+      (state) =>
+        expect(state.activeWorkout?.exercises[0].sets[0].reps).toBe(12),
+    )
+    await expectOneSemanticSave(
+      repository,
+      () =>
+        fireEvent.change(
+          within(pulldownCard).getByLabelText('Satz 1 Bewertung'),
+          { target: { value: '9' } },
+        ),
+      (state) =>
+        expect(state.activeWorkout?.exercises[0].sets[0].rating).toBe(9),
+    )
+    await expectOneSemanticSave(
+      repository,
+      () =>
+        fireEvent.click(
+          within(pulldownCard).getByLabelText('Satz 1 abgeschlossen'),
+        ),
+      (state) =>
+        expect(state.activeWorkout?.exercises[0].sets[0].completed).toBe(true),
+    )
+    await expectOneSemanticSave(
+      repository,
+      () =>
+        fireEvent.change(
+          screen.getByLabelText('Notiz für Latziehen zur Brust'),
+          { target: { value: 'Neue Notiz' } },
+        ),
+      (state) =>
+        expect(state.activeWorkout?.exercises[0].note).toBe('Neue Notiz'),
+    )
+    await expectOneSemanticSave(
+      repository,
+      () =>
+        fireEvent.change(
+          screen.getByLabelText('Notiz für Latziehen zur Brust'),
+          { target: { value: '' } },
+        ),
+      (state) => expect(state.activeWorkout?.exercises[0].note).toBe(''),
+    )
+    await expectOneSemanticSave(
+      repository,
+      () =>
+        fireEvent.change(
+          screen.getByLabelText('Griff für Latziehen zur Brust'),
+          { target: { value: 'Eng' } },
+        ),
+      (state) => expect(state.activeWorkout?.exercises[0].grip).toBe('Eng'),
+    )
+    await expectOneSemanticSave(
+      repository,
+      () =>
+        fireEvent.change(screen.getByLabelText('Belastungsmodus für Klimmzug'), {
+          target: { value: 'added' },
+        }),
+      (state) => expect(state.activeWorkout?.exercises[1].loadMode).toBe('added'),
+    )
+    await expectOneSemanticSave(
+      repository,
+      () =>
+        user.click(
+          screen.getByRole('button', {
+            name: 'Satz hinzufügen: Latziehen zur Brust',
+          }),
+        ),
+      (state) =>
+        expect(state.activeWorkout?.exercises[0].sets).toHaveLength(2),
+    )
+    await expectOneSemanticSave(
+      repository,
+      () =>
+        user.click(within(pulldownCard).getByRole('button', { name: 'Satz 2 löschen' })),
+      (state) =>
+        expect(state.activeWorkout?.exercises[0].sets).toHaveLength(1),
+    )
+    await expectOneSemanticSave(
+      repository,
+      () =>
+        user.click(
+          screen.getByRole('button', { name: 'Übung Klimmzug nach oben' }),
+        ),
+      (state) =>
+        expect(
+          state.activeWorkout?.exercises.map(({ exerciseId, order }) => [
+            exerciseId,
+            order,
+          ]),
+        ).toEqual([
+          ['pull-up', 0],
+          ['lat-pulldown', 1],
+        ]),
+    )
+    await expectOneSemanticSave(
+      repository,
+      () =>
+        user.click(
+          screen.getByRole('button', { name: 'Übung entfernen: Klimmzug' }),
+        ),
+      (state) =>
+        expect(state.activeWorkout?.exercises.map(({ exerciseId }) => exerciseId)).toEqual([
+          'lat-pulldown',
+        ]),
+    )
+    await expectOneSemanticSave(
+      repository,
+      () => addExercise(user, 'Klimmzug'),
+      (state) =>
+        expect(
+          state.activeWorkout?.exercises.map(({ exerciseId, order }) => [
+            exerciseId,
+            order,
+          ]),
+        ).toEqual([
+          ['lat-pulldown', 0],
+          ['pull-up', 1],
+        ]),
+    )
   })
 
   it('hides disabled ratings without clearing their stored values', async () => {
@@ -366,17 +703,71 @@ describe('ActiveWorkoutPage', () => {
     )
   })
 
+  it('supports bodyweight, added, and assisted modes for Dips', async () => {
+    const user = userEvent.setup()
+    const repository = createRepository(
+      trainingState({
+        activeWorkout: {
+          ...ACTIVE_WORKOUT,
+          exercises: [
+            {
+              ...PULL_UP_ENTRY,
+              id: 'entry-dip',
+              exerciseId: 'dip',
+              sets: [
+                {
+                  ...PULL_UP_ENTRY.sets[0],
+                  id: 'set-dip-1',
+                  weightKg: 20,
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    )
+    renderActive(repository)
+
+    await screen.findByRole('heading', { name: 'Dip' })
+    const mode = screen.getByLabelText('Belastungsmodus für Dip')
+    expect(mode).toHaveValue('bodyweight')
+    expect(screen.queryByLabelText('Satz 1 Gewicht')).not.toBeInTheDocument()
+
+    await user.selectOptions(mode, 'added')
+    expect(screen.getByLabelText('Satz 1 Gewicht').closest('label')).toHaveTextContent(
+      'Zusatzgewicht',
+    )
+    await user.selectOptions(mode, 'assisted')
+    expect(screen.getByLabelText('Satz 1 Gewicht').closest('label')).toHaveTextContent(
+      'Unterstützung',
+    )
+
+    await waitFor(() =>
+      expect(repository.read().activeWorkout?.exercises[0].loadMode).toBe(
+        'assisted',
+      ),
+    )
+  })
+
   it('adds, removes, and reorders exercises with accessible fallback buttons', async () => {
     const user = userEvent.setup()
     const repository = createRepository()
     renderActive(repository)
 
     await screen.findByRole('heading', { name: 'Oberkörper' })
-    const upButtons = screen.getAllByRole('button', { name: 'Übung nach oben' })
-    const downButtons = screen.getAllByRole('button', { name: 'Übung nach unten' })
-    expect(upButtons).toHaveLength(2)
-    expect(downButtons).toHaveLength(2)
-    await user.click(upButtons[1])
+    expect(
+      screen.getByRole('button', { name: 'Übung Bankdrücken nach oben' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', {
+        name: 'Übung Latziehen zur Brust nach unten',
+      }),
+    ).toBeInTheDocument()
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Übung Latziehen zur Brust nach oben',
+      }),
+    )
     await waitFor(() =>
       expect(
         repository.read().activeWorkout?.exercises.map(
@@ -404,6 +795,79 @@ describe('ActiveWorkoutPage', () => {
       ).toEqual([
         ['lat-pulldown', 0],
         ['pull-up', 1],
+      ]),
+    )
+  })
+
+  it('identifies each exercise in the always-present reorder button names', async () => {
+    const user = userEvent.setup()
+    const repository = createRepository()
+    renderActive(repository)
+
+    await screen.findByRole('heading', { name: 'Oberkörper' })
+    expect(
+      screen.getByRole('button', { name: 'Übung Bankdrücken nach oben' }),
+    ).toBeDisabled()
+    expect(
+      screen.getByRole('button', {
+        name: 'Übung Latziehen zur Brust nach unten',
+      }),
+    ).toBeDisabled()
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Übung Latziehen zur Brust nach oben',
+      }),
+    )
+
+    await waitFor(() =>
+      expect(
+        repository.read().activeWorkout?.exercises.map(
+          ({ exerciseId, order }) => [exerciseId, order],
+        ),
+      ).toEqual([
+        ['lat-pulldown', 0],
+        ['bench-press', 1],
+      ]),
+    )
+  })
+
+  it('reorders active exercises with a real pointer drag and persists contiguous order', async () => {
+    installActiveSortableGeometry()
+    const repository = createRepository()
+    renderActive(repository)
+
+    await screen.findByRole('heading', { name: 'Oberkörper' })
+    const handle = screen.getByRole('button', {
+      name: 'Übung verschieben: Bankdrücken',
+    })
+    fireEvent.pointerDown(handle, {
+      button: 0,
+      clientX: 20,
+      clientY: 40,
+      isPrimary: true,
+      pointerId: 1,
+    })
+    fireEvent.pointerMove(document, {
+      clientX: 20,
+      clientY: 140,
+      isPrimary: true,
+      pointerId: 1,
+    })
+    fireEvent.pointerUp(document, {
+      clientX: 20,
+      clientY: 140,
+      isPrimary: true,
+      pointerId: 1,
+    })
+
+    await waitFor(() =>
+      expect(
+        repository.read().activeWorkout?.exercises.map(
+          ({ exerciseId, order }) => [exerciseId, order],
+        ),
+      ).toEqual([
+        ['lat-pulldown', 0],
+        ['bench-press', 1],
       ]),
     )
   })

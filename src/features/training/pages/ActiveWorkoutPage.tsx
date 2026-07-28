@@ -1,3 +1,20 @@
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { GripVertical } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Card, ResponsiveDialog } from '../../../design-system'
@@ -57,6 +74,14 @@ function WorkoutExerciseCard({
   onUpdateSet,
   showRating,
 }: WorkoutExerciseCardProps) {
+  const {
+    attributes,
+    isDragging,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: entry.id })
   const name = catalogExercise?.name ?? 'Unbekannte Übung'
   const gripOptions = Array.from(
     new Set([
@@ -66,9 +91,24 @@ function WorkoutExerciseCard({
   )
 
   return (
-    <li className="active-workout__exercise">
+    <li
+      className={`active-workout__exercise${
+        isDragging ? ' active-workout__exercise--dragging' : ''
+      }`}
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+    >
       <Card>
         <header className="active-workout__exercise-header">
+          <button
+            aria-label={`Übung verschieben: ${name}`}
+            className="button--ghost active-workout__drag-handle"
+            type="button"
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical aria-hidden="true" size={20} />
+          </button>
           <div>
             <h2>{name}</h2>
             <p>
@@ -78,7 +118,7 @@ function WorkoutExerciseCard({
           </div>
           <div className="active-workout__exercise-actions">
             <button
-              aria-label="Übung nach oben"
+              aria-label={`Übung ${name} nach oben`}
               className="button--secondary"
               disabled={index === 0}
               onClick={() => onMove(index - 1)}
@@ -87,7 +127,7 @@ function WorkoutExerciseCard({
               Nach oben
             </button>
             <button
-              aria-label="Übung nach unten"
+              aria-label={`Übung ${name} nach unten`}
               className="button--secondary"
               disabled={index === itemCount - 1}
               onClick={() => onMove(index + 1)}
@@ -201,6 +241,12 @@ export function ActiveWorkoutPage() {
   const [discardOpen, setDiscardOpen] = useState(false)
   const [resolutionPending, setResolutionPending] = useState(false)
   const [resolutionWorkout, setResolutionWorkout] = useState<ActiveWorkout>()
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
   const workout = state.activeWorkout ?? resolutionWorkout
 
   if (loading) return <p>Aktives Training wird geladen …</p>
@@ -220,6 +266,14 @@ export function ActiveWorkoutPage() {
   const orderedExercises = [...workout.exercises].sort(
     (left, right) => left.order - right.order,
   )
+
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return
+    const toIndex = orderedExercises.findIndex(({ id }) => id === over.id)
+    if (toIndex >= 0) {
+      reorderWorkoutExercise(String(active.id), toIndex, timestamp())
+    }
+  }
 
   const updateExercise = (
     exerciseEntryId: string,
@@ -291,32 +345,45 @@ export function ActiveWorkoutPage() {
       </header>
 
       {orderedExercises.length > 0 ? (
-        <ol className="active-workout__exercise-list">
-          {orderedExercises.map((entry, index) => (
-            <WorkoutExerciseCard
-              catalogExercise={catalog.find(
-                ({ id }) => id === entry.exerciseId,
-              )}
-              entry={entry}
-              index={index}
-              itemCount={orderedExercises.length}
-              key={entry.id}
-              onAddSet={() => addWorkoutSet(entry.id, timestamp())}
-              onMove={(toIndex) =>
-                reorderWorkoutExercise(entry.id, toIndex, timestamp())
-              }
-              onRemove={() => removeWorkoutExercise(entry.id, timestamp())}
-              onRemoveSet={(setId) =>
-                removeWorkoutSet(entry.id, setId, timestamp())
-              }
-              onUpdate={(changes) => updateExercise(entry.id, changes)}
-              onUpdateSet={(setId, changes) =>
-                updateSet(entry.id, setId, changes)
-              }
-              showRating={state.preferences.showSetRating}
-            />
-          ))}
-        </ol>
+        <DndContext
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+          sensors={sensors}
+        >
+          <SortableContext
+            items={orderedExercises.map(({ id }) => id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <ol className="active-workout__exercise-list">
+              {orderedExercises.map((entry, index) => (
+                <WorkoutExerciseCard
+                  catalogExercise={catalog.find(
+                    ({ id }) => id === entry.exerciseId,
+                  )}
+                  entry={entry}
+                  index={index}
+                  itemCount={orderedExercises.length}
+                  key={entry.id}
+                  onAddSet={() => addWorkoutSet(entry.id, timestamp())}
+                  onMove={(toIndex) =>
+                    reorderWorkoutExercise(entry.id, toIndex, timestamp())
+                  }
+                  onRemove={() =>
+                    removeWorkoutExercise(entry.id, timestamp())
+                  }
+                  onRemoveSet={(setId) =>
+                    removeWorkoutSet(entry.id, setId, timestamp())
+                  }
+                  onUpdate={(changes) => updateExercise(entry.id, changes)}
+                  onUpdateSet={(setId, changes) =>
+                    updateSet(entry.id, setId, changes)
+                  }
+                  showRating={state.preferences.showSetRating}
+                />
+              ))}
+            </ol>
+          </SortableContext>
+        </DndContext>
       ) : (
         <p>Noch keine Übungen in diesem Training.</p>
       )}
