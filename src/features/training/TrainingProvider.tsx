@@ -72,6 +72,22 @@ const repositoryPersistedExerciseBaselines = new WeakMap<
   TrainingRepository,
   Map<string, Map<string, PersistedExerciseBaseline>>
 >()
+interface PersistedCompletedWorkoutBaseline {
+  index: number
+  workout: CompletedWorkout
+}
+type PersistedCompletedWorkoutProfileBaselines = Map<
+  string,
+  PersistedCompletedWorkoutBaseline
+>
+const repositoryPersistedCompletedWorkoutBaselines = new WeakMap<
+  TrainingRepository,
+  Map<string, PersistedCompletedWorkoutProfileBaselines>
+>()
+const repositoryCompletedWorkoutOperationTokens = new WeakMap<
+  TrainingRepository,
+  Map<string, symbol>
+>()
 
 function getBrowserTrainingRepository() {
   browserTrainingRepository ??= new IndexedDbTrainingRepository()
@@ -118,6 +134,26 @@ function getPersistedExerciseBaselines(repository: TrainingRepository) {
   return baselines
 }
 
+function getPersistedCompletedWorkoutBaselines(
+  repository: TrainingRepository,
+) {
+  let baselines = repositoryPersistedCompletedWorkoutBaselines.get(repository)
+  if (!baselines) {
+    baselines = new Map()
+    repositoryPersistedCompletedWorkoutBaselines.set(repository, baselines)
+  }
+  return baselines
+}
+
+function getCompletedWorkoutOperationTokens(repository: TrainingRepository) {
+  let tokens = repositoryCompletedWorkoutOperationTokens.get(repository)
+  if (!tokens) {
+    tokens = new Map()
+    repositoryCompletedWorkoutOperationTokens.set(repository, tokens)
+  }
+  return tokens
+}
+
 function replaceProfileExerciseBaselines(
   baselines: Map<string, Map<string, PersistedExerciseBaseline>>,
   profileId: string,
@@ -150,6 +186,85 @@ function readExerciseBaseline(
       favorite: false,
     }
   )
+}
+
+function replaceProfileCompletedWorkoutBaselines(
+  baselines: Map<string, PersistedCompletedWorkoutProfileBaselines>,
+  profileId: string,
+  state: TrainingState,
+) {
+  baselines.set(
+    profileId,
+    new Map(
+      state.completedWorkouts.map((workout, index) => [
+        workout.id,
+        { index, workout },
+      ]),
+    ),
+  )
+}
+
+function placeCompletedWorkoutAtPersistedBaseline(
+  state: TrainingState,
+  profileBaselines: PersistedCompletedWorkoutProfileBaselines,
+  workoutId: string,
+) {
+  const baseline = profileBaselines.get(workoutId)
+  const currentIndex = state.completedWorkouts.findIndex(
+    ({ id }) => id === workoutId,
+  )
+
+  if (!baseline) {
+    if (currentIndex < 0) return state
+    return {
+      ...state,
+      completedWorkouts: state.completedWorkouts.filter(
+        ({ id }) => id !== workoutId,
+      ),
+    }
+  }
+
+  const withoutTarget = state.completedWorkouts.filter(
+    ({ id }) => id !== workoutId,
+  )
+  const orderedBaselines = [...profileBaselines.entries()].sort(
+    ([, left], [, right]) => left.index - right.index,
+  )
+  const successorIndex = orderedBaselines
+    .filter(([, candidate]) => candidate.index > baseline.index)
+    .map(([candidateId]) =>
+      withoutTarget.findIndex(({ id }) => id === candidateId),
+    )
+    .find((index) => index >= 0)
+  const predecessorIndex = [...orderedBaselines]
+    .reverse()
+    .filter(([, candidate]) => candidate.index < baseline.index)
+    .map(([candidateId]) =>
+      withoutTarget.findIndex(({ id }) => id === candidateId),
+    )
+    .find((index) => index >= 0)
+  const insertionIndex =
+    successorIndex !== undefined
+      ? successorIndex
+      : predecessorIndex !== undefined
+        ? predecessorIndex + 1
+        : Math.min(baseline.index, withoutTarget.length)
+  const completedWorkouts = [
+    ...withoutTarget.slice(0, insertionIndex),
+    baseline.workout,
+    ...withoutTarget.slice(insertionIndex),
+  ]
+
+  if (
+    completedWorkouts.length === state.completedWorkouts.length &&
+    completedWorkouts.every(
+      (workout, index) => workout === state.completedWorkouts[index],
+    )
+  ) {
+    return state
+  }
+
+  return { ...state, completedWorkouts }
 }
 
 function imageCleanupKey(profileId: string, exerciseId: string) {
@@ -194,6 +309,10 @@ export function TrainingProvider({
   const pendingImageCleanup = getPendingImageCleanup(trainingRepository)
   const persistedExerciseBaselines =
     getPersistedExerciseBaselines(trainingRepository)
+  const persistedCompletedWorkoutBaselines =
+    getPersistedCompletedWorkoutBaselines(trainingRepository)
+  const completedWorkoutOperationTokens =
+    getCompletedWorkoutOperationTokens(trainingRepository)
   const [view, setView] = useState<TrainingView>(() => ({
     loading: true,
     profileId,
@@ -203,9 +322,6 @@ export function TrainingProvider({
   const stateRef = useRef(view.state)
   const loadedProfileRef = useRef<string | null>(null)
   const generationRef = useRef(0)
-  const completedWorkoutOperationTokensRef = useRef(
-    new Map<string, symbol>(),
-  )
 
   const operationError = useCallback(
     (
@@ -250,6 +366,11 @@ export function TrainingProvider({
           profileId,
           loadedState,
         )
+        replaceProfileCompletedWorkoutBaselines(
+          persistedCompletedWorkoutBaselines,
+          profileId,
+          loadedState,
+        )
         loadedProfileRef.current = profileId
         stateRef.current = visibleState
         setView({
@@ -282,6 +403,7 @@ export function TrainingProvider({
       }
     }
   }, [
+    persistedCompletedWorkoutBaselines,
     persistedExerciseBaselines,
     latestQueuedStates,
     profileId,
@@ -319,6 +441,11 @@ export function TrainingProvider({
           afterSave?.(nextState)
           replaceProfileExerciseBaselines(
             persistedExerciseBaselines,
+            savedProfileId,
+            nextState,
+          )
+          replaceProfileCompletedWorkoutBaselines(
+            persistedCompletedWorkoutBaselines,
             savedProfileId,
             nextState,
           )
@@ -382,6 +509,11 @@ export function TrainingProvider({
                     savedProfileId,
                     compensationState,
                   )
+                  replaceProfileCompletedWorkoutBaselines(
+                    persistedCompletedWorkoutBaselines,
+                    savedProfileId,
+                    compensationState,
+                  )
                   if (
                     latestQueuedStates.get(savedProfileId) ===
                       compensationState &&
@@ -421,6 +553,7 @@ export function TrainingProvider({
     },
     [
       latestQueuedStates,
+      persistedCompletedWorkoutBaselines,
       persistedExerciseBaselines,
       profileId,
       saveQueues,
@@ -727,6 +860,11 @@ export function TrainingProvider({
         operationProfileId,
         loadedState,
       )
+      replaceProfileCompletedWorkoutBaselines(
+        persistedCompletedWorkoutBaselines,
+        operationProfileId,
+        loadedState,
+      )
       loadedProfileRef.current = operationProfileId
       stateRef.current = visibleState
       setView({
@@ -747,6 +885,7 @@ export function TrainingProvider({
   }, [
     latestQueuedStates,
     operationError,
+    persistedCompletedWorkoutBaselines,
     persistedExerciseBaselines,
     profileId,
     saveQueues,
@@ -970,125 +1109,101 @@ export function TrainingProvider({
   )
 
   const replaceCompletedWorkout = useCallback(
-    (workoutId: string, replacement: CompletedWorkout) =>
-      updateState(
-        (current) =>
-          replaceCompletedWorkoutModel(current, workoutId, replacement),
+    async (workoutId: string, replacement: CompletedWorkout) => {
+      const operationKey = completedWorkoutOperationKey(profileId, workoutId)
+      const operationToken = Symbol(workoutId)
+      const operationBaselines =
+        persistedCompletedWorkoutBaselines.get(profileId) ?? new Map()
+      completedWorkoutOperationTokens.set(operationKey, operationToken)
+
+      const result = await updateState(
+        (current) => {
+          const stateWithPersistedTarget =
+            current.completedWorkouts.some(({ id }) => id === workoutId) ||
+            !operationBaselines.has(workoutId)
+              ? current
+              : placeCompletedWorkoutAtPersistedBaseline(
+                  current,
+                  operationBaselines,
+                  workoutId,
+                )
+          return replaceCompletedWorkoutModel(
+            stateWithPersistedTarget,
+            workoutId,
+            replacement,
+          )
+        },
         undefined,
         {
           requireCurrentGenerationOnSuccess: true,
-          rollbackOnFailure: (current, previous, failed) => {
-            const previousWorkout = previous.completedWorkouts.find(
-              ({ id }) => id === workoutId,
-            )
-            const failedWorkout = failed.completedWorkouts.find(
-              ({ id }) => id === workoutId,
-            )
-            const currentWorkout = current.completedWorkouts.find(
-              ({ id }) => id === workoutId,
-            )
+          rollbackOnFailure: (current) => {
             if (
-              !previousWorkout ||
-              !failedWorkout ||
-              currentWorkout !== failedWorkout
+              completedWorkoutOperationTokens.get(operationKey) !==
+              operationToken
             ) {
               return current
             }
-
-            return {
-              ...current,
-              completedWorkouts: current.completedWorkouts.map((workout) =>
-                workout === failedWorkout ? previousWorkout : workout,
-              ),
-            }
+            return placeCompletedWorkoutAtPersistedBaseline(
+              current,
+              persistedCompletedWorkoutBaselines.get(profileId) ?? new Map(),
+              workoutId,
+            )
           },
         },
-      ),
-    [updateState],
+      )
+      if (
+        completedWorkoutOperationTokens.get(operationKey) === operationToken
+      ) {
+        completedWorkoutOperationTokens.delete(operationKey)
+      }
+      return result
+    },
+    [
+      completedWorkoutOperationTokens,
+      persistedCompletedWorkoutBaselines,
+      profileId,
+      updateState,
+    ],
   )
 
   const deleteCompletedWorkout = useCallback(
     async (workoutId: string) => {
       const operationKey = completedWorkoutOperationKey(profileId, workoutId)
       const operationToken = Symbol(workoutId)
-      completedWorkoutOperationTokensRef.current.set(
-        operationKey,
-        operationToken,
-      )
+      completedWorkoutOperationTokens.set(operationKey, operationToken)
       const result = await updateState(
         (current) => deleteCompletedWorkoutModel(current, workoutId),
-        () => {
-          if (
-            completedWorkoutOperationTokensRef.current.get(operationKey) ===
-            operationToken
-          ) {
-            completedWorkoutOperationTokensRef.current.delete(operationKey)
-          }
-        },
+        undefined,
         {
           requireCurrentGenerationOnSuccess: true,
-          rollbackOnFailure: (current, previous) => {
+          rollbackOnFailure: (current) => {
             if (
-              completedWorkoutOperationTokensRef.current.get(operationKey) !==
+              completedWorkoutOperationTokens.get(operationKey) !==
               operationToken
             ) {
               return current
             }
-            const previousIndex = previous.completedWorkouts.findIndex(
-              ({ id }) => id === workoutId,
+            return placeCompletedWorkoutAtPersistedBaseline(
+              current,
+              persistedCompletedWorkoutBaselines.get(profileId) ?? new Map(),
+              workoutId,
             )
-            if (
-              previousIndex < 0 ||
-              current.completedWorkouts.some(({ id }) => id === workoutId)
-            ) {
-              return current
-            }
-
-            const successorIndex = previous.completedWorkouts
-              .slice(previousIndex + 1)
-              .map(({ id }) => id)
-              .map((id) =>
-                current.completedWorkouts.findIndex(
-                  (workout) => workout.id === id,
-                ),
-              )
-              .find((index) => index >= 0)
-            const predecessorIndex = [...previous.completedWorkouts]
-              .slice(0, previousIndex)
-              .reverse()
-              .map(({ id }) => id)
-              .map((id) =>
-                current.completedWorkouts.findIndex(
-                  (workout) => workout.id === id,
-                ),
-              )
-              .find((index) => index >= 0)
-            const insertionIndex =
-              successorIndex !== undefined
-                ? successorIndex
-                : predecessorIndex !== undefined
-                  ? predecessorIndex + 1
-                  : Math.min(previousIndex, current.completedWorkouts.length)
-            return {
-              ...current,
-              completedWorkouts: [
-                ...current.completedWorkouts.slice(0, insertionIndex),
-                previous.completedWorkouts[previousIndex],
-                ...current.completedWorkouts.slice(insertionIndex),
-              ],
-            }
           },
         },
       )
       if (
-        completedWorkoutOperationTokensRef.current.get(operationKey) ===
-        operationToken
+        completedWorkoutOperationTokens.get(operationKey) === operationToken
       ) {
-        completedWorkoutOperationTokensRef.current.delete(operationKey)
+        completedWorkoutOperationTokens.delete(operationKey)
       }
       return result
     },
-    [profileId, updateState],
+    [
+      completedWorkoutOperationTokens,
+      persistedCompletedWorkoutBaselines,
+      profileId,
+      updateState,
+    ],
   )
 
   const updatePreferences = useCallback(

@@ -2898,4 +2898,230 @@ describe('TrainingProvider', () => {
     expect(training?.state.completedWorkouts).toEqual([])
     expect(storedState.completedWorkouts).toEqual([])
   })
+
+  it.each([
+    {
+      firstOutcome: 'failure' as const,
+      secondOutcome: 'success' as const,
+      expected: 'edited' as const,
+    },
+    {
+      firstOutcome: 'failure' as const,
+      secondOutcome: 'failure' as const,
+      expected: 'original' as const,
+    },
+    {
+      firstOutcome: 'success' as const,
+      secondOutcome: 'failure' as const,
+      expected: 'absent' as const,
+    },
+    {
+      firstOutcome: 'success' as const,
+      secondOutcome: 'success' as const,
+      expected: 'edited' as const,
+    },
+  ])(
+    'coordinates delete $firstOutcome then newer replace $secondOutcome as $expected',
+    async ({ expected, firstOutcome, secondOutcome }) => {
+      const firstSave = deferred<void>()
+      const secondSave = deferred<void>()
+      const olderWorkout: CompletedWorkout = {
+        ...COMPLETED_WORKOUT,
+        id: 'workout-state-machine-older',
+        name: 'Vorheriges Training',
+        completedAt: '2026-07-20T06:00:00.000Z',
+      }
+      const laterWorkout: CompletedWorkout = {
+        ...COMPLETED_WORKOUT,
+        id: 'workout-state-machine-later',
+        name: 'Späteres Training',
+        completedAt: '2026-07-27T06:00:00.000Z',
+      }
+      const editedWorkout = {
+        ...COMPLETED_WORKOUT,
+        name: 'Bearbeitetes Training',
+      }
+      const initialState = trainingState({
+        completedWorkouts: [
+          olderWorkout,
+          COMPLETED_WORKOUT,
+          laterWorkout,
+        ],
+      })
+      let storedState = initialState
+      let saveCount = 0
+      const repository = createRepository({
+        load: vi.fn(async () => initialState),
+        save: vi.fn(async (_profileId, state) => {
+          saveCount += 1
+          await (saveCount === 1 ? firstSave.promise : secondSave.promise)
+          storedState = state
+        }),
+      })
+      let training: TrainingContextValue | undefined
+      renderTraining(repository, 'profile-a', (value) => {
+        training = value
+      })
+      await screen.findByText('Trainingsdaten bereit')
+
+      let deleteResult!: Promise<boolean>
+      let replaceResult!: Promise<boolean>
+      act(() => {
+        deleteResult = training!.deleteCompletedWorkout(COMPLETED_WORKOUT.id)
+      })
+      await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(1))
+      act(() => {
+        replaceResult = training!.replaceCompletedWorkout(
+          COMPLETED_WORKOUT.id,
+          editedWorkout,
+        )
+      })
+
+      await act(async () => {
+        if (firstOutcome === 'success') firstSave.resolve()
+        else firstSave.reject(new Error('delete unavailable'))
+      })
+      await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(2))
+      await act(async () => {
+        if (secondOutcome === 'success') secondSave.resolve()
+        else secondSave.reject(new Error('replace unavailable'))
+      })
+
+      expect(await deleteResult).toBe(firstOutcome === 'success')
+      expect(await replaceResult).toBe(secondOutcome === 'success')
+      await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(2))
+
+      const expectedTarget =
+        expected === 'edited'
+          ? editedWorkout
+          : expected === 'original'
+            ? COMPLETED_WORKOUT
+            : undefined
+      const expectedWorkouts = expectedTarget
+        ? [olderWorkout, expectedTarget, laterWorkout]
+        : [olderWorkout, laterWorkout]
+      expect(training?.state.completedWorkouts).toEqual(expectedWorkouts)
+      expect(storedState.completedWorkouts).toEqual(expectedWorkouts)
+      if (expectedTarget) {
+        expect(expectedTarget).toMatchObject({
+          id: COMPLETED_WORKOUT.id,
+          startedAt: COMPLETED_WORKOUT.startedAt,
+          completedAt: COMPLETED_WORKOUT.completedAt,
+        })
+      }
+    },
+  )
+
+  it.each([
+    {
+      firstOutcome: 'failure' as const,
+      secondOutcome: 'success' as const,
+      expected: 'absent' as const,
+    },
+    {
+      firstOutcome: 'failure' as const,
+      secondOutcome: 'failure' as const,
+      expected: 'original' as const,
+    },
+    {
+      firstOutcome: 'success' as const,
+      secondOutcome: 'failure' as const,
+      expected: 'edited' as const,
+    },
+    {
+      firstOutcome: 'success' as const,
+      secondOutcome: 'success' as const,
+      expected: 'absent' as const,
+    },
+  ])(
+    'coordinates replace $firstOutcome then newer delete $secondOutcome as $expected',
+    async ({ expected, firstOutcome, secondOutcome }) => {
+      const firstSave = deferred<void>()
+      const secondSave = deferred<void>()
+      const olderWorkout: CompletedWorkout = {
+        ...COMPLETED_WORKOUT,
+        id: 'workout-reverse-machine-older',
+        name: 'Vorheriges Training',
+        completedAt: '2026-07-20T06:00:00.000Z',
+      }
+      const laterWorkout: CompletedWorkout = {
+        ...COMPLETED_WORKOUT,
+        id: 'workout-reverse-machine-later',
+        name: 'Späteres Training',
+        completedAt: '2026-07-27T06:00:00.000Z',
+      }
+      const editedWorkout = {
+        ...COMPLETED_WORKOUT,
+        name: 'Bearbeitetes Training',
+      }
+      const initialState = trainingState({
+        completedWorkouts: [
+          olderWorkout,
+          COMPLETED_WORKOUT,
+          laterWorkout,
+        ],
+      })
+      let storedState = initialState
+      let saveCount = 0
+      const repository = createRepository({
+        load: vi.fn(async () => initialState),
+        save: vi.fn(async (_profileId, state) => {
+          saveCount += 1
+          await (saveCount === 1 ? firstSave.promise : secondSave.promise)
+          storedState = state
+        }),
+      })
+      let training: TrainingContextValue | undefined
+      renderTraining(repository, 'profile-a', (value) => {
+        training = value
+      })
+      await screen.findByText('Trainingsdaten bereit')
+
+      let replaceResult!: Promise<boolean>
+      let deleteResult!: Promise<boolean>
+      act(() => {
+        replaceResult = training!.replaceCompletedWorkout(
+          COMPLETED_WORKOUT.id,
+          editedWorkout,
+        )
+      })
+      await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(1))
+      act(() => {
+        deleteResult = training!.deleteCompletedWorkout(COMPLETED_WORKOUT.id)
+      })
+
+      await act(async () => {
+        if (firstOutcome === 'success') firstSave.resolve()
+        else firstSave.reject(new Error('replace unavailable'))
+      })
+      await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(2))
+      await act(async () => {
+        if (secondOutcome === 'success') secondSave.resolve()
+        else secondSave.reject(new Error('delete unavailable'))
+      })
+
+      expect(await replaceResult).toBe(firstOutcome === 'success')
+      expect(await deleteResult).toBe(secondOutcome === 'success')
+      await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(2))
+
+      const expectedTarget =
+        expected === 'edited'
+          ? editedWorkout
+          : expected === 'original'
+            ? COMPLETED_WORKOUT
+            : undefined
+      const expectedWorkouts = expectedTarget
+        ? [olderWorkout, expectedTarget, laterWorkout]
+        : [olderWorkout, laterWorkout]
+      expect(training?.state.completedWorkouts).toEqual(expectedWorkouts)
+      expect(storedState.completedWorkouts).toEqual(expectedWorkouts)
+      if (expectedTarget) {
+        expect(expectedTarget).toMatchObject({
+          id: COMPLETED_WORKOUT.id,
+          startedAt: COMPLETED_WORKOUT.startedAt,
+          completedAt: COMPLETED_WORKOUT.completedAt,
+        })
+      }
+    },
+  )
 })
