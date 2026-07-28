@@ -22,12 +22,12 @@ export interface TrainingContextValue {
     updatedAt: string,
   ) => void
   addWorkoutSet: (exerciseEntryId: string, updatedAt: string) => void
-  completeWorkout: (completedAt: string) => void
+  completeWorkout: (completedAt: string) => Promise<boolean>
   deleteCompletedWorkout: (workoutId: string) => void
   deleteCustomExercise: (exerciseId: string) => Promise<void>
   deleteImage: (imageId: string) => Promise<void>
   deleteWorkoutTemplate: (templateId: string) => void
-  discardWorkout: () => void
+  discardWorkout: () => Promise<boolean>
   exportRaw: () => Promise<string>
   loadImage: (imageId: string) => Promise<Blob | undefined>
   removeWorkoutExercise: (

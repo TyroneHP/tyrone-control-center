@@ -775,9 +775,43 @@ export function TrainingProvider({
     [updateState],
   )
 
-  const discardWorkout = useCallback(() => {
-    updateState((current) => ({ ...current, activeWorkout: null }))
-  }, [updateState])
+  const workoutResolutionOptions: UpdateStateOptions = useMemo(
+    () => ({
+      requireCurrentGenerationOnSuccess: true,
+      rollbackOnFailure: (current, previous, failed) => {
+        if (current === failed) return previous
+
+        const activeWorkout =
+          current.activeWorkout === failed.activeWorkout
+            ? previous.activeWorkout
+            : current.activeWorkout
+        const failedCompletedWorkouts = failed.completedWorkouts.filter(
+          (workout) => !previous.completedWorkouts.includes(workout),
+        )
+        const completedWorkouts = current.completedWorkouts.filter(
+          (workout) => !failedCompletedWorkouts.includes(workout),
+        )
+        if (
+          activeWorkout === current.activeWorkout &&
+          completedWorkouts.length === current.completedWorkouts.length
+        ) {
+          return current
+        }
+        return { ...current, activeWorkout, completedWorkouts }
+      },
+    }),
+    [],
+  )
+
+  const discardWorkout = useCallback(
+    () =>
+      updateState(
+        (current) => ({ ...current, activeWorkout: null }),
+        undefined,
+        workoutResolutionOptions,
+      ),
+    [updateState, workoutResolutionOptions],
+  )
 
   const resolveActiveWorkoutAndStart = useCallback(
     (
@@ -797,32 +831,9 @@ export function TrainingProvider({
           return startWorkoutModel(resolvedState, template, startedAt)
         },
         undefined,
-        {
-          requireCurrentGenerationOnSuccess: true,
-          rollbackOnFailure: (current, previous, failed) => {
-            if (current === failed) return previous
-
-            const activeWorkout =
-              current.activeWorkout === failed.activeWorkout
-                ? previous.activeWorkout
-                : current.activeWorkout
-            const failedCompletedWorkouts = failed.completedWorkouts.filter(
-              (workout) => !previous.completedWorkouts.includes(workout),
-            )
-            const completedWorkouts = current.completedWorkouts.filter(
-              (workout) => !failedCompletedWorkouts.includes(workout),
-            )
-            if (
-              activeWorkout === current.activeWorkout &&
-              completedWorkouts.length === current.completedWorkouts.length
-            ) {
-              return current
-            }
-            return { ...current, activeWorkout, completedWorkouts }
-          },
-        },
+        workoutResolutionOptions,
       ),
-    [updateState],
+    [updateState, workoutResolutionOptions],
   )
 
   const addWorkoutExercise = useCallback(
@@ -914,10 +925,13 @@ export function TrainingProvider({
   )
 
   const completeWorkout = useCallback(
-    (completedAt: string) => {
-      updateState((current) => completeWorkoutModel(current, completedAt))
-    },
-    [updateState],
+    (completedAt: string) =>
+      updateState(
+        (current) => completeWorkoutModel(current, completedAt),
+        undefined,
+        workoutResolutionOptions,
+      ),
+    [updateState, workoutResolutionOptions],
   )
 
   const replaceCompletedWorkout = useCallback(

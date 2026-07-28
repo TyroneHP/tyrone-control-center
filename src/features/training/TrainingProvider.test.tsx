@@ -422,8 +422,16 @@ describe('TrainingProvider', () => {
         name: 'Fehler: Trainingsdaten konnten nicht geladen werden.',
       }),
     ).toBeInTheDocument()
-    expect(training?.loading).toBe(false)
-    expect(training?.recoveryError).toBe(corruption)
+    const status = screen.getByRole('region', { name: 'Trainingsstatus' })
+    expect(
+      await within(status).findByText(
+        'Fehler: Die gespeicherten Trainingsdaten sind beschädigt.',
+      ),
+    ).toBeInTheDocument()
+    await waitFor(() => {
+      expect(training?.loading).toBe(false)
+      expect(training?.recoveryError).toBe(corruption)
+    })
 
     act(() => training?.toggleFavoriteExercise('bench-press'))
 
@@ -663,7 +671,11 @@ describe('TrainingProvider', () => {
       }),
     )
 
-    act(() => training?.completeWorkout('2026-07-27T07:00:00.000Z'))
+    await act(async () => {
+      expect(
+        await training?.completeWorkout('2026-07-27T07:00:00.000Z'),
+      ).toBe(true)
+    })
 
     await waitFor(() => expect(training?.state.activeWorkout).toBeNull())
     expect(training?.state.completedWorkouts).toHaveLength(1)
@@ -2370,4 +2382,113 @@ describe('TrainingProvider', () => {
     ).not.toBeInTheDocument()
     expect(screen.getByText('Fehler: keiner')).toBeInTheDocument()
   })
+
+  it.each([
+    { resolution: 'complete' as const },
+    { resolution: 'discard' as const },
+  ])(
+    'awaits direct $resolution persistence and restores only the failed workout transition',
+    async ({ resolution }) => {
+      const failedSave = deferred<void>()
+      const initialState = trainingState({
+        activeWorkout: ACTIVE_WORKOUT,
+        favoriteExerciseIds: ['bench-press'],
+      })
+      let storedState = initialState
+      let saveCount = 0
+      const repository = createRepository({
+        load: vi.fn(async () => initialState),
+        save: vi.fn(async (_profileId, state) => {
+          saveCount += 1
+          if (saveCount === 1) await failedSave.promise
+          storedState = state
+        }),
+      })
+      let training: TrainingContextValue | undefined
+      renderTraining(repository, 'profile-a', (value) => {
+        training = value
+      })
+      await screen.findByText('Aktiv: Bestehendes Training')
+
+      let resultPromise!: Promise<boolean>
+      act(() => {
+        resultPromise =
+          resolution === 'complete'
+            ? training!.completeWorkout('2026-07-28T08:00:00.000Z')
+            : training!.discardWorkout()
+      })
+      await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(1))
+      act(() => training!.toggleFavoriteExercise('squat'))
+
+      await act(async () =>
+        failedSave.reject(new Error('local persistence unavailable')),
+      )
+      expect(await resultPromise).toBe(false)
+      await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(3))
+      expect(training?.state.activeWorkout).toBe(ACTIVE_WORKOUT)
+      expect(training?.state.completedWorkouts).toEqual([])
+      expect(training?.state.favoriteExerciseIds).toEqual([
+        'bench-press',
+        'squat',
+      ])
+      expect(storedState.activeWorkout).toBe(ACTIVE_WORKOUT)
+      expect(storedState.completedWorkouts).toEqual([])
+      expect(storedState.favoriteExerciseIds).toEqual([
+        'bench-press',
+        'squat',
+      ])
+    },
+  )
+
+  it.each([
+    { resolution: 'complete' as const },
+    { resolution: 'discard' as const },
+  ])(
+    'reports a successful direct $resolution only for its originating profile generation',
+    async ({ resolution }) => {
+      const saveGate = deferred<void>()
+      const profileAState = trainingState({ activeWorkout: ACTIVE_WORKOUT })
+      const repository = createRepository({
+        load: vi.fn(async (profileId) =>
+          profileId === 'profile-a' ? profileAState : trainingState(),
+        ),
+        save: vi.fn(async (profileId) => {
+          if (profileId === 'profile-a') await saveGate.promise
+        }),
+      })
+      let training: TrainingContextValue | undefined
+      const page = renderTraining(repository, 'profile-a', (value) => {
+        training = value
+      })
+      await screen.findByText('Aktiv: Bestehendes Training')
+
+      let resultPromise!: Promise<boolean>
+      act(() => {
+        resultPromise =
+          resolution === 'complete'
+            ? training!.completeWorkout('2026-07-28T08:00:00.000Z')
+            : training!.discardWorkout()
+      })
+      await waitFor(() =>
+        expect(repository.save).toHaveBeenCalledWith(
+          'profile-a',
+          expect.any(Object),
+        ),
+      )
+      page.rerender(
+        <TrainingTree
+          capture={(value) => {
+            training = value
+          }}
+          profileId="profile-b"
+          repository={repository}
+        />,
+      )
+      await screen.findByText('Aktiv: keines')
+
+      await act(async () => saveGate.resolve())
+      expect(await resultPromise).toBe(false)
+      expect(training?.state.activeWorkout).toBeNull()
+    },
+  )
 })

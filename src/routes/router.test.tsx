@@ -125,7 +125,7 @@ describe('application routing', () => {
     ['/training/library', 'Übungsbibliothek'],
     ['/training/templates/new', 'Trainingsplan erstellen'],
     ['/training/templates/template-upper/edit', 'Trainingsplan nicht gefunden'],
-    ['/training/active', 'Aktives Training'],
+    ['/training/active', 'Kein aktives Training'],
     ['/training/history', 'Trainingsverlauf'],
     ['/training/history/workout-1', 'Abgeschlossenes Training'],
   ])('renders the training route %s', async (path, heading) => {
