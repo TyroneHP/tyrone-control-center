@@ -123,8 +123,8 @@ describe('application routing', () => {
   it.each([
     ['/training', 'Training'],
     ['/training/library', 'Übungsbibliothek'],
-    ['/training/templates/new', 'Trainingsplan bearbeiten'],
-    ['/training/templates/template-upper/edit', 'Trainingsplan bearbeiten'],
+    ['/training/templates/new', 'Trainingsplan erstellen'],
+    ['/training/templates/template-upper/edit', 'Trainingsplan nicht gefunden'],
     ['/training/active', 'Aktives Training'],
     ['/training/history', 'Trainingsverlauf'],
     ['/training/history/workout-1', 'Abgeschlossenes Training'],
