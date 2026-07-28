@@ -848,6 +848,55 @@ describe('TrainingProvider', () => {
     },
   )
 
+  it('retains image cleanup retry when metadata saves before a failed reset', async () => {
+    const metadataGate = deferred<void>()
+    const resetFailure = new Error('reset unavailable')
+    const initialState = trainingState({
+      customExercises: [CUSTOM_EXERCISE_WITH_IMAGE],
+      favoriteExerciseIds: [CUSTOM_EXERCISE_WITH_IMAGE.id],
+    })
+    let storedState = initialState
+    const images = new Set(['image-row'])
+    const deleteImage = vi.fn(async (_profileId, imageId: string) => {
+      images.delete(imageId)
+    })
+    const repository = createRepository({
+      deleteImage,
+      load: vi.fn(async () => storedState),
+      reset: vi.fn(async () => {
+        throw resetFailure
+      }),
+      save: vi.fn(async (_profileId, state) => {
+        await metadataGate.promise
+        storedState = state
+      }),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Trainingsdaten bereit')
+
+    const deletion = training!.deleteCustomExercise(
+      CUSTOM_EXERCISE_WITH_IMAGE.id,
+    )
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(1))
+    const resetResult = training!.reset().catch((error: unknown) => error)
+    await act(async () => metadataGate.resolve())
+    await act(async () => deletion)
+    await expect(resetResult).resolves.toMatchObject({ cause: resetFailure })
+
+    expect(storedState.customExercises).toEqual([])
+    expect(images).toEqual(new Set(['image-row']))
+    expect(deleteImage).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await training!.deleteCustomExercise(CUSTOM_EXERCISE_WITH_IMAGE.id)
+    })
+    expect(deleteImage).toHaveBeenCalledWith('profile-a', 'image-row')
+    expect(images).toEqual(new Set())
+  })
+
   it.each([
     {
       expectedCompletedIdsAfterRetry: ['workout-completed', 'workout-active'],
@@ -2490,6 +2539,344 @@ describe('TrainingProvider', () => {
     await act(async () => resetGate.resolve())
     await act(async () => resetResult)
   })
+
+  it('preserves truthful custom and completed baselines when reset fails', async () => {
+    const resetFailure = new Error('reset transaction unavailable')
+    const editedExercise = {
+      ...CUSTOM_EXERCISE_WITH_IMAGE,
+      name: 'Nicht gespeicherte Übung',
+    }
+    const initialState = trainingState({
+      customExercises: [CUSTOM_EXERCISE_WITH_IMAGE],
+      favoriteExerciseIds: [CUSTOM_EXERCISE_WITH_IMAGE.id],
+      completedWorkouts: [COMPLETED_WORKOUT],
+    })
+    let storedState = initialState
+    let saveCount = 0
+    const repository = createRepository({
+      load: vi.fn(async () => storedState),
+      reset: vi.fn(async () => {
+        throw resetFailure
+      }),
+      save: vi.fn(async (_profileId, state) => {
+        saveCount += 1
+        if (saveCount <= 2) throw new Error('save unavailable')
+        storedState = state
+      }),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Trainingsdaten bereit')
+
+    await expect(training!.reset()).rejects.toMatchObject({
+      message: 'Trainingsbereich konnte nicht zurückgesetzt werden.',
+      cause: resetFailure,
+    })
+
+    await expect(
+      training!.deleteCompletedWorkout(COMPLETED_WORKOUT.id),
+    ).resolves.toBe(false)
+    await expect(training!.saveCustomExercise(editedExercise)).rejects.toThrow(
+      'Übung konnte nicht gespeichert werden.',
+    )
+
+    expect(training?.state.customExercises).toEqual([
+      CUSTOM_EXERCISE_WITH_IMAGE,
+    ])
+    expect(training?.state.favoriteExerciseIds).toEqual([
+      CUSTOM_EXERCISE_WITH_IMAGE.id,
+    ])
+    expect(training?.state.completedWorkouts).toEqual([COMPLETED_WORKOUT])
+    expect(storedState).toEqual(initialState)
+    expect(repository.save).toHaveBeenCalledTimes(3)
+  })
+
+  it('keeps a corrupt profile recovery-blocked after reset failure while allowing raw export', async () => {
+    const corruption = new TrainingDataCorruptionError(
+      'Die gespeicherten Trainingsdaten sind beschädigt.',
+    )
+    const resetFailure = new Error('reset transaction unavailable')
+    const raw = '{"broken":true}'
+    const save = vi.fn(async () => undefined)
+    const saveImage = vi.fn(async () => undefined)
+    const deleteImage = vi.fn(async () => undefined)
+    const repository = createRepository({
+      deleteImage,
+      exportRaw: vi.fn(async () => raw),
+      load: vi.fn(async () => {
+        throw corruption
+      }),
+      reset: vi.fn(async () => {
+        throw resetFailure
+      }),
+      save,
+      saveImage,
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByRole('alert', {
+      name: 'Fehler: Trainingsdaten konnten nicht geladen werden.',
+    })
+
+    await expect(training!.reset()).rejects.toMatchObject({
+      message: 'Trainingsbereich konnte nicht zurückgesetzt werden.',
+      cause: resetFailure,
+    })
+    act(() => training!.updatePreferences({ showSetRating: false }))
+    await training!.saveCustomExercise(CUSTOM_EXERCISE).catch(() => undefined)
+    await training!
+      .deleteCustomExercise(CUSTOM_EXERCISE.id)
+      .catch(() => undefined)
+    await training!
+      .saveImage('image-row', new Blob(['image'], { type: 'image/webp' }))
+      .catch(() => undefined)
+    await training!.deleteImage('image-row').catch(() => undefined)
+
+    expect(save).not.toHaveBeenCalled()
+    expect(saveImage).not.toHaveBeenCalled()
+    expect(deleteImage).not.toHaveBeenCalled()
+    expect(training?.recoveryError).toBe(corruption)
+    await expect(training!.exportRaw()).resolves.toBe(raw)
+  })
+
+  it.each(['save', 'delete'] as const)(
+    'queues reset after a pending image $operation and blocks later image writes',
+    async (operation) => {
+      const imageGate = deferred<void>()
+      const image = new Blob(['processed image'], { type: 'image/webp' })
+      const images = new Set(operation === 'delete' ? ['image-row'] : [])
+      const events: string[] = []
+      const saveImage = vi.fn(async (_profileId, imageId: string) => {
+        events.push('save:start')
+        await imageGate.promise
+        images.add(imageId)
+        events.push('save:end')
+      })
+      const deleteImage = vi.fn(async (_profileId, imageId: string) => {
+        events.push('delete:start')
+        await imageGate.promise
+        images.delete(imageId)
+        events.push('delete:end')
+      })
+      const reset = vi.fn(async () => {
+        events.push('reset')
+        images.clear()
+      })
+      const repository = createRepository({ deleteImage, reset, saveImage })
+      let training: TrainingContextValue | undefined
+      renderTraining(repository, 'profile-a', (value) => {
+        training = value
+      })
+      await screen.findByText('Trainingsdaten bereit')
+
+      const imageResult =
+        operation === 'save'
+          ? training!.saveImage('image-row', image)
+          : training!.deleteImage('image-row')
+      await waitFor(() =>
+        expect(operation === 'save' ? saveImage : deleteImage).toHaveBeenCalledTimes(
+          1,
+        ),
+      )
+      const resetResult = training!.reset()
+      const blockedSave = training!
+        .saveImage('blocked-image', image)
+        .catch((error: unknown) => error)
+      const blockedDelete = training!
+        .deleteImage('blocked-image')
+        .catch((error: unknown) => error)
+      await act(async () => Promise.resolve())
+
+      expect(reset).not.toHaveBeenCalled()
+      await expect(blockedSave).resolves.toMatchObject({
+        message:
+          'Trainingsbilder können erst nach erfolgreichem Laden geändert werden.',
+      })
+      await expect(blockedDelete).resolves.toMatchObject({
+        message:
+          'Trainingsbilder können erst nach erfolgreichem Laden geändert werden.',
+      })
+      expect(saveImage).toHaveBeenCalledTimes(operation === 'save' ? 1 : 0)
+      expect(deleteImage).toHaveBeenCalledTimes(operation === 'delete' ? 1 : 0)
+
+      await act(async () => imageGate.resolve())
+      await act(async () => Promise.all([imageResult, resetResult]))
+
+      expect(images).toEqual(new Set())
+      expect(events).toEqual([
+        `${operation}:start`,
+        `${operation}:end`,
+        'reset',
+      ])
+    },
+  )
+
+  it('runs a pre-reset image mutation behind an earlier state save before reset', async () => {
+    const stateGate = deferred<void>()
+    const image = new Blob(['processed image'], { type: 'image/webp' })
+    const images = new Set<string>()
+    const events: string[] = []
+    const repository = createRepository({
+      reset: vi.fn(async () => {
+        events.push('reset')
+        images.clear()
+      }),
+      save: vi.fn(async () => {
+        events.push('state:start')
+        await stateGate.promise
+        events.push('state:end')
+      }),
+      saveImage: vi.fn(async (_profileId, imageId) => {
+        events.push('image')
+        images.add(imageId)
+      }),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Trainingsdaten bereit')
+
+    act(() => training!.updatePreferences({ showSetRating: false }))
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(1))
+    const imageResult = training!.saveImage('image-row', image)
+    const resetResult = training!.reset()
+    expect(repository.saveImage).not.toHaveBeenCalled()
+    expect(repository.reset).not.toHaveBeenCalled()
+
+    await act(async () => stateGate.resolve())
+    await act(async () => Promise.all([imageResult, resetResult]))
+
+    expect(repository.saveImage).toHaveBeenCalledWith(
+      'profile-a',
+      'image-row',
+      image,
+    )
+    expect(events).toEqual(['state:start', 'state:end', 'image', 'reset'])
+    expect(images).toEqual(new Set())
+  })
+
+  it.each(['save', 'delete'] as const)(
+    'suppresses a stale pending image $operation failure after reset is requested',
+    async (operation) => {
+      const imageGate = deferred<void>()
+      const failure = new Error(`${operation} unavailable`)
+      const image = new Blob(['processed image'], { type: 'image/webp' })
+      const saveImage = vi.fn(async () => {
+        await imageGate.promise
+      })
+      const deleteImage = vi.fn(async () => {
+        await imageGate.promise
+      })
+      const repository = createRepository({ deleteImage, saveImage })
+      let training: TrainingContextValue | undefined
+      renderTraining(repository, 'profile-a', (value) => {
+        training = value
+      })
+      await screen.findByText('Trainingsdaten bereit')
+
+      const imageResult = (
+        operation === 'save'
+          ? training!.saveImage('image-row', image)
+          : training!.deleteImage('image-row')
+      ).catch((error: unknown) => error)
+      await waitFor(() =>
+        expect(operation === 'save' ? saveImage : deleteImage).toHaveBeenCalledTimes(
+          1,
+        ),
+      )
+      const resetResult = training!.reset()
+
+      await act(async () => imageGate.reject(failure))
+      await expect(imageResult).resolves.toMatchObject({ cause: failure })
+      await act(async () => resetResult)
+
+      expect(training?.recoveryError).toBeNull()
+      expect(
+        screen.queryByRole('alert', {
+          name:
+            operation === 'save'
+              ? 'Fehler: Trainingsbild konnte nicht gespeichert werden.'
+              : 'Fehler: Trainingsbild konnte nicht gelöscht werden.',
+        }),
+      ).not.toBeInTheDocument()
+    },
+  )
+
+  it.each([
+    { label: 'cleanup', retry: false },
+    { label: 'cleanup retry', retry: true },
+  ])(
+    'queues reset after a pending custom-image $label',
+    async ({ retry }) => {
+      const cleanupGate = deferred<void>()
+      const initialState = trainingState({
+        customExercises: [CUSTOM_EXERCISE_WITH_IMAGE],
+        favoriteExerciseIds: [CUSTOM_EXERCISE_WITH_IMAGE.id],
+      })
+      let storedState = initialState
+      const images = new Set(['image-row'])
+      const events: string[] = []
+      let deleteCount = 0
+      const deleteImage = vi.fn(async (_profileId, imageId: string) => {
+        deleteCount += 1
+        if (retry && deleteCount === 1) {
+          throw new Error('initial cleanup unavailable')
+        }
+        events.push('cleanup:start')
+        await cleanupGate.promise
+        images.delete(imageId)
+        events.push('cleanup:end')
+      })
+      const reset = vi.fn(async () => {
+        events.push('reset')
+        storedState = trainingState()
+        images.clear()
+      })
+      const repository = createRepository({
+        deleteImage,
+        load: vi.fn(async () => storedState),
+        reset,
+        save: vi.fn(async (_profileId, state) => {
+          storedState = state
+        }),
+      })
+      let training: TrainingContextValue | undefined
+      renderTraining(repository, 'profile-a', (value) => {
+        training = value
+      })
+      await screen.findByText('Trainingsdaten bereit')
+
+      if (retry) {
+        await act(async () => {
+          await training!
+            .deleteCustomExercise(CUSTOM_EXERCISE_WITH_IMAGE.id)
+            .catch(() => undefined)
+        })
+      }
+      const cleanupResult = training!.deleteCustomExercise(
+        CUSTOM_EXERCISE_WITH_IMAGE.id,
+      )
+      await waitFor(() =>
+        expect(deleteImage).toHaveBeenCalledTimes(retry ? 2 : 1),
+      )
+      const resetResult = training!.reset()
+      await act(async () => Promise.resolve())
+
+      expect(reset).not.toHaveBeenCalled()
+      await act(async () => cleanupGate.resolve())
+      await act(async () => Promise.all([cleanupResult, resetResult]))
+
+      expect(events).toEqual(['cleanup:start', 'cleanup:end', 'reset'])
+      expect(storedState).toEqual(trainingState())
+      expect(images).toEqual(new Set())
+      expect(training?.state).toEqual(trainingState())
+    },
+  )
 
   it('preserves recovery state and propagates a German reset failure', async () => {
     const corruption = new TrainingDataCorruptionError(

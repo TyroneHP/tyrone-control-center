@@ -297,6 +297,16 @@ function imageCleanupKey(profileId: string, exerciseId: string) {
   return `${profileId}\u0000${exerciseId}`
 }
 
+function clearProfilePendingImageCleanup(
+  cleanup: Map<string, string>,
+  profileId: string,
+) {
+  const prefix = `${profileId}\u0000`
+  for (const key of cleanup.keys()) {
+    if (key.startsWith(prefix)) cleanup.delete(key)
+  }
+}
+
 function completedWorkoutOperationKey(profileId: string, workoutId: string) {
   return `${profileId}\u0000${workoutId}`
 }
@@ -373,6 +383,50 @@ export function TrainingProvider({
       return error
     },
     [toast],
+  )
+
+  const queueProfileOperation = useCallback(
+    <Result,>(
+      operationProfileId: string,
+      operation: () => Promise<Result>,
+    ) => {
+      const previousOperation =
+        saveQueues.get(operationProfileId) ?? Promise.resolve()
+      const result = previousOperation.then(operation)
+      saveQueues.set(
+        operationProfileId,
+        result.then(
+          () => undefined,
+          () => undefined,
+        ),
+      )
+      return result
+    },
+    [saveQueues],
+  )
+
+  const imageMutationError = useCallback(
+    (
+      message: string,
+      cause: unknown,
+      operationProfileId: string,
+      operationGeneration: number,
+      operationEpoch: number,
+    ) => {
+      if (
+        (profileOperationEpochs.get(operationProfileId) ?? 0) !==
+        operationEpoch
+      ) {
+        return new Error(message, { cause })
+      }
+      return operationError(
+        message,
+        cause,
+        operationProfileId,
+        operationGeneration,
+      )
+    },
+    [operationError, profileOperationEpochs],
   )
 
   useEffect(() => {
@@ -627,6 +681,7 @@ export function TrainingProvider({
   const saveCustomExercise = useCallback(
     async (exercise: ExerciseDefinition) => {
       const operationProfileId = profileId
+      const operationEpoch = profileOperationEpochs.get(profileId) ?? 0
       const saved = await updateState((current) => ({
         ...current,
         customExercises: current.customExercises.some(
@@ -638,6 +693,12 @@ export function TrainingProvider({
           : [...current.customExercises, exercise],
       }))
       if (saved) return
+      if (
+        (profileOperationEpochs.get(operationProfileId) ?? 0) !==
+        operationEpoch
+      ) {
+        return
+      }
 
       const baseline = readExerciseBaseline(
         persistedExerciseBaselines,
@@ -677,28 +738,47 @@ export function TrainingProvider({
 
       throw new Error(CUSTOM_EXERCISE_SAVE_ERROR_MESSAGE)
     },
-    [persistedExerciseBaselines, profileId, updateState],
+    [
+      persistedExerciseBaselines,
+      profileId,
+      profileOperationEpochs,
+      updateState,
+    ],
   )
 
   const saveImage = useCallback(
     async (imageId: string, blob: Blob) => {
       const operationProfileId = profileId
       const operationGeneration = generationRef.current
-      if (loadedProfileRef.current !== operationProfileId) {
+      const operationEpoch = profileOperationEpochs.get(operationProfileId) ?? 0
+      if (
+        loadedProfileRef.current !== operationProfileId ||
+        resettingProfiles.has(operationProfileId)
+      ) {
         throw new Error(IMAGE_MUTATION_BLOCKED_MESSAGE)
       }
       try {
-        await trainingRepository.saveImage(operationProfileId, imageId, blob)
+        await queueProfileOperation(operationProfileId, async () => {
+          await trainingRepository.saveImage(operationProfileId, imageId, blob)
+        })
       } catch (cause) {
-        throw operationError(
+        throw imageMutationError(
           IMAGE_SAVE_ERROR_MESSAGE,
           cause,
           operationProfileId,
           operationGeneration,
+          operationEpoch,
         )
       }
     },
-    [operationError, profileId, trainingRepository],
+    [
+      imageMutationError,
+      profileId,
+      profileOperationEpochs,
+      queueProfileOperation,
+      resettingProfiles,
+      trainingRepository,
+    ],
   )
 
   const loadImage = useCallback(
@@ -723,21 +803,35 @@ export function TrainingProvider({
     async (imageId: string) => {
       const operationProfileId = profileId
       const operationGeneration = generationRef.current
-      if (loadedProfileRef.current !== operationProfileId) {
+      const operationEpoch = profileOperationEpochs.get(operationProfileId) ?? 0
+      if (
+        loadedProfileRef.current !== operationProfileId ||
+        resettingProfiles.has(operationProfileId)
+      ) {
         throw new Error(IMAGE_MUTATION_BLOCKED_MESSAGE)
       }
       try {
-        await trainingRepository.deleteImage(operationProfileId, imageId)
+        await queueProfileOperation(operationProfileId, async () => {
+          await trainingRepository.deleteImage(operationProfileId, imageId)
+        })
       } catch (cause) {
-        throw operationError(
+        throw imageMutationError(
           IMAGE_DELETE_ERROR_MESSAGE,
           cause,
           operationProfileId,
           operationGeneration,
+          operationEpoch,
         )
       }
     },
-    [operationError, profileId, trainingRepository],
+    [
+      imageMutationError,
+      profileId,
+      profileOperationEpochs,
+      queueProfileOperation,
+      resettingProfiles,
+      trainingRepository,
+    ],
   )
 
   const deleteCustomExercise = useCallback(
@@ -745,24 +839,32 @@ export function TrainingProvider({
       if (loadedProfileRef.current !== profileId) return
       const operationProfileId = profileId
       const operationGeneration = generationRef.current
+      const operationEpoch = profileOperationEpochs.get(operationProfileId) ?? 0
       const cleanupKey = imageCleanupKey(operationProfileId, exerciseId)
       const pendingImageId = pendingImageCleanup.get(cleanupKey)
       if (pendingImageId) {
         try {
-          await trainingRepository.deleteImage(operationProfileId, pendingImageId)
+          await queueProfileOperation(operationProfileId, async () => {
+            await trainingRepository.deleteImage(
+              operationProfileId,
+              pendingImageId,
+            )
+          })
           pendingImageCleanup.delete(cleanupKey)
           return
         } catch (cause) {
-          throw operationError(
+          throw imageMutationError(
             IMAGE_DELETE_ERROR_MESSAGE,
             cause,
             operationProfileId,
             operationGeneration,
+            operationEpoch,
           )
         }
       }
 
       let customImageId: string | undefined
+      let metadataPersisted = false
       const saved = await updateState(
         (current) => ({
           ...current,
@@ -774,6 +876,7 @@ export function TrainingProvider({
           ),
         }),
         () => {
+          metadataPersisted = true
           const baseline = readExerciseBaseline(
             persistedExerciseBaselines,
             operationProfileId,
@@ -783,6 +886,15 @@ export function TrainingProvider({
         },
       )
       if (!saved) {
+        if (
+          (profileOperationEpochs.get(operationProfileId) ?? 0) !==
+          operationEpoch
+        ) {
+          if (metadataPersisted && customImageId) {
+            pendingImageCleanup.set(cleanupKey, customImageId)
+          }
+          return
+        }
         const baseline = readExerciseBaseline(
           persistedExerciseBaselines,
           operationProfileId,
@@ -841,24 +953,33 @@ export function TrainingProvider({
       }
       if (!customImageId) return
 
-      pendingImageCleanup.set(cleanupKey, customImageId)
+      const cleanupImageId = customImageId
+      pendingImageCleanup.set(cleanupKey, cleanupImageId)
       try {
-        await trainingRepository.deleteImage(operationProfileId, customImageId)
+        await queueProfileOperation(operationProfileId, async () => {
+          await trainingRepository.deleteImage(
+            operationProfileId,
+            cleanupImageId,
+          )
+        })
         pendingImageCleanup.delete(cleanupKey)
       } catch (cause) {
-        throw operationError(
+        throw imageMutationError(
           IMAGE_DELETE_ERROR_MESSAGE,
           cause,
           operationProfileId,
           operationGeneration,
+          operationEpoch,
         )
       }
     },
     [
-      operationError,
+      imageMutationError,
       pendingImageCleanup,
       persistedExerciseBaselines,
       profileId,
+      profileOperationEpochs,
+      queueProfileOperation,
       trainingRepository,
       updateState,
     ],
@@ -883,19 +1004,21 @@ export function TrainingProvider({
   const reset = useCallback(async () => {
     const operationProfileId = profileId
     const operationGeneration = generationRef.current
+    const wasLoaded = loadedProfileRef.current === operationProfileId
+    const previousRecoveryError =
+      view.profileId === operationProfileId ? view.recoveryError : null
     profileOperationEpochs.set(
       operationProfileId,
       (profileOperationEpochs.get(operationProfileId) ?? 0) + 1,
     )
     resettingProfiles.add(operationProfileId)
     loadedProfileRef.current = null
-    latestQueuedStates.delete(operationProfileId)
-    persistedExerciseBaselines.delete(operationProfileId)
-    persistedCompletedWorkoutBaselines.delete(operationProfileId)
     const previousOperation =
       saveQueues.get(operationProfileId) ?? Promise.resolve()
+    let resetApplied = false
     const resetOperation = previousOperation.then(async () => {
       await trainingRepository.reset(operationProfileId)
+      resetApplied = true
       return trainingRepository.load(operationProfileId)
     })
     const resetQueueTail = resetOperation.then(
@@ -908,6 +1031,10 @@ export function TrainingProvider({
       const loadedState = await resetOperation
       if (generationRef.current !== operationGeneration) return
       latestQueuedStates.delete(operationProfileId)
+      clearProfilePendingImageCleanup(
+        pendingImageCleanup,
+        operationProfileId,
+      )
       replaceProfileExerciseBaselines(
         persistedExerciseBaselines,
         operationProfileId,
@@ -928,7 +1055,73 @@ export function TrainingProvider({
       })
     } catch (cause) {
       if (generationRef.current === operationGeneration) {
-        loadedProfileRef.current = operationProfileId
+        if (resetApplied) {
+          latestQueuedStates.delete(operationProfileId)
+          persistedExerciseBaselines.delete(operationProfileId)
+          persistedCompletedWorkoutBaselines.delete(operationProfileId)
+          clearProfilePendingImageCleanup(
+            pendingImageCleanup,
+            operationProfileId,
+          )
+          loadedProfileRef.current = null
+          stateRef.current = EMPTY_TRAINING_STATE
+          setView({
+            loading: false,
+            profileId: operationProfileId,
+            recoveryError:
+              cause instanceof Error
+                ? cause
+                : new Error(RESET_ERROR_MESSAGE, { cause }),
+            state: EMPTY_TRAINING_STATE,
+          })
+        } else {
+          try {
+            const restoredState = await trainingRepository.load(
+              operationProfileId,
+            )
+            if (generationRef.current === operationGeneration) {
+              latestQueuedStates.delete(operationProfileId)
+              replaceProfileExerciseBaselines(
+                persistedExerciseBaselines,
+                operationProfileId,
+                restoredState,
+              )
+              replaceProfileCompletedWorkoutBaselines(
+                persistedCompletedWorkoutBaselines,
+                operationProfileId,
+                restoredState,
+              )
+              loadedProfileRef.current = operationProfileId
+              stateRef.current = restoredState
+              setView({
+                loading: false,
+                profileId: operationProfileId,
+                recoveryError: previousRecoveryError,
+                state: restoredState,
+              })
+            }
+          } catch (restoreCause) {
+            loadedProfileRef.current = null
+            if (!previousRecoveryError) {
+              setView((current) =>
+                current.profileId === operationProfileId
+                  ? {
+                      ...current,
+                      recoveryError:
+                        restoreCause instanceof Error
+                          ? restoreCause
+                          : new Error(LOAD_ERROR_MESSAGE, {
+                              cause: restoreCause,
+                            }),
+                    }
+                  : current,
+              )
+            }
+          }
+          if (!wasLoaded && previousRecoveryError) {
+            loadedProfileRef.current = null
+          }
+        }
       }
       throw operationError(
         RESET_ERROR_MESSAGE,
@@ -943,6 +1136,7 @@ export function TrainingProvider({
   }, [
     latestQueuedStates,
     operationError,
+    pendingImageCleanup,
     persistedCompletedWorkoutBaselines,
     persistedExerciseBaselines,
     profileId,
@@ -950,6 +1144,8 @@ export function TrainingProvider({
     resettingProfiles,
     saveQueues,
     trainingRepository,
+    view.profileId,
+    view.recoveryError,
   ])
 
   const saveWorkoutTemplate = useCallback(
