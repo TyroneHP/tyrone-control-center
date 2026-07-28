@@ -1031,6 +1031,190 @@ describe('TrainingProvider', () => {
     expect(training?.state.favoriteExerciseIds).toEqual(['squat'])
   })
 
+  it.each([
+    { resolution: 'complete' as const },
+    { resolution: 'discard' as const },
+  ])(
+    'compensates captured profile A after switching to B during failed atomic $resolution',
+    async ({ resolution }) => {
+      const failedAtomicSave = deferred<void>()
+      const profileAState = trainingState({
+        activeWorkout: ACTIVE_WORKOUT,
+        completedWorkouts: [
+          {
+            id: 'workout-completed',
+            name: 'Frueheres Training',
+            startedAt: '2026-07-26T05:00:00.000Z',
+            completedAt: '2026-07-26T06:00:00.000Z',
+            exercises: [],
+          },
+        ],
+        favoriteExerciseIds: ['bench-press'],
+      })
+      const profileBState = trainingState({
+        favoriteExerciseIds: ['deadlift'],
+      })
+      const storedStates = new Map<string, TrainingState>([
+        ['profile-a', profileAState],
+        ['profile-b', profileBState],
+      ])
+      const savedStates: TrainingState[] = []
+      let profileASaveCount = 0
+      const repository = createRepository({
+        load: vi.fn(async (profileId) => storedStates.get(profileId)!),
+        save: vi.fn(async (profileId, state) => {
+          if (profileId === 'profile-a') {
+            savedStates.push(state)
+            profileASaveCount += 1
+            if (profileASaveCount === 1) await failedAtomicSave.promise
+          }
+          storedStates.set(profileId, state)
+        }),
+      })
+      let training: TrainingContextValue | undefined
+      const capture = (value: TrainingContextValue) => {
+        training = value
+      }
+      const page = render(
+        <KeyedTrainingTree
+          capture={capture}
+          profileId="profile-a"
+          repository={repository}
+        />,
+      )
+      await screen.findByText('Aktiv: Bestehendes Training')
+      const profileATraining = training!
+
+      let atomicResult!: Promise<boolean>
+      act(() => {
+        atomicResult = profileATraining.resolveActiveWorkoutAndStart(
+          WORKOUT_TEMPLATE,
+          '2026-07-27T06:00:00.000Z',
+          resolution,
+        )
+      })
+      await waitFor(() => expect(profileASaveCount).toBe(1))
+      act(() => profileATraining.toggleFavoriteExercise('squat'))
+
+      page.rerender(
+        <KeyedTrainingTree
+          capture={capture}
+          profileId="profile-b"
+          repository={repository}
+        />,
+      )
+      expect(await screen.findByText('Favoriten: deadlift')).toBeInTheDocument()
+
+      await act(async () => {
+        failedAtomicSave.reject(new Error('profile A atomic failure'))
+        expect(await atomicResult).toBe(false)
+      })
+
+      await waitFor(() => expect(profileASaveCount).toBe(3))
+      const finalAState = storedStates.get('profile-a')!
+      expect(finalAState).toMatchObject({
+        activeWorkout: ACTIVE_WORKOUT,
+        completedWorkouts: profileAState.completedWorkouts,
+        favoriteExerciseIds: ['bench-press', 'squat'],
+      })
+      expect(
+        finalAState.completedWorkouts.some(
+          ({ id }) => id === ACTIVE_WORKOUT.id,
+        ),
+      ).toBe(false)
+      expect(finalAState.activeWorkout?.id).not.toBe(
+        savedStates[0].activeWorkout?.id,
+      )
+      expect(storedStates.get('profile-b')).toBe(profileBState)
+      expect(repository.save).not.toHaveBeenCalledWith(
+        'profile-b',
+        expect.anything(),
+      )
+      expect(screen.getByText('Favoriten: deadlift')).toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    },
+  )
+
+  it('preserves a newer captured-profile workout while compensating after switching profiles', async () => {
+    const failedAtomicSave = deferred<void>()
+    const newerTemplate: WorkoutTemplate = {
+      ...WORKOUT_TEMPLATE,
+      id: 'template-newer-captured',
+      name: 'Neueres A-Training',
+      exercises: [],
+    }
+    const profileAState = trainingState({ activeWorkout: ACTIVE_WORKOUT })
+    const profileBState = trainingState({ favoriteExerciseIds: ['deadlift'] })
+    const storedStates = new Map<string, TrainingState>([
+      ['profile-a', profileAState],
+      ['profile-b', profileBState],
+    ])
+    let profileASaveCount = 0
+    const repository = createRepository({
+      load: vi.fn(async (profileId) => storedStates.get(profileId)!),
+      save: vi.fn(async (profileId, state) => {
+        if (profileId === 'profile-a') {
+          profileASaveCount += 1
+          if (profileASaveCount === 1) await failedAtomicSave.promise
+        }
+        storedStates.set(profileId, state)
+      }),
+    })
+    let training: TrainingContextValue | undefined
+    const capture = (value: TrainingContextValue) => {
+      training = value
+    }
+    const page = render(
+      <KeyedTrainingTree
+        capture={capture}
+        profileId="profile-a"
+        repository={repository}
+      />,
+    )
+    await screen.findByText('Aktiv: Bestehendes Training')
+    const profileATraining = training!
+
+    let atomicResult!: Promise<boolean>
+    act(() => {
+      atomicResult = profileATraining.resolveActiveWorkoutAndStart(
+        WORKOUT_TEMPLATE,
+        '2026-07-27T06:00:00.000Z',
+        'complete',
+      )
+    })
+    await waitFor(() => expect(profileASaveCount).toBe(1))
+    act(() => {
+      profileATraining.discardWorkout()
+      profileATraining.startWorkout(
+        newerTemplate,
+        '2026-07-27T06:10:00.000Z',
+      )
+    })
+
+    page.rerender(
+      <KeyedTrainingTree
+        capture={capture}
+        profileId="profile-b"
+        repository={repository}
+      />,
+    )
+    expect(await screen.findByText('Favoriten: deadlift')).toBeInTheDocument()
+
+    await act(async () => {
+      failedAtomicSave.reject(new Error('profile A atomic failure'))
+      expect(await atomicResult).toBe(false)
+    })
+
+    await waitFor(() => expect(profileASaveCount).toBe(4))
+    expect(storedStates.get('profile-a')?.activeWorkout).toMatchObject({
+      name: 'Neueres A-Training',
+      templateId: 'template-newer-captured',
+    })
+    expect(storedStates.get('profile-a')?.completedWorkouts).toEqual([])
+    expect(storedStates.get('profile-b')).toBe(profileBState)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   it('returns false when a captured profile save succeeds after provider replacement', async () => {
     const pendingSave = deferred<void>()
     const initialState = trainingState({ activeWorkout: ACTIVE_WORKOUT })

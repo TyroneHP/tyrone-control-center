@@ -54,6 +54,10 @@ const repositorySaveQueues = new WeakMap<
   TrainingRepository,
   Map<string, Promise<void>>
 >()
+const repositoryLatestQueuedStates = new WeakMap<
+  TrainingRepository,
+  Map<string, TrainingState>
+>()
 const repositoryPendingImageCleanup = new WeakMap<
   TrainingRepository,
   Map<string, string>
@@ -81,6 +85,15 @@ function getRepositorySaveQueues(repository: TrainingRepository) {
     repositorySaveQueues.set(repository, queues)
   }
   return queues
+}
+
+function getLatestQueuedStates(repository: TrainingRepository) {
+  let states = repositoryLatestQueuedStates.get(repository)
+  if (!states) {
+    states = new Map()
+    repositoryLatestQueuedStates.set(repository, states)
+  }
+  return states
 }
 
 function getPendingImageCleanup(repository: TrainingRepository) {
@@ -169,6 +182,7 @@ export function TrainingProvider({
   const toast = useToast()
   const trainingRepository = repository ?? getBrowserTrainingRepository()
   const saveQueues = getRepositorySaveQueues(trainingRepository)
+  const latestQueuedStates = getLatestQueuedStates(trainingRepository)
   const pendingImageCleanup = getPendingImageCleanup(trainingRepository)
   const persistedExerciseBaselines =
     getPersistedExerciseBaselines(trainingRepository)
@@ -218,18 +232,20 @@ export function TrainingProvider({
       .then(() => trainingRepository.load(profileId))
       .then((loadedState) => {
         if (!current || generationRef.current !== generation) return
+        const latestQueuedState = latestQueuedStates.get(profileId)
+        const visibleState = latestQueuedState ?? loadedState
         replaceProfileExerciseBaselines(
           persistedExerciseBaselines,
           profileId,
           loadedState,
         )
         loadedProfileRef.current = profileId
-        stateRef.current = loadedState
+        stateRef.current = visibleState
         setView({
           loading: false,
           profileId,
           recoveryError: null,
-          state: loadedState,
+          state: visibleState,
         })
       })
       .catch((cause: unknown) => {
@@ -256,6 +272,7 @@ export function TrainingProvider({
     }
   }, [
     persistedExerciseBaselines,
+    latestQueuedStates,
     profileId,
     saveQueues,
     toast,
@@ -272,6 +289,7 @@ export function TrainingProvider({
 
       const previousState = stateRef.current
       const nextState = mutation(previousState)
+      latestQueuedStates.set(profileId, nextState)
       stateRef.current = nextState
       setView((current) => ({
         loading: false,
@@ -293,6 +311,12 @@ export function TrainingProvider({
             savedProfileId,
             nextState,
           )
+          if (
+            latestQueuedStates.get(savedProfileId) === nextState &&
+            saveQueues.get(savedProfileId) === saveQueueTail
+          ) {
+            latestQueuedStates.delete(savedProfileId)
+          }
           return (
             !options.requireCurrentGenerationOnSuccess ||
             (generationRef.current === savedGeneration &&
@@ -300,14 +324,11 @@ export function TrainingProvider({
           )
         })
         .catch((cause: unknown) => {
-          if (
-            generationRef.current !== savedGeneration ||
-            loadedProfileRef.current !== savedProfileId
-          ) {
-            return false
-          }
-          const recoveryError = new Error(SAVE_ERROR_MESSAGE, { cause })
-          const currentState = stateRef.current
+          const isCurrentOrigin =
+            generationRef.current === savedGeneration &&
+            loadedProfileRef.current === savedProfileId
+          const currentState =
+            latestQueuedStates.get(savedProfileId) ?? nextState
           const rollbackState = options.rollbackOnFailure?.(
             currentState,
             previousState,
@@ -315,62 +336,80 @@ export function TrainingProvider({
           )
           const shouldRollback =
             rollbackState !== undefined && rollbackState !== currentState
-          if (shouldRollback) stateRef.current = rollbackState
-          setView((current) =>
-            current.profileId === savedProfileId
-              ? {
-                  ...current,
-                  recoveryError,
-                  state:
-                    shouldRollback && current.state === currentState
-                      ? rollbackState
-                      : current.state,
-                }
-              : current,
-          )
-          toast.show({ message: SAVE_ERROR_MESSAGE, variant: 'error' })
+          if (shouldRollback) latestQueuedStates.set(savedProfileId, rollbackState)
+          if (isCurrentOrigin) {
+            const recoveryError = new Error(SAVE_ERROR_MESSAGE, { cause })
+            if (shouldRollback && stateRef.current === currentState) {
+              stateRef.current = rollbackState
+            }
+            setView((current) =>
+              current.profileId === savedProfileId
+                ? {
+                    ...current,
+                    recoveryError,
+                    state:
+                      shouldRollback && current.state === currentState
+                        ? rollbackState
+                        : current.state,
+                  }
+                : current,
+            )
+            toast.show({ message: SAVE_ERROR_MESSAGE, variant: 'error' })
+          }
           if (shouldRollback && currentState !== nextState) {
             const compensationState = rollbackState
             const queuedSaves =
               saveQueues.get(savedProfileId) ?? Promise.resolve()
-            const compensation = queuedSaves
-              .then(() =>
-                trainingRepository.save(savedProfileId, compensationState),
-              )
-              .then(() => {
-                replaceProfileExerciseBaselines(
-                  persistedExerciseBaselines,
-                  savedProfileId,
-                  compensationState,
+            if (queuedSaves !== saveQueueTail) {
+              const compensation = queuedSaves
+                .then(() =>
+                  trainingRepository.save(savedProfileId, compensationState),
                 )
-              })
-              .catch((compensationCause: unknown) => {
-                if (
-                  generationRef.current !== savedGeneration ||
-                  loadedProfileRef.current !== savedProfileId
-                ) {
-                  return
-                }
-                setView((current) =>
-                  current.profileId === savedProfileId
-                    ? {
-                        ...current,
-                        recoveryError: new Error(SAVE_ERROR_MESSAGE, {
-                          cause: compensationCause,
-                        }),
-                      }
-                    : current,
-                )
-                toast.show({ message: SAVE_ERROR_MESSAGE, variant: 'error' })
-              })
-            saveQueues.set(savedProfileId, compensation.then(() => undefined))
+                .then(() => {
+                  replaceProfileExerciseBaselines(
+                    persistedExerciseBaselines,
+                    savedProfileId,
+                    compensationState,
+                  )
+                  if (
+                    latestQueuedStates.get(savedProfileId) ===
+                      compensationState &&
+                    saveQueues.get(savedProfileId) === compensationQueueTail
+                  ) {
+                    latestQueuedStates.delete(savedProfileId)
+                  }
+                })
+                .catch((compensationCause: unknown) => {
+                  if (
+                    generationRef.current !== savedGeneration ||
+                    loadedProfileRef.current !== savedProfileId
+                  ) {
+                    return
+                  }
+                  setView((current) =>
+                    current.profileId === savedProfileId
+                      ? {
+                          ...current,
+                          recoveryError: new Error(SAVE_ERROR_MESSAGE, {
+                            cause: compensationCause,
+                          }),
+                        }
+                      : current,
+                  )
+                  toast.show({ message: SAVE_ERROR_MESSAGE, variant: 'error' })
+                })
+              const compensationQueueTail = compensation.then(() => undefined)
+              saveQueues.set(savedProfileId, compensationQueueTail)
+            }
           }
           return false
         })
-      saveQueues.set(savedProfileId, saveResult.then(() => undefined))
+      const saveQueueTail = saveResult.then(() => undefined)
+      saveQueues.set(savedProfileId, saveQueueTail)
       return saveResult
     },
     [
+      latestQueuedStates,
       persistedExerciseBaselines,
       profileId,
       saveQueues,
@@ -656,29 +695,34 @@ export function TrainingProvider({
       await trainingRepository.reset(operationProfileId)
       return trainingRepository.load(operationProfileId)
     })
-    saveQueues.set(
-      operationProfileId,
-      resetOperation.then(
-        () => undefined,
-        () => undefined,
-      ),
+    const resetQueueTail = resetOperation.then(
+      () => undefined,
+      () => undefined,
     )
+    saveQueues.set(operationProfileId, resetQueueTail)
 
     try {
       const loadedState = await resetOperation
       if (generationRef.current !== operationGeneration) return
+      const hasLaterQueuedOperation =
+        saveQueues.get(operationProfileId) !== resetQueueTail
+      if (!hasLaterQueuedOperation) {
+        latestQueuedStates.delete(operationProfileId)
+      }
+      const visibleState =
+        latestQueuedStates.get(operationProfileId) ?? loadedState
       replaceProfileExerciseBaselines(
         persistedExerciseBaselines,
         operationProfileId,
         loadedState,
       )
       loadedProfileRef.current = operationProfileId
-      stateRef.current = loadedState
+      stateRef.current = visibleState
       setView({
         loading: false,
         profileId: operationProfileId,
         recoveryError: null,
-        state: loadedState,
+        state: visibleState,
       })
     } catch (cause) {
       throw operationError(
@@ -690,6 +734,7 @@ export function TrainingProvider({
       )
     }
   }, [
+    latestQueuedStates,
     operationError,
     persistedExerciseBaselines,
     profileId,
