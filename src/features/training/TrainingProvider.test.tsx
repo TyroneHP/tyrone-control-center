@@ -729,6 +729,195 @@ describe('TrainingProvider', () => {
     },
   )
 
+  it.each([
+    {
+      expectedCompletedIdsAfterRetry: ['workout-completed', 'workout-active'],
+      resolution: 'complete' as const,
+    },
+    {
+      expectedCompletedIdsAfterRetry: ['workout-completed'],
+      resolution: 'discard' as const,
+    },
+  ])(
+    'restores the exact previous state when atomic $resolution persistence fails',
+    async ({ expectedCompletedIdsAfterRetry, resolution }) => {
+      const initialState = trainingState({
+        activeWorkout: ACTIVE_WORKOUT,
+        completedWorkouts: [
+          {
+            id: 'workout-completed',
+            name: 'Frueheres Training',
+            startedAt: '2026-07-26T05:00:00.000Z',
+            completedAt: '2026-07-26T06:00:00.000Z',
+            exercises: [],
+          },
+        ],
+        favoriteExerciseIds: ['bench-press'],
+        templates: [WORKOUT_TEMPLATE],
+      })
+      const repository = createRepository({
+        load: vi.fn(async () => initialState),
+        save: vi
+          .fn()
+          .mockRejectedValueOnce(new Error('local persistence unavailable'))
+          .mockResolvedValueOnce(undefined),
+      })
+      let training: TrainingContextValue | undefined
+      renderTraining(repository, 'profile-a', (value) => {
+        training = value
+      })
+      await screen.findByText('Aktiv: Bestehendes Training')
+
+      let firstResult: boolean | undefined
+      await act(async () => {
+        firstResult = await training!.resolveActiveWorkoutAndStart(
+          WORKOUT_TEMPLATE,
+          '2026-07-27T06:00:00.000Z',
+          resolution,
+        )
+      })
+
+      expect(firstResult).toBe(false)
+      expect(training?.state).toBe(initialState)
+      expect(training?.state).toEqual(initialState)
+      expect(training?.recoveryError).toEqual(
+        expect.objectContaining({
+          message: 'Trainingsdaten konnten nicht gespeichert werden.',
+        }),
+      )
+
+      let retryResult: boolean | undefined
+      await act(async () => {
+        retryResult = await training!.resolveActiveWorkoutAndStart(
+          WORKOUT_TEMPLATE,
+          '2026-07-27T06:05:00.000Z',
+          resolution,
+        )
+      })
+
+      expect(retryResult).toBe(true)
+      expect(repository.save).toHaveBeenCalledTimes(2)
+      const retryState = vi.mocked(repository.save).mock.calls[1]?.[1]
+      expect(retryState?.activeWorkout).toMatchObject({
+        startedAt: '2026-07-27T06:05:00.000Z',
+        templateId: 'template-upper',
+      })
+      expect(retryState?.completedWorkouts.map(({ id }) => id)).toEqual(
+        expectedCompletedIdsAfterRetry,
+      )
+    },
+  )
+
+  it('does not clobber a later mutation when an atomic rollback is stale', async () => {
+    const failedSave = deferred<void>()
+    const initialState = trainingState({
+      activeWorkout: ACTIVE_WORKOUT,
+      favoriteExerciseIds: ['bench-press'],
+    })
+    const repository = createRepository({
+      load: vi.fn(async () => initialState),
+      save: vi
+        .fn()
+        .mockImplementationOnce(async () => failedSave.promise)
+        .mockResolvedValueOnce(undefined),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Aktiv: Bestehendes Training')
+
+    let atomicResult!: Promise<boolean>
+    act(() => {
+      atomicResult = training!.resolveActiveWorkoutAndStart(
+        WORKOUT_TEMPLATE,
+        '2026-07-27T06:00:00.000Z',
+        'discard',
+      )
+    })
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(1))
+    act(() => training!.toggleFavoriteExercise('squat'))
+
+    let saved: boolean | undefined
+    await act(async () => {
+      failedSave.reject(new Error('local persistence unavailable'))
+      saved = await atomicResult
+    })
+
+    expect(saved).toBe(false)
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(2))
+    expect(training?.state.favoriteExerciseIds).toEqual([
+      'bench-press',
+      'squat',
+    ])
+  })
+
+  it('returns false when a captured profile save succeeds after provider replacement', async () => {
+    const pendingSave = deferred<void>()
+    const initialState = trainingState({ activeWorkout: ACTIVE_WORKOUT })
+    const repository = createRepository({
+      load: vi.fn(async (profileId) =>
+        profileId === 'profile-a' ? initialState : trainingState(),
+      ),
+      save: vi.fn(async (profileId) => {
+        if (profileId === 'profile-a') await pendingSave.promise
+      }),
+    })
+    let training: TrainingContextValue | undefined
+    const capture = (value: TrainingContextValue) => {
+      training = value
+    }
+    const page = render(
+      <KeyedTrainingTree
+        capture={capture}
+        profileId="profile-a"
+        repository={repository}
+      />,
+    )
+    await screen.findByText('Aktiv: Bestehendes Training')
+
+    let resultPromise!: Promise<boolean>
+    act(() => {
+      resultPromise = training!.resolveActiveWorkoutAndStart(
+        WORKOUT_TEMPLATE,
+        '2026-07-27T06:00:00.000Z',
+        'complete',
+      )
+    })
+    await waitFor(() =>
+      expect(repository.save).toHaveBeenCalledWith(
+        'profile-a',
+        expect.objectContaining({
+          activeWorkout: expect.objectContaining({
+            templateId: 'template-upper',
+          }),
+        }),
+      ),
+    )
+
+    page.rerender(
+      <KeyedTrainingTree
+        capture={capture}
+        profileId="profile-b"
+        repository={repository}
+      />,
+    )
+    await screen.findByText('Trainingsdaten bereit')
+
+    let result: boolean | undefined
+    await act(async () => {
+      pendingSave.resolve()
+      result = await resultPromise
+    })
+
+    expect(result).toBe(false)
+    expect(repository.save).toHaveBeenCalledTimes(1)
+    expect(repository.save).toHaveBeenCalledWith(
+      'profile-a',
+      expect.any(Object),
+    )
+  })
+
   it('binds image save, load, and delete operations to the current profile', async () => {
     const image = new Blob(['processed image'], { type: 'image/webp' })
     const saveImage = vi.fn(async () => undefined)

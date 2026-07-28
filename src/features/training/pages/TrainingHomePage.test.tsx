@@ -334,4 +334,52 @@ describe('TrainingHomePage', () => {
     )
     expect(repository.save).toHaveBeenCalledTimes(1)
   })
+
+  it('does not navigate when the profile changes during the atomic save', async () => {
+    const user = userEvent.setup()
+    const saveGate = deferred<void>()
+    const state = trainingState({
+      activeWorkout: ACTIVE_WORKOUT,
+      templates: [MONDAY_TEMPLATE],
+    })
+    const repository = createRepository(state, {
+      save: vi.fn(async (profileId) => {
+        if (profileId === 'profile-a') await saveGate.promise
+      }),
+    })
+    const tree = (profileId: string) => (
+      <ToastProvider>
+        <MemoryRouter initialEntries={['/training']}>
+          <TrainingProvider profileId={profileId} repository={repository}>
+            <Routes>
+              <Route path="/training" element={<TrainingHomePage />} />
+              <Route path="/training/active" element={<LocationMarker />} />
+            </Routes>
+          </TrainingProvider>
+        </MemoryRouter>
+      </ToastProvider>
+    )
+    const page = render(tree('profile-a'))
+
+    await screen.findByRole('heading', { name: 'Training' })
+    await user.click(
+      screen.getAllByRole('button', { name: 'Training starten: Oberkörper' })[0],
+    )
+    const dialog = await screen.findByRole('dialog', { name: 'Aktives Training' })
+    await user.click(
+      within(dialog).getByRole('button', {
+        name: 'Aktives Training abschließen',
+      }),
+    )
+    await waitFor(() =>
+      expect(repository.save).toHaveBeenCalledWith('profile-a', expect.any(Object)),
+    )
+
+    page.rerender(tree('profile-b'))
+    await screen.findByRole('heading', { name: 'Training' })
+    await act(async () => saveGate.resolve())
+
+    expect(screen.queryByLabelText('Aktueller Pfad')).not.toBeInTheDocument()
+    expect(repository.save).toHaveBeenCalledTimes(1)
+  })
 })

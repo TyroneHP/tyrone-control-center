@@ -152,6 +152,10 @@ interface TrainingView {
   state: TrainingState
 }
 
+interface UpdateStateOptions {
+  rollbackOnFailure?: boolean
+}
+
 export function TrainingProvider({
   children,
   profileId,
@@ -257,10 +261,12 @@ export function TrainingProvider({
     (
       mutation: (current: TrainingState) => TrainingState,
       afterSave?: (savedState: TrainingState) => void,
+      options: UpdateStateOptions = {},
     ) => {
       if (loadedProfileRef.current !== profileId) return Promise.resolve(false)
 
-      const nextState = mutation(stateRef.current)
+      const previousState = stateRef.current
+      const nextState = mutation(previousState)
       stateRef.current = nextState
       setView((current) => ({
         loading: false,
@@ -282,7 +288,10 @@ export function TrainingProvider({
             savedProfileId,
             nextState,
           )
-          return true
+          return (
+            generationRef.current === savedGeneration &&
+            loadedProfileRef.current === savedProfileId
+          )
         })
         .catch((cause: unknown) => {
           if (
@@ -291,11 +300,19 @@ export function TrainingProvider({
           ) {
             return false
           }
+          const recoveryError = new Error(SAVE_ERROR_MESSAGE, { cause })
+          const shouldRollback =
+            options.rollbackOnFailure && stateRef.current === nextState
+          if (shouldRollback) stateRef.current = previousState
           setView((current) =>
             current.profileId === savedProfileId
               ? {
                   ...current,
-                  recoveryError: new Error(SAVE_ERROR_MESSAGE, { cause }),
+                  recoveryError,
+                  state:
+                    shouldRollback && current.state === nextState
+                      ? previousState
+                      : current.state,
                 }
               : current,
           )
@@ -684,7 +701,7 @@ export function TrainingProvider({
             ? completeWorkoutModel(current, startedAt)
             : { ...current, activeWorkout: null }
         return startWorkoutModel(resolvedState, template, startedAt)
-      }),
+      }, undefined, { rollbackOnFailure: true }),
     [updateState],
   )
 
