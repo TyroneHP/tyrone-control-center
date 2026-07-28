@@ -2540,6 +2540,62 @@ describe('TrainingProvider', () => {
     await act(async () => resetResult)
   })
 
+  it('coalesces concurrent resets and keeps mutations blocked until the shared reload settles', async () => {
+    const resetGate = deferred<void>()
+    const reloadGate = deferred<TrainingState>()
+    const initialState = trainingState({
+      completedWorkouts: [COMPLETED_WORKOUT],
+    })
+    const emptyState = trainingState()
+    let storedState = initialState
+    let loadCount = 0
+    const load = vi.fn(async () => {
+      loadCount += 1
+      if (loadCount === 1) return initialState
+      return reloadGate.promise
+    })
+    const reset = vi.fn(async () => {
+      await resetGate.promise
+      storedState = emptyState
+    })
+    const save = vi.fn(async (_profileId, state) => {
+      storedState = state
+    })
+    const repository = createRepository({ load, reset, save })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Trainingsdaten bereit')
+
+    let settled = 0
+    const firstReset = training!.reset().finally(() => {
+      settled += 1
+    })
+    const secondReset = training!.reset().finally(() => {
+      settled += 1
+    })
+    await waitFor(() => expect(reset).toHaveBeenCalledTimes(1))
+
+    act(() => training!.updatePreferences({ showSetRating: false }))
+    expect(training?.state).toEqual(initialState)
+    expect(save).not.toHaveBeenCalled()
+
+    await act(async () => resetGate.resolve())
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2))
+    expect(settled).toBe(0)
+
+    await act(async () => reloadGate.resolve(emptyState))
+    await act(async () => Promise.all([firstReset, secondReset]))
+
+    expect(reset).toHaveBeenCalledTimes(1)
+    expect(load).toHaveBeenCalledTimes(2)
+    expect(settled).toBe(2)
+    expect(save).not.toHaveBeenCalled()
+    expect(storedState).toEqual(emptyState)
+    expect(training?.state).toEqual(emptyState)
+  })
+
   it('preserves truthful custom and completed baselines when reset fails', async () => {
     const resetFailure = new Error('reset transaction unavailable')
     const editedExercise = {
@@ -2972,6 +3028,197 @@ describe('TrainingProvider', () => {
     ).not.toBeInTheDocument()
     expect(screen.getByText('Fehler: keiner')).toBeInTheDocument()
   })
+
+  it('clears profile-bound image cleanup after a successful reset even after switching profiles', async () => {
+    const resetGate = deferred<void>()
+    const profileAInitial = trainingState({
+      customExercises: [CUSTOM_EXERCISE_WITH_IMAGE],
+      favoriteExerciseIds: [CUSTOM_EXERCISE_WITH_IMAGE.id],
+    })
+    const profileBState = trainingState({
+      favoriteExerciseIds: ['bench-press'],
+    })
+    const storedStates = new Map<string, TrainingState>([
+      ['profile-a', profileAInitial],
+      ['profile-b', profileBState],
+    ])
+    const deleteImage = vi
+      .fn<TrainingRepository['deleteImage']>()
+      .mockRejectedValueOnce(new Error('cleanup unavailable'))
+      .mockResolvedValue(undefined)
+    const reset = vi.fn(async (profileId: string) => {
+      await resetGate.promise
+      storedStates.set(profileId, trainingState())
+    })
+    const save = vi.fn(async (profileId: string, state: TrainingState) => {
+      storedStates.set(profileId, state)
+    })
+    const repository = createRepository({
+      deleteImage,
+      load: vi.fn(async (profileId) => storedStates.get(profileId)!),
+      reset,
+      save,
+    })
+    let training: TrainingContextValue | undefined
+    const capture = (value: TrainingContextValue) => {
+      training = value
+    }
+    const page = render(
+      <TrainingTree
+        capture={capture}
+        profileId="profile-a"
+        repository={repository}
+      />,
+    )
+    await screen.findByText('Trainingsdaten bereit')
+    let cleanupFailure: unknown
+    await act(async () => {
+      cleanupFailure = await training!
+        .deleteCustomExercise(CUSTOM_EXERCISE_WITH_IMAGE.id)
+        .catch((error: unknown) => error)
+    })
+    expect(cleanupFailure).toEqual(
+      expect.objectContaining({
+        message: 'Trainingsbild konnte nicht gelöscht werden.',
+      }),
+    )
+    expect(deleteImage).toHaveBeenCalledTimes(1)
+
+    const profileAReset = training!.reset()
+    await waitFor(() => expect(reset).toHaveBeenCalledWith('profile-a'))
+    page.rerender(
+      <TrainingTree
+        capture={capture}
+        profileId="profile-b"
+        repository={repository}
+      />,
+    )
+    await waitFor(() => expect(training?.state).toEqual(profileBState))
+
+    await act(async () => resetGate.resolve())
+    await act(async () => profileAReset)
+
+    act(() => training!.updatePreferences({ showSetRating: false }))
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith(
+        'profile-b',
+        expect.objectContaining({
+          preferences: expect.objectContaining({ showSetRating: false }),
+        }),
+      ),
+    )
+    expect(training?.state.preferences.showSetRating).toBe(false)
+
+    page.rerender(
+      <TrainingTree
+        capture={capture}
+        profileId="profile-a"
+        repository={repository}
+      />,
+    )
+    await waitFor(() => expect(training?.state).toEqual(trainingState()))
+    await act(async () => {
+      await training!.deleteCustomExercise(CUSTOM_EXERCISE_WITH_IMAGE.id)
+    })
+
+    expect(deleteImage).toHaveBeenCalledTimes(1)
+    expect(storedStates.get('profile-b')?.preferences.showSetRating).toBe(false)
+  })
+
+  it.each([
+    { initialLoad: 'valid' as const, recovery: 'reject' as const },
+    { initialLoad: 'corrupt' as const, recovery: 'resolve' as const },
+  ])(
+    'keeps profile B writable when profile A $initialLoad reset recovery later $recovery',
+    async ({ initialLoad, recovery }) => {
+      const corruption = new TrainingDataCorruptionError(
+        'Die gespeicherten Trainingsdaten sind beschädigt.',
+      )
+      const resetFailure = new Error('profile A reset unavailable')
+      const recoveryFailure = new Error('profile A recovery unavailable')
+      const resetGate = deferred<void>()
+      const recoveryGate = deferred<TrainingState>()
+      const profileAState = trainingState({
+        favoriteExerciseIds: ['bench-press'],
+      })
+      const profileBState = trainingState({
+        favoriteExerciseIds: ['squat'],
+      })
+      let profileALoadCount = 0
+      const load = vi.fn(async (profileId: string) => {
+        if (profileId === 'profile-b') return profileBState
+        profileALoadCount += 1
+        if (profileALoadCount === 1) {
+          if (initialLoad === 'corrupt') throw corruption
+          return profileAState
+        }
+        return recoveryGate.promise
+      })
+      const reset = vi.fn(async () => resetGate.promise)
+      const save = vi.fn(async () => undefined)
+      const repository = createRepository({ load, reset, save })
+      let training: TrainingContextValue | undefined
+      const capture = (value: TrainingContextValue) => {
+        training = value
+      }
+      const page = render(
+        <TrainingTree
+          capture={capture}
+          profileId="profile-a"
+          repository={repository}
+        />,
+      )
+      if (initialLoad === 'corrupt') {
+        await screen.findByRole('alert', {
+          name: 'Fehler: Trainingsdaten konnten nicht geladen werden.',
+        })
+      } else {
+        await screen.findByText('Trainingsdaten bereit')
+      }
+
+      const profileAReset = training!.reset().catch((error: unknown) => error)
+      await waitFor(() => expect(reset).toHaveBeenCalledTimes(1))
+      await act(async () => resetGate.reject(resetFailure))
+      await waitFor(() => expect(profileALoadCount).toBe(2))
+
+      page.rerender(
+        <TrainingTree
+          capture={capture}
+          profileId="profile-b"
+          repository={repository}
+        />,
+      )
+      await waitFor(() => expect(training?.state).toEqual(profileBState))
+
+      await act(async () => {
+        if (recovery === 'resolve') recoveryGate.resolve(profileAState)
+        else recoveryGate.reject(recoveryFailure)
+      })
+      await expect(profileAReset).resolves.toMatchObject({
+        message: 'Trainingsbereich konnte nicht zurückgesetzt werden.',
+        cause: resetFailure,
+      })
+
+      expect(training?.state).toEqual(profileBState)
+      expect(training?.recoveryError).toBeNull()
+      expect(
+        screen.queryByRole('alert', {
+          name: 'Fehler: Trainingsbereich konnte nicht zurückgesetzt werden.',
+        }),
+      ).not.toBeInTheDocument()
+
+      act(() => training!.updatePreferences({ showSetRating: false }))
+      await waitFor(() =>
+        expect(save).toHaveBeenCalledWith(
+          'profile-b',
+          expect.objectContaining({
+            preferences: expect.objectContaining({ showSetRating: false }),
+          }),
+        ),
+      )
+      expect(training?.state.preferences.showSetRating).toBe(false)
+    },
+  )
 
   it.each([
     { resolution: 'complete' as const },

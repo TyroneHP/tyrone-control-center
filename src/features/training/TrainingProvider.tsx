@@ -96,6 +96,10 @@ const repositoryResettingProfiles = new WeakMap<
   TrainingRepository,
   Set<string>
 >()
+const repositoryActiveResets = new WeakMap<
+  TrainingRepository,
+  Map<string, Promise<void>>
+>()
 
 function getBrowserTrainingRepository() {
   browserTrainingRepository ??= new IndexedDbTrainingRepository()
@@ -178,6 +182,15 @@ function getResettingProfiles(repository: TrainingRepository) {
     repositoryResettingProfiles.set(repository, profiles)
   }
   return profiles
+}
+
+function getActiveResets(repository: TrainingRepository) {
+  let resets = repositoryActiveResets.get(repository)
+  if (!resets) {
+    resets = new Map()
+    repositoryActiveResets.set(repository, resets)
+  }
+  return resets
 }
 
 function replaceProfileExerciseBaselines(
@@ -351,6 +364,7 @@ export function TrainingProvider({
     getCompletedWorkoutOperationTokens(trainingRepository)
   const profileOperationEpochs = getProfileOperationEpochs(trainingRepository)
   const resettingProfiles = getResettingProfiles(trainingRepository)
+  const activeResets = getActiveResets(trainingRepository)
   const [view, setView] = useState<TrainingView>(() => ({
     loading: true,
     profileId,
@@ -360,6 +374,8 @@ export function TrainingProvider({
   const stateRef = useRef(view.state)
   const loadedProfileRef = useRef<string | null>(null)
   const generationRef = useRef(0)
+  const activeProfileRef = useRef(profileId)
+  activeProfileRef.current = profileId
 
   const operationError = useCallback(
     (
@@ -1001,9 +1017,18 @@ export function TrainingProvider({
     }
   }, [operationError, profileId, trainingRepository])
 
-  const reset = useCallback(async () => {
+  const reset = useCallback(() => {
     const operationProfileId = profileId
+    const existingReset = activeResets.get(operationProfileId)
+    if (existingReset) return existingReset
+
     const operationGeneration = generationRef.current
+    if (activeProfileRef.current !== operationProfileId) {
+      return Promise.resolve()
+    }
+    const isCurrentOrigin = () =>
+      activeProfileRef.current === operationProfileId &&
+      generationRef.current === operationGeneration
     const wasLoaded = loadedProfileRef.current === operationProfileId
     const previousRecoveryError =
       view.profileId === operationProfileId ? view.recoveryError : null
@@ -1015,46 +1040,40 @@ export function TrainingProvider({
     loadedProfileRef.current = null
     const previousOperation =
       saveQueues.get(operationProfileId) ?? Promise.resolve()
-    let resetApplied = false
-    const resetOperation = previousOperation.then(async () => {
-      await trainingRepository.reset(operationProfileId)
-      resetApplied = true
-      return trainingRepository.load(operationProfileId)
-    })
-    const resetQueueTail = resetOperation.then(
-      () => undefined,
-      () => undefined,
-    )
-    saveQueues.set(operationProfileId, resetQueueTail)
+    const resetPromise = (async () => {
+      let resetApplied = false
+      try {
+        await previousOperation
+        await trainingRepository.reset(operationProfileId)
+        resetApplied = true
+        const loadedState = await trainingRepository.load(operationProfileId)
 
-    try {
-      const loadedState = await resetOperation
-      if (generationRef.current !== operationGeneration) return
-      latestQueuedStates.delete(operationProfileId)
-      clearProfilePendingImageCleanup(
-        pendingImageCleanup,
-        operationProfileId,
-      )
-      replaceProfileExerciseBaselines(
-        persistedExerciseBaselines,
-        operationProfileId,
-        loadedState,
-      )
-      replaceProfileCompletedWorkoutBaselines(
-        persistedCompletedWorkoutBaselines,
-        operationProfileId,
-        loadedState,
-      )
-      loadedProfileRef.current = operationProfileId
-      stateRef.current = loadedState
-      setView({
-        loading: false,
-        profileId: operationProfileId,
-        recoveryError: null,
-        state: loadedState,
-      })
-    } catch (cause) {
-      if (generationRef.current === operationGeneration) {
+        latestQueuedStates.delete(operationProfileId)
+        clearProfilePendingImageCleanup(
+          pendingImageCleanup,
+          operationProfileId,
+        )
+        replaceProfileExerciseBaselines(
+          persistedExerciseBaselines,
+          operationProfileId,
+          loadedState,
+        )
+        replaceProfileCompletedWorkoutBaselines(
+          persistedCompletedWorkoutBaselines,
+          operationProfileId,
+          loadedState,
+        )
+        if (!isCurrentOrigin()) return
+
+        loadedProfileRef.current = operationProfileId
+        stateRef.current = loadedState
+        setView({
+          loading: false,
+          profileId: operationProfileId,
+          recoveryError: null,
+          state: loadedState,
+        })
+      } catch (cause) {
         if (resetApplied) {
           latestQueuedStates.delete(operationProfileId)
           persistedExerciseBaselines.delete(operationProfileId)
@@ -1063,34 +1082,36 @@ export function TrainingProvider({
             pendingImageCleanup,
             operationProfileId,
           )
-          loadedProfileRef.current = null
-          stateRef.current = EMPTY_TRAINING_STATE
-          setView({
-            loading: false,
-            profileId: operationProfileId,
-            recoveryError:
-              cause instanceof Error
-                ? cause
-                : new Error(RESET_ERROR_MESSAGE, { cause }),
-            state: EMPTY_TRAINING_STATE,
-          })
+          if (isCurrentOrigin()) {
+            loadedProfileRef.current = null
+            stateRef.current = EMPTY_TRAINING_STATE
+            setView({
+              loading: false,
+              profileId: operationProfileId,
+              recoveryError:
+                cause instanceof Error
+                  ? cause
+                  : new Error(RESET_ERROR_MESSAGE, { cause }),
+              state: EMPTY_TRAINING_STATE,
+            })
+          }
         } else {
           try {
             const restoredState = await trainingRepository.load(
               operationProfileId,
             )
-            if (generationRef.current === operationGeneration) {
-              latestQueuedStates.delete(operationProfileId)
-              replaceProfileExerciseBaselines(
-                persistedExerciseBaselines,
-                operationProfileId,
-                restoredState,
-              )
-              replaceProfileCompletedWorkoutBaselines(
-                persistedCompletedWorkoutBaselines,
-                operationProfileId,
-                restoredState,
-              )
+            latestQueuedStates.delete(operationProfileId)
+            replaceProfileExerciseBaselines(
+              persistedExerciseBaselines,
+              operationProfileId,
+              restoredState,
+            )
+            replaceProfileCompletedWorkoutBaselines(
+              persistedCompletedWorkoutBaselines,
+              operationProfileId,
+              restoredState,
+            )
+            if (isCurrentOrigin()) {
               loadedProfileRef.current = operationProfileId
               stateRef.current = restoredState
               setView({
@@ -1101,39 +1122,58 @@ export function TrainingProvider({
               })
             }
           } catch (restoreCause) {
-            loadedProfileRef.current = null
-            if (!previousRecoveryError) {
-              setView((current) =>
-                current.profileId === operationProfileId
-                  ? {
-                      ...current,
-                      recoveryError:
-                        restoreCause instanceof Error
-                          ? restoreCause
-                          : new Error(LOAD_ERROR_MESSAGE, {
-                              cause: restoreCause,
-                            }),
-                    }
-                  : current,
-              )
+            if (isCurrentOrigin()) {
+              loadedProfileRef.current = null
+              if (!previousRecoveryError) {
+                setView((current) =>
+                  current.profileId === operationProfileId
+                    ? {
+                        ...current,
+                        recoveryError:
+                          restoreCause instanceof Error
+                            ? restoreCause
+                            : new Error(LOAD_ERROR_MESSAGE, {
+                                cause: restoreCause,
+                              }),
+                      }
+                    : current,
+                )
+              }
             }
           }
-          if (!wasLoaded && previousRecoveryError) {
+          if (
+            isCurrentOrigin() &&
+            !wasLoaded &&
+            previousRecoveryError
+          ) {
             loadedProfileRef.current = null
           }
         }
+        throw isCurrentOrigin()
+          ? operationError(
+              RESET_ERROR_MESSAGE,
+              cause,
+              operationProfileId,
+              operationGeneration,
+              true,
+            )
+          : new Error(RESET_ERROR_MESSAGE, { cause })
+      } finally {
+        activeResets.delete(operationProfileId)
+        resettingProfiles.delete(operationProfileId)
       }
-      throw operationError(
-        RESET_ERROR_MESSAGE,
-        cause,
-        operationProfileId,
-        operationGeneration,
-        true,
-      )
-    } finally {
-      resettingProfiles.delete(operationProfileId)
-    }
+    })()
+    activeResets.set(operationProfileId, resetPromise)
+    saveQueues.set(
+      operationProfileId,
+      resetPromise.then(
+        () => undefined,
+        () => undefined,
+      ),
+    )
+    return resetPromise
   }, [
+    activeResets,
     latestQueuedStates,
     operationError,
     pendingImageCleanup,
