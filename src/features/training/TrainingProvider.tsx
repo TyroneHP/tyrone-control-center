@@ -153,7 +153,12 @@ interface TrainingView {
 }
 
 interface UpdateStateOptions {
-  rollbackOnFailure?: boolean
+  requireCurrentGenerationOnSuccess?: boolean
+  rollbackOnFailure?: (
+    currentState: TrainingState,
+    previousState: TrainingState,
+    failedState: TrainingState,
+  ) => TrainingState
 }
 
 export function TrainingProvider({
@@ -289,8 +294,9 @@ export function TrainingProvider({
             nextState,
           )
           return (
-            generationRef.current === savedGeneration &&
-            loadedProfileRef.current === savedProfileId
+            !options.requireCurrentGenerationOnSuccess ||
+            (generationRef.current === savedGeneration &&
+              loadedProfileRef.current === savedProfileId)
           )
         })
         .catch((cause: unknown) => {
@@ -301,22 +307,64 @@ export function TrainingProvider({
             return false
           }
           const recoveryError = new Error(SAVE_ERROR_MESSAGE, { cause })
+          const currentState = stateRef.current
+          const rollbackState = options.rollbackOnFailure?.(
+            currentState,
+            previousState,
+            nextState,
+          )
           const shouldRollback =
-            options.rollbackOnFailure && stateRef.current === nextState
-          if (shouldRollback) stateRef.current = previousState
+            rollbackState !== undefined && rollbackState !== currentState
+          if (shouldRollback) stateRef.current = rollbackState
           setView((current) =>
             current.profileId === savedProfileId
               ? {
                   ...current,
                   recoveryError,
                   state:
-                    shouldRollback && current.state === nextState
-                      ? previousState
+                    shouldRollback && current.state === currentState
+                      ? rollbackState
                       : current.state,
                 }
               : current,
           )
           toast.show({ message: SAVE_ERROR_MESSAGE, variant: 'error' })
+          if (shouldRollback && currentState !== nextState) {
+            const compensationState = rollbackState
+            const queuedSaves =
+              saveQueues.get(savedProfileId) ?? Promise.resolve()
+            const compensation = queuedSaves
+              .then(() =>
+                trainingRepository.save(savedProfileId, compensationState),
+              )
+              .then(() => {
+                replaceProfileExerciseBaselines(
+                  persistedExerciseBaselines,
+                  savedProfileId,
+                  compensationState,
+                )
+              })
+              .catch((compensationCause: unknown) => {
+                if (
+                  generationRef.current !== savedGeneration ||
+                  loadedProfileRef.current !== savedProfileId
+                ) {
+                  return
+                }
+                setView((current) =>
+                  current.profileId === savedProfileId
+                    ? {
+                        ...current,
+                        recoveryError: new Error(SAVE_ERROR_MESSAGE, {
+                          cause: compensationCause,
+                        }),
+                      }
+                    : current,
+                )
+                toast.show({ message: SAVE_ERROR_MESSAGE, variant: 'error' })
+              })
+            saveQueues.set(savedProfileId, compensation.then(() => undefined))
+          }
           return false
         })
       saveQueues.set(savedProfileId, saveResult.then(() => undefined))
@@ -692,16 +740,43 @@ export function TrainingProvider({
       startedAt: string,
       resolution: 'complete' | 'discard',
     ) =>
-      updateState((current) => {
-        if (!current.activeWorkout) {
-          throw new Error('No active workout exists')
-        }
-        const resolvedState =
-          resolution === 'complete'
-            ? completeWorkoutModel(current, startedAt)
-            : { ...current, activeWorkout: null }
-        return startWorkoutModel(resolvedState, template, startedAt)
-      }, undefined, { rollbackOnFailure: true }),
+      updateState(
+        (current) => {
+          if (!current.activeWorkout) {
+            throw new Error('No active workout exists')
+          }
+          const resolvedState =
+            resolution === 'complete'
+              ? completeWorkoutModel(current, startedAt)
+              : { ...current, activeWorkout: null }
+          return startWorkoutModel(resolvedState, template, startedAt)
+        },
+        undefined,
+        {
+          requireCurrentGenerationOnSuccess: true,
+          rollbackOnFailure: (current, previous, failed) => {
+            if (current === failed) return previous
+
+            const activeWorkout =
+              current.activeWorkout === failed.activeWorkout
+                ? previous.activeWorkout
+                : current.activeWorkout
+            const failedCompletedWorkouts = failed.completedWorkouts.filter(
+              (workout) => !previous.completedWorkouts.includes(workout),
+            )
+            const completedWorkouts = current.completedWorkouts.filter(
+              (workout) => !failedCompletedWorkouts.includes(workout),
+            )
+            if (
+              activeWorkout === current.activeWorkout &&
+              completedWorkouts.length === current.completedWorkouts.length
+            ) {
+              return current
+            }
+            return { ...current, activeWorkout, completedWorkouts }
+          },
+        },
+      ),
     [updateState],
   )
 

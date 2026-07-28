@@ -845,11 +845,190 @@ describe('TrainingProvider', () => {
     })
 
     expect(saved).toBe(false)
-    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(3))
+    expect(training?.state.activeWorkout).toBe(ACTIVE_WORKOUT)
     expect(training?.state.favoriteExerciseIds).toEqual([
       'bench-press',
       'squat',
     ])
+  })
+
+  it.each([
+    { resolution: 'complete' as const },
+    { resolution: 'discard' as const },
+  ])(
+    'compensates a queued unrelated save after atomic $resolution persistence fails',
+    async ({ resolution }) => {
+      const failedSave = deferred<void>()
+      const initialState = trainingState({
+        activeWorkout: ACTIVE_WORKOUT,
+        completedWorkouts: [
+          {
+            id: 'workout-completed',
+            name: 'Frueheres Training',
+            startedAt: '2026-07-26T05:00:00.000Z',
+            completedAt: '2026-07-26T06:00:00.000Z',
+            exercises: [],
+          },
+        ],
+        favoriteExerciseIds: ['bench-press'],
+      })
+      const savedStates: TrainingState[] = []
+      let storedState = initialState
+      let saveCount = 0
+      const repository = createRepository({
+        load: vi.fn(async () => initialState),
+        save: vi.fn(async (_profileId, state) => {
+          savedStates.push(state)
+          saveCount += 1
+          if (saveCount === 1) await failedSave.promise
+          storedState = state
+        }),
+      })
+      let training: TrainingContextValue | undefined
+      renderTraining(repository, 'profile-a', (value) => {
+        training = value
+      })
+      await screen.findByText('Aktiv: Bestehendes Training')
+
+      let atomicResult!: Promise<boolean>
+      act(() => {
+        atomicResult = training!.resolveActiveWorkoutAndStart(
+          WORKOUT_TEMPLATE,
+          '2026-07-27T06:00:00.000Z',
+          resolution,
+        )
+      })
+      await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(1))
+      act(() => training!.toggleFavoriteExercise('squat'))
+
+      let result: boolean | undefined
+      await act(async () => {
+        failedSave.reject(new Error('atomic persistence unavailable'))
+        result = await atomicResult
+      })
+
+      expect(result).toBe(false)
+      await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(3))
+      expect(training?.state).toMatchObject({
+        activeWorkout: ACTIVE_WORKOUT,
+        completedWorkouts: initialState.completedWorkouts,
+        favoriteExerciseIds: ['bench-press', 'squat'],
+      })
+      expect(storedState).toMatchObject({
+        activeWorkout: ACTIVE_WORKOUT,
+        completedWorkouts: initialState.completedWorkouts,
+        favoriteExerciseIds: ['bench-press', 'squat'],
+      })
+      const failedReplacementId = savedStates[0].activeWorkout?.id
+      expect(failedReplacementId).toBeDefined()
+      expect(storedState.activeWorkout?.id).not.toBe(failedReplacementId)
+      expect(
+        storedState.completedWorkouts.some(
+          ({ id }) => id === ACTIVE_WORKOUT.id,
+        ),
+      ).toBe(false)
+    },
+  )
+
+  it('does not overwrite a genuinely newer active workout during compensation', async () => {
+    const failedSave = deferred<void>()
+    const newerTemplate: WorkoutTemplate = {
+      ...WORKOUT_TEMPLATE,
+      id: 'template-newer',
+      name: 'Neueres Training',
+      exercises: [],
+    }
+    const initialState = trainingState({ activeWorkout: ACTIVE_WORKOUT })
+    let storedState = initialState
+    let saveCount = 0
+    const repository = createRepository({
+      load: vi.fn(async () => initialState),
+      save: vi.fn(async (_profileId, state) => {
+        saveCount += 1
+        if (saveCount === 1) await failedSave.promise
+        storedState = state
+      }),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Aktiv: Bestehendes Training')
+
+    let atomicResult!: Promise<boolean>
+    act(() => {
+      atomicResult = training!.resolveActiveWorkoutAndStart(
+        WORKOUT_TEMPLATE,
+        '2026-07-27T06:00:00.000Z',
+        'complete',
+      )
+    })
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(1))
+    act(() => {
+      training!.discardWorkout()
+      training!.startWorkout(newerTemplate, '2026-07-27T06:10:00.000Z')
+    })
+
+    await act(async () => {
+      failedSave.reject(new Error('atomic persistence unavailable'))
+      expect(await atomicResult).toBe(false)
+    })
+
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(4))
+    expect(training?.state.activeWorkout).toMatchObject({
+      name: 'Neueres Training',
+      templateId: 'template-newer',
+    })
+    expect(training?.state.completedWorkouts).toEqual([])
+    expect(storedState.activeWorkout).toMatchObject({
+      name: 'Neueres Training',
+      templateId: 'template-newer',
+    })
+    expect(storedState.completedWorkouts).toEqual([])
+  })
+
+  it('surfaces a failed atomic compensation save through recovery state', async () => {
+    const failedAtomicSave = deferred<void>()
+    const compensationFailure = new Error('compensation unavailable')
+    const initialState = trainingState({ activeWorkout: ACTIVE_WORKOUT })
+    let saveCount = 0
+    const repository = createRepository({
+      load: vi.fn(async () => initialState),
+      save: vi.fn(async () => {
+        saveCount += 1
+        if (saveCount === 1) await failedAtomicSave.promise
+        if (saveCount === 3) throw compensationFailure
+      }),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Aktiv: Bestehendes Training')
+
+    let atomicResult!: Promise<boolean>
+    act(() => {
+      atomicResult = training!.resolveActiveWorkoutAndStart(
+        WORKOUT_TEMPLATE,
+        '2026-07-27T06:00:00.000Z',
+        'discard',
+      )
+    })
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(1))
+    act(() => training!.toggleFavoriteExercise('squat'))
+
+    await act(async () => {
+      failedAtomicSave.reject(new Error('atomic persistence unavailable'))
+      expect(await atomicResult).toBe(false)
+    })
+
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(3))
+    await waitFor(() =>
+      expect(training?.recoveryError?.cause).toBe(compensationFailure),
+    )
+    expect(training?.state.activeWorkout).toBe(ACTIVE_WORKOUT)
+    expect(training?.state.favoriteExerciseIds).toEqual(['squat'])
   })
 
   it('returns false when a captured profile save succeeds after provider replacement', async () => {
@@ -1118,6 +1297,70 @@ describe('TrainingProvider', () => {
     expect(screen.queryByText(/Rudern mit eigenem Bild/)).not.toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.getByText('Fehler: keiner')).toBeInTheDocument()
+  })
+
+  it('finishes custom image cleanup when metadata persistence succeeds after a provider switch', async () => {
+    const metadataSave = deferred<void>()
+    const profileAState = trainingState({
+      customExercises: [CUSTOM_EXERCISE_WITH_IMAGE],
+      favoriteExerciseIds: [CUSTOM_EXERCISE_WITH_IMAGE.id],
+    })
+    const profileBState = trainingState({ favoriteExerciseIds: ['squat'] })
+    const storedStates = new Map<string, TrainingState>([
+      ['profile-a', profileAState],
+      ['profile-b', profileBState],
+    ])
+    const repository = createRepository({
+      load: vi.fn(async (profileId) => storedStates.get(profileId)!),
+      deleteImage: vi.fn(async () => undefined),
+      save: vi.fn(async (profileId, state) => {
+        if (profileId === 'profile-a') await metadataSave.promise
+        storedStates.set(profileId, state)
+      }),
+    })
+    let training: TrainingContextValue | undefined
+    const capture = (value: TrainingContextValue) => {
+      training = value
+    }
+    const page = render(
+      <KeyedTrainingTree
+        capture={capture}
+        profileId="profile-a"
+        repository={repository}
+      />,
+    )
+    await screen.findByText('Trainingsdaten bereit')
+
+    const deletion = training!.deleteCustomExercise(
+      CUSTOM_EXERCISE_WITH_IMAGE.id,
+    )
+    await waitFor(() =>
+      expect(repository.save).toHaveBeenCalledWith(
+        'profile-a',
+        expect.objectContaining({ customExercises: [] }),
+      ),
+    )
+
+    page.rerender(
+      <KeyedTrainingTree
+        capture={capture}
+        profileId="profile-b"
+        repository={repository}
+      />,
+    )
+    expect(await screen.findByText('Favoriten: squat')).toBeInTheDocument()
+
+    await act(async () => metadataSave.resolve())
+    await act(async () => deletion)
+
+    expect(repository.deleteImage).toHaveBeenCalledTimes(1)
+    expect(repository.deleteImage).toHaveBeenCalledWith(
+      'profile-a',
+      'image-row',
+    )
+    expect(storedStates.get('profile-a')?.customExercises).toEqual([])
+    expect(storedStates.get('profile-b')).toBe(profileBState)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('awaits custom metadata and rebases a failed save without losing a concurrent preference update', async () => {
