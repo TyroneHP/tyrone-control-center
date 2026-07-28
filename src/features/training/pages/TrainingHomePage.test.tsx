@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -39,6 +39,14 @@ const ACTIVE_WORKOUT: ActiveWorkout = {
   exercises: [],
 }
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
 function trainingState(overrides: Partial<TrainingState> = {}): TrainingState {
   return {
     schemaVersion: 1,
@@ -58,7 +66,10 @@ function trainingState(overrides: Partial<TrainingState> = {}): TrainingState {
   }
 }
 
-function createRepository(state: TrainingState): TrainingRepository {
+function createRepository(
+  state: TrainingState,
+  overrides: Partial<TrainingRepository> = {},
+): TrainingRepository {
   return {
     deleteImage: vi.fn(async () => undefined),
     exportRaw: vi.fn(async () => 'null'),
@@ -67,6 +78,7 @@ function createRepository(state: TrainingState): TrainingRepository {
     reset: vi.fn(async () => undefined),
     save: vi.fn(async () => undefined),
     saveImage: vi.fn(async () => undefined),
+    ...overrides,
   }
 }
 
@@ -75,8 +87,11 @@ function LocationMarker() {
   return <output aria-label="Aktueller Pfad">{location.pathname}</output>
 }
 
-function renderHome(state: TrainingState) {
-  const repository = createRepository(state)
+function renderHome(
+  state: TrainingState,
+  overrides: Partial<TrainingRepository> = {},
+) {
+  const repository = createRepository(state, overrides)
   render(
     <ToastProvider>
       <MemoryRouter initialEntries={['/training']}>
@@ -215,7 +230,8 @@ describe('TrainingHomePage', () => {
     )
 
     await waitFor(() => {
-      const saved = vi.mocked(repository.save).mock.calls.at(-1)?.[1]
+      expect(repository.save).toHaveBeenCalledTimes(1)
+      const saved = vi.mocked(repository.save).mock.calls[0]?.[1]
       expect(saved?.completedWorkouts).toEqual([
         expect.objectContaining({ id: 'workout-active', name: 'Bestehendes Training' }),
       ])
@@ -249,8 +265,73 @@ describe('TrainingHomePage', () => {
 
     await waitFor(() => {
       const saves = vi.mocked(repository.save).mock.calls.map(([, state]) => state)
-      expect(saves.some(({ activeWorkout }) => activeWorkout === null)).toBe(true)
-      expect(saves.at(-1)?.activeWorkout).toMatchObject({ templateId: 'template-monday' })
+      expect(saves).toHaveLength(1)
+      expect(saves[0].activeWorkout).toMatchObject({ templateId: 'template-monday' })
+      expect(saves[0].completedWorkouts).toEqual([])
+      expect(saves[0].completedWorkouts).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: 'workout-active' })]),
+      )
     })
+  })
+
+  it('does not navigate when atomic conflict resolution cannot be persisted', async () => {
+    const user = userEvent.setup()
+    const repository = renderHome(
+      trainingState({
+        activeWorkout: ACTIVE_WORKOUT,
+        templates: [MONDAY_TEMPLATE],
+      }),
+      {
+        save: vi.fn(async () => {
+          throw new Error('local persistence unavailable')
+        }),
+      },
+    )
+
+    await screen.findByRole('heading', { name: 'Training' })
+    await user.click(
+      screen.getAllByRole('button', { name: 'Training starten: Oberkörper' })[0],
+    )
+    const dialog = await screen.findByRole('dialog', { name: 'Aktives Training' })
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Aktives Training abschließen' }),
+    )
+
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(1))
+    expect(screen.queryByLabelText('Aktueller Pfad')).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Aktives Training' })).toBeInTheDocument()
+  })
+
+  it('waits for the atomic save and blocks duplicate conflict actions', async () => {
+    const user = userEvent.setup()
+    const saveGate = deferred<void>()
+    const repository = renderHome(
+      trainingState({
+        activeWorkout: ACTIVE_WORKOUT,
+        templates: [MONDAY_TEMPLATE],
+      }),
+      { save: vi.fn(async () => saveGate.promise) },
+    )
+
+    await screen.findByRole('heading', { name: 'Training' })
+    await user.click(
+      screen.getAllByRole('button', { name: 'Training starten: Oberkörper' })[0],
+    )
+    const dialog = await screen.findByRole('dialog', { name: 'Aktives Training' })
+    const complete = within(dialog).getByRole('button', {
+      name: 'Aktives Training abschließen',
+    })
+    await user.click(complete)
+
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(1))
+    expect(screen.queryByLabelText('Aktueller Pfad')).not.toBeInTheDocument()
+    expect(complete).toBeDisabled()
+    await user.click(complete)
+
+    await act(async () => saveGate.resolve())
+    expect(await screen.findByLabelText('Aktueller Pfad')).toHaveTextContent(
+      '/training/active',
+    )
+    expect(repository.save).toHaveBeenCalledTimes(1)
   })
 })

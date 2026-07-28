@@ -669,6 +669,25 @@ export function TrainingProvider({
     updateState((current) => ({ ...current, activeWorkout: null }))
   }, [updateState])
 
+  const resolveActiveWorkoutAndStart = useCallback(
+    (
+      template: WorkoutTemplate,
+      startedAt: string,
+      resolution: 'complete' | 'discard',
+    ) =>
+      updateState((current) => {
+        if (!current.activeWorkout) {
+          throw new Error('No active workout exists')
+        }
+        const resolvedState =
+          resolution === 'complete'
+            ? completeWorkoutModel(current, startedAt)
+            : { ...current, activeWorkout: null }
+        return startWorkoutModel(resolvedState, template, startedAt)
+      }),
+    [updateState],
+  )
+
   const addWorkoutExercise = useCallback(
     (input: AddWorkoutExerciseInput, updatedAt: string) => {
       updateState((current) =>
@@ -827,6 +846,7 @@ export function TrainingProvider({
         replaceCompletedWorkout,
         recoveryError: visibleView.recoveryError,
         reset,
+        resolveActiveWorkoutAndStart,
         saveCustomExercise,
         saveImage,
         saveWorkoutTemplate,

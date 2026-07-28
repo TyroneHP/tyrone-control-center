@@ -49,6 +49,11 @@ export interface TrainingContextValue {
     replacement: CompletedWorkout,
   ) => void
   reset: () => Promise<void>
+  resolveActiveWorkoutAndStart: (
+    template: WorkoutTemplate,
+    startedAt: string,
+    resolution: 'complete' | 'discard',
+  ) => Promise<boolean>
   saveCustomExercise: (exercise: ExerciseDefinition) => Promise<void>
   saveImage: (imageId: string, blob: Blob) => Promise<void>
   saveWorkoutTemplate: (template: WorkoutTemplate) => void

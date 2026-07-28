@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { ToastProvider } from '../../design-system'
 import type {
+  ActiveWorkout,
   ExerciseDefinition,
   TrainingState,
   WorkoutTemplate,
@@ -51,6 +52,15 @@ const WORKOUT_TEMPLATE: WorkoutTemplate = {
   ],
   createdAt: '2026-07-20T08:00:00.000Z',
   updatedAt: '2026-07-20T08:00:00.000Z',
+}
+
+const ACTIVE_WORKOUT: ActiveWorkout = {
+  id: 'workout-active',
+  templateId: 'template-existing',
+  name: 'Bestehendes Training',
+  startedAt: '2026-07-27T05:00:00.000Z',
+  updatedAt: '2026-07-27T05:30:00.000Z',
+  exercises: [],
 }
 
 function deferred<T>() {
@@ -662,6 +672,62 @@ describe('TrainingProvider', () => {
     ).toMatchObject({ completed: true, reps: 10, weightKg: 80 })
     await waitFor(() => expect(savedStates).toHaveLength(3))
   })
+
+  it.each([
+    {
+      expectedCompletedIds: ['workout-active'],
+      resolution: 'complete' as const,
+    },
+    {
+      expectedCompletedIds: [],
+      resolution: 'discard' as const,
+    },
+  ])(
+    'atomically resolves an active workout with $resolution and starts the replacement',
+    async ({ expectedCompletedIds, resolution }) => {
+      const initialState = trainingState({ activeWorkout: ACTIVE_WORKOUT })
+      const savedStates: TrainingState[] = []
+      const repository = createRepository({
+        load: vi.fn(async () => initialState),
+        save: vi.fn(async (_profileId, state) => {
+          savedStates.push(state)
+        }),
+      })
+      let training: TrainingContextValue | undefined
+      renderTraining(repository, 'profile-a', (value) => {
+        training = value
+      })
+      await screen.findByText('Aktiv: Bestehendes Training')
+
+      let result: boolean | undefined
+      await act(async () => {
+        result = await training!.resolveActiveWorkoutAndStart(
+          WORKOUT_TEMPLATE,
+          '2026-07-27T06:00:00.000Z',
+          resolution,
+        )
+      })
+
+      expect(result).toBe(true)
+      expect(repository.save).toHaveBeenCalledTimes(1)
+      expect(savedStates).toHaveLength(1)
+      expect(savedStates[0].activeWorkout).toMatchObject({
+        name: 'Oberkörper',
+        startedAt: '2026-07-27T06:00:00.000Z',
+        templateId: 'template-upper',
+      })
+      expect(
+        savedStates[0].completedWorkouts.map(({ id }) => id),
+      ).toEqual(expectedCompletedIds)
+      if (resolution === 'complete') {
+        expect(savedStates[0].completedWorkouts[0]).toMatchObject({
+          completedAt: '2026-07-27T06:00:00.000Z',
+          id: 'workout-active',
+          name: 'Bestehendes Training',
+        })
+      }
+    },
+  )
 
   it('binds image save, load, and delete operations to the current profile', async () => {
     const image = new Blob(['processed image'], { type: 'image/webp' })

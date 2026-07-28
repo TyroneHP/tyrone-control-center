@@ -46,14 +46,14 @@ function TemplateCard({ onStart, template }: TemplateCardProps) {
 export function TrainingHomePage() {
   const navigate = useNavigate()
   const {
-    completeWorkout,
-    discardWorkout,
     loading,
+    resolveActiveWorkoutAndStart,
     startWorkout,
     state,
   } = useTraining()
   const [pendingTemplate, setPendingTemplate] = useState<WorkoutTemplate>()
   const [discardConfirmationOpen, setDiscardConfirmationOpen] = useState(false)
+  const [conflictResolutionPending, setConflictResolutionPending] = useState(false)
   const todayTemplates = state.templates.filter(({ weekdays }) =>
     weekdays.includes(currentIsoWeekday()),
   )
@@ -72,23 +72,44 @@ export function TrainingHomePage() {
     navigate('/training/active')
   }
 
-  const finishAndStartPending = () => {
-    if (!pendingTemplate) return
+  const finishAndStartPending = async () => {
+    if (!pendingTemplate || conflictResolutionPending) return
     const now = new Date().toISOString()
-    completeWorkout(now)
-    startWorkout(pendingTemplate, now)
-    setPendingTemplate(undefined)
-    navigate('/training/active')
+    setConflictResolutionPending(true)
+    try {
+      const saved = await resolveActiveWorkoutAndStart(
+        pendingTemplate,
+        now,
+        'complete',
+      )
+      if (!saved) return
+      setPendingTemplate(undefined)
+      navigate('/training/active')
+    } catch {
+      // Persistence errors are surfaced by the provider; keep the dialog open.
+    } finally {
+      setConflictResolutionPending(false)
+    }
   }
 
-  const discardAndStartPending = () => {
-    if (!pendingTemplate) return
-    const template = pendingTemplate
-    discardWorkout()
-    startWorkout(template, new Date().toISOString())
-    setDiscardConfirmationOpen(false)
-    setPendingTemplate(undefined)
-    navigate('/training/active')
+  const discardAndStartPending = async () => {
+    if (!pendingTemplate || conflictResolutionPending) return
+    setConflictResolutionPending(true)
+    try {
+      const saved = await resolveActiveWorkoutAndStart(
+        pendingTemplate,
+        new Date().toISOString(),
+        'discard',
+      )
+      if (!saved) return
+      setDiscardConfirmationOpen(false)
+      setPendingTemplate(undefined)
+      navigate('/training/active')
+    } catch {
+      // Persistence errors are surfaced by the provider; keep confirmation open.
+    } finally {
+      setConflictResolutionPending(false)
+    }
   }
 
   if (loading) return <p>Training wird geladen …</p>
@@ -165,6 +186,7 @@ export function TrainingHomePage() {
           <>
             <button
               className="button--secondary"
+              disabled={conflictResolutionPending}
               onClick={continueActive}
               type="button"
             >
@@ -172,13 +194,15 @@ export function TrainingHomePage() {
             </button>
             <button
               className="button--secondary"
-              onClick={finishAndStartPending}
+              disabled={conflictResolutionPending}
+              onClick={() => void finishAndStartPending()}
               type="button"
             >
               Aktives Training abschließen
             </button>
             <button
               className="button--danger"
+              disabled={conflictResolutionPending}
               onClick={() => setDiscardConfirmationOpen(true)}
               type="button"
             >
@@ -202,6 +226,7 @@ export function TrainingHomePage() {
           <>
             <button
               className="button--secondary"
+              disabled={conflictResolutionPending}
               onClick={() => setDiscardConfirmationOpen(false)}
               type="button"
             >
@@ -209,7 +234,8 @@ export function TrainingHomePage() {
             </button>
             <button
               className="button--danger"
-              onClick={discardAndStartPending}
+              disabled={conflictResolutionPending}
+              onClick={() => void discardAndStartPending()}
               type="button"
             >
               Endgültig verwerfen
