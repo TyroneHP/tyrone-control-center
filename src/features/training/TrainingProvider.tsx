@@ -135,20 +135,6 @@ function readExerciseBaseline(
   )
 }
 
-function writeExerciseBaseline(
-  baselines: Map<string, Map<string, PersistedExerciseBaseline>>,
-  profileId: string,
-  exerciseId: string,
-  baseline: PersistedExerciseBaseline,
-) {
-  let profileBaselines = baselines.get(profileId)
-  if (!profileBaselines) {
-    profileBaselines = new Map()
-    baselines.set(profileId, profileBaselines)
-  }
-  profileBaselines.set(exerciseId, baseline)
-}
-
 function imageCleanupKey(profileId: string, exerciseId: string) {
   return `${profileId}\u0000${exerciseId}`
 }
@@ -291,6 +277,11 @@ export function TrainingProvider({
         .then(() => trainingRepository.save(savedProfileId, nextState))
         .then(() => {
           afterSave?.(nextState)
+          replaceProfileExerciseBaselines(
+            persistedExerciseBaselines,
+            savedProfileId,
+            nextState,
+          )
           return true
         })
         .catch((cause: unknown) => {
@@ -314,7 +305,13 @@ export function TrainingProvider({
       saveQueues.set(savedProfileId, saveResult.then(() => undefined))
       return saveResult
     },
-    [profileId, saveQueues, toast, trainingRepository],
+    [
+      persistedExerciseBaselines,
+      profileId,
+      saveQueues,
+      toast,
+      trainingRepository,
+    ],
   )
 
   const toggleFavoriteExercise = useCallback(
@@ -332,37 +329,16 @@ export function TrainingProvider({
   const saveCustomExercise = useCallback(
     async (exercise: ExerciseDefinition) => {
       const operationProfileId = profileId
-      const saved = await updateState(
-        (current) => ({
-          ...current,
-          customExercises: current.customExercises.some(
-            ({ id }) => id === exercise.id,
-          )
-            ? current.customExercises.map((candidate) =>
-                candidate.id === exercise.id ? exercise : candidate,
-              )
-            : [...current.customExercises, exercise],
-        }),
-        (savedState) => {
-          const baseline = readExerciseBaseline(
-            persistedExerciseBaselines,
-            operationProfileId,
-            exercise.id,
-          )
-          writeExerciseBaseline(
-            persistedExerciseBaselines,
-            operationProfileId,
-            exercise.id,
-            {
-              ...baseline,
-              exercise,
-              index: savedState.customExercises.findIndex(
-                ({ id }) => id === exercise.id,
-              ),
-            },
-          )
-        },
-      )
+      const saved = await updateState((current) => ({
+        ...current,
+        customExercises: current.customExercises.some(
+          ({ id }) => id === exercise.id,
+        )
+          ? current.customExercises.map((candidate) =>
+              candidate.id === exercise.id ? exercise : candidate,
+            )
+          : [...current.customExercises, exercise],
+      }))
       if (saved) return
 
       const baseline = readExerciseBaseline(
@@ -506,17 +482,6 @@ export function TrainingProvider({
             exerciseId,
           )
           customImageId = baseline.exercise?.customImageId
-          writeExerciseBaseline(
-            persistedExerciseBaselines,
-            operationProfileId,
-            exerciseId,
-            {
-              exercise: undefined,
-              favorite: false,
-              favoriteIndex: baseline.favoriteIndex,
-              index: baseline.index,
-            },
-          )
         },
       )
       if (!saved) {

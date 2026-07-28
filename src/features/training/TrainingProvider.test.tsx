@@ -1141,6 +1141,149 @@ describe('TrainingProvider', () => {
     expect(storedStates.at(-1)?.customExercises).toEqual([])
   })
 
+  it('restores the latest persisted favorite after a successful toggle then failed delete', async () => {
+    const initialState = trainingState({
+      customExercises: [CUSTOM_EXERCISE_WITH_IMAGE],
+      favoriteExerciseIds: [],
+    })
+    const savedStates: TrainingState[] = []
+    let storedState = initialState
+    let saveCount = 0
+    const save = vi.fn(async (_profileId: string, state: TrainingState) => {
+      savedStates.push(state)
+      saveCount += 1
+      if (saveCount === 2) throw new Error('metadata delete unavailable')
+      storedState = state
+    })
+    const deleteImage = vi.fn(async () => undefined)
+    const repository = createRepository({
+      deleteImage,
+      load: vi.fn(async () => initialState),
+      save,
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Trainingsdaten bereit')
+
+    act(() => {
+      training!.toggleFavoriteExercise(CUSTOM_EXERCISE_WITH_IMAGE.id)
+    })
+    await waitFor(() => {
+      expect(save).toHaveBeenCalledTimes(1)
+      expect(storedState.favoriteExerciseIds).toEqual([
+        CUSTOM_EXERCISE_WITH_IMAGE.id,
+      ])
+    })
+
+    let result: unknown
+    await act(async () => {
+      result = await training!
+        .deleteCustomExercise(CUSTOM_EXERCISE_WITH_IMAGE.id)
+        .catch((error: unknown) => error)
+    })
+
+    expect(result).toEqual(
+      expect.objectContaining({ message: 'Übung konnte nicht gelöscht werden.' }),
+    )
+    expect(training!.state.customExercises).toEqual([
+      CUSTOM_EXERCISE_WITH_IMAGE,
+    ])
+    expect(training!.state.favoriteExerciseIds).toEqual([
+      CUSTOM_EXERCISE_WITH_IMAGE.id,
+    ])
+    expect(storedState).toMatchObject({
+      customExercises: [CUSTOM_EXERCISE_WITH_IMAGE],
+      favoriteExerciseIds: [CUSTOM_EXERCISE_WITH_IMAGE.id],
+    })
+    expect(savedStates.at(-1)).toMatchObject({
+      customExercises: [CUSTOM_EXERCISE_WITH_IMAGE],
+      favoriteExerciseIds: [CUSTOM_EXERCISE_WITH_IMAGE.id],
+    })
+    expect(deleteImage).not.toHaveBeenCalled()
+  })
+
+  it('restores a failed edit at its persisted index after an earlier exercise was deleted', async () => {
+    const remainingExercise: ExerciseDefinition = {
+      ...CUSTOM_EXERCISE,
+      id: 'custom:press',
+      name: 'Persistierte Brustpresse',
+      primaryMuscles: ['Brust'],
+    }
+    const trailingExercise: ExerciseDefinition = {
+      ...CUSTOM_EXERCISE,
+      id: 'custom:curl',
+      name: 'Persistierter Curl',
+      primaryMuscles: ['Bizeps'],
+    }
+    const failedEdit: ExerciseDefinition = {
+      ...remainingExercise,
+      description: 'Diese Bearbeitung wurde nicht persistiert.',
+      name: 'Nicht persistierte Brustpresse',
+    }
+    const initialState = trainingState({
+      customExercises: [
+        CUSTOM_EXERCISE,
+        remainingExercise,
+        trailingExercise,
+      ],
+      favoriteExerciseIds: [remainingExercise.id, trailingExercise.id],
+    })
+    const savedStates: TrainingState[] = []
+    let storedState = initialState
+    let saveCount = 0
+    const repository = createRepository({
+      load: vi.fn(async () => initialState),
+      save: vi.fn(async (_profileId, state) => {
+        savedStates.push(state)
+        saveCount += 1
+        if (saveCount === 2) throw new Error('metadata edit unavailable')
+        storedState = state
+      }),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Trainingsdaten bereit')
+
+    await act(async () => {
+      await training!.deleteCustomExercise(CUSTOM_EXERCISE.id)
+    })
+    expect(storedState.customExercises).toEqual([
+      remainingExercise,
+      trailingExercise,
+    ])
+
+    let result: unknown
+    await act(async () => {
+      result = await training!
+        .saveCustomExercise(failedEdit)
+        .catch((error: unknown) => error)
+    })
+
+    expect(result).toEqual(
+      expect.objectContaining({ message: 'Übung konnte nicht gespeichert werden.' }),
+    )
+    expect(training!.state.customExercises).toEqual([
+      remainingExercise,
+      trailingExercise,
+    ])
+    expect(training!.state.favoriteExerciseIds).toEqual([
+      remainingExercise.id,
+      trailingExercise.id,
+    ])
+    expect(storedState).toMatchObject({
+      customExercises: [remainingExercise, trailingExercise],
+      favoriteExerciseIds: [remainingExercise.id, trailingExercise.id],
+    })
+    expect(savedStates.at(-1)).toMatchObject({
+      customExercises: [remainingExercise, trailingExercise],
+      favoriteExerciseIds: [remainingExercise.id, trailingExercise.id],
+    })
+  })
+
   it('restores custom metadata after a failed delete save and retries the whole deletion', async () => {
     const initialState = trainingState({
       customExercises: [CUSTOM_EXERCISE_WITH_IMAGE],
