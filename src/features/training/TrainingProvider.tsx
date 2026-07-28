@@ -88,6 +88,14 @@ const repositoryCompletedWorkoutOperationTokens = new WeakMap<
   TrainingRepository,
   Map<string, symbol>
 >()
+const repositoryProfileOperationEpochs = new WeakMap<
+  TrainingRepository,
+  Map<string, number>
+>()
+const repositoryResettingProfiles = new WeakMap<
+  TrainingRepository,
+  Set<string>
+>()
 
 function getBrowserTrainingRepository() {
   browserTrainingRepository ??= new IndexedDbTrainingRepository()
@@ -152,6 +160,24 @@ function getCompletedWorkoutOperationTokens(repository: TrainingRepository) {
     repositoryCompletedWorkoutOperationTokens.set(repository, tokens)
   }
   return tokens
+}
+
+function getProfileOperationEpochs(repository: TrainingRepository) {
+  let epochs = repositoryProfileOperationEpochs.get(repository)
+  if (!epochs) {
+    epochs = new Map()
+    repositoryProfileOperationEpochs.set(repository, epochs)
+  }
+  return epochs
+}
+
+function getResettingProfiles(repository: TrainingRepository) {
+  let profiles = repositoryResettingProfiles.get(repository)
+  if (!profiles) {
+    profiles = new Set()
+    repositoryResettingProfiles.set(repository, profiles)
+  }
+  return profiles
 }
 
 function replaceProfileExerciseBaselines(
@@ -313,6 +339,8 @@ export function TrainingProvider({
     getPersistedCompletedWorkoutBaselines(trainingRepository)
   const completedWorkoutOperationTokens =
     getCompletedWorkoutOperationTokens(trainingRepository)
+  const profileOperationEpochs = getProfileOperationEpochs(trainingRepository)
+  const resettingProfiles = getResettingProfiles(trainingRepository)
   const [view, setView] = useState<TrainingView>(() => ({
     loading: true,
     profileId,
@@ -418,7 +446,12 @@ export function TrainingProvider({
       afterSave?: (savedState: TrainingState) => void,
       options: UpdateStateOptions = {},
     ) => {
-      if (loadedProfileRef.current !== profileId) return Promise.resolve(false)
+      if (
+        loadedProfileRef.current !== profileId ||
+        resettingProfiles.has(profileId)
+      ) {
+        return Promise.resolve(false)
+      }
 
       const previousState = stateRef.current
       const nextState = mutation(previousState)
@@ -434,6 +467,7 @@ export function TrainingProvider({
 
       const savedProfileId = profileId
       const savedGeneration = generationRef.current
+      const savedEpoch = profileOperationEpochs.get(savedProfileId) ?? 0
       const previousSave = saveQueues.get(savedProfileId) ?? Promise.resolve()
       const saveResult = previousSave
         .then(() => trainingRepository.save(savedProfileId, nextState))
@@ -456,12 +490,18 @@ export function TrainingProvider({
             latestQueuedStates.delete(savedProfileId)
           }
           return (
-            !options.requireCurrentGenerationOnSuccess ||
-            (generationRef.current === savedGeneration &&
-              loadedProfileRef.current === savedProfileId)
+            (profileOperationEpochs.get(savedProfileId) ?? 0) === savedEpoch &&
+            (!options.requireCurrentGenerationOnSuccess ||
+              (generationRef.current === savedGeneration &&
+                loadedProfileRef.current === savedProfileId))
           )
         })
         .catch((cause: unknown) => {
+          if (
+            (profileOperationEpochs.get(savedProfileId) ?? 0) !== savedEpoch
+          ) {
+            return false
+          }
           const isCurrentOrigin =
             generationRef.current === savedGeneration &&
             loadedProfileRef.current === savedProfileId
@@ -504,6 +544,12 @@ export function TrainingProvider({
                   trainingRepository.save(savedProfileId, compensationState),
                 )
                 .then(() => {
+                  if (
+                    (profileOperationEpochs.get(savedProfileId) ?? 0) !==
+                    savedEpoch
+                  ) {
+                    return
+                  }
                   replaceProfileExerciseBaselines(
                     persistedExerciseBaselines,
                     savedProfileId,
@@ -524,6 +570,8 @@ export function TrainingProvider({
                 })
                 .catch((compensationCause: unknown) => {
                   if (
+                    (profileOperationEpochs.get(savedProfileId) ?? 0) !==
+                      savedEpoch ||
                     generationRef.current !== savedGeneration ||
                     loadedProfileRef.current !== savedProfileId
                   ) {
@@ -556,6 +604,8 @@ export function TrainingProvider({
       persistedCompletedWorkoutBaselines,
       persistedExerciseBaselines,
       profileId,
+      profileOperationEpochs,
+      resettingProfiles,
       saveQueues,
       toast,
       trainingRepository,
@@ -833,6 +883,15 @@ export function TrainingProvider({
   const reset = useCallback(async () => {
     const operationProfileId = profileId
     const operationGeneration = generationRef.current
+    profileOperationEpochs.set(
+      operationProfileId,
+      (profileOperationEpochs.get(operationProfileId) ?? 0) + 1,
+    )
+    resettingProfiles.add(operationProfileId)
+    loadedProfileRef.current = null
+    latestQueuedStates.delete(operationProfileId)
+    persistedExerciseBaselines.delete(operationProfileId)
+    persistedCompletedWorkoutBaselines.delete(operationProfileId)
     const previousOperation =
       saveQueues.get(operationProfileId) ?? Promise.resolve()
     const resetOperation = previousOperation.then(async () => {
@@ -848,13 +907,7 @@ export function TrainingProvider({
     try {
       const loadedState = await resetOperation
       if (generationRef.current !== operationGeneration) return
-      const hasLaterQueuedOperation =
-        saveQueues.get(operationProfileId) !== resetQueueTail
-      if (!hasLaterQueuedOperation) {
-        latestQueuedStates.delete(operationProfileId)
-      }
-      const visibleState =
-        latestQueuedStates.get(operationProfileId) ?? loadedState
+      latestQueuedStates.delete(operationProfileId)
       replaceProfileExerciseBaselines(
         persistedExerciseBaselines,
         operationProfileId,
@@ -866,14 +919,17 @@ export function TrainingProvider({
         loadedState,
       )
       loadedProfileRef.current = operationProfileId
-      stateRef.current = visibleState
+      stateRef.current = loadedState
       setView({
         loading: false,
         profileId: operationProfileId,
         recoveryError: null,
-        state: visibleState,
+        state: loadedState,
       })
     } catch (cause) {
+      if (generationRef.current === operationGeneration) {
+        loadedProfileRef.current = operationProfileId
+      }
       throw operationError(
         RESET_ERROR_MESSAGE,
         cause,
@@ -881,6 +937,8 @@ export function TrainingProvider({
         operationGeneration,
         true,
       )
+    } finally {
+      resettingProfiles.delete(operationProfileId)
     }
   }, [
     latestQueuedStates,
@@ -888,6 +946,8 @@ export function TrainingProvider({
     persistedCompletedWorkoutBaselines,
     persistedExerciseBaselines,
     profileId,
+    profileOperationEpochs,
+    resettingProfiles,
     saveQueues,
     trainingRepository,
   ])

@@ -1,6 +1,12 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import {
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ToastProvider } from '../../../design-system'
 import { TrainingProvider } from '../TrainingProvider'
@@ -154,6 +160,26 @@ function LocationMarker() {
   return <output aria-label="Aktueller Pfad">{location.pathname}</output>
 }
 
+function WorkoutRouteControls() {
+  const navigate = useNavigate()
+  return (
+    <nav aria-label="Testnavigation">
+      <button
+        onClick={() => navigate('/training/history/workout-latest')}
+        type="button"
+      >
+        Zu Training A
+      </button>
+      <button
+        onClick={() => navigate('/training/history/workout-other')}
+        type="button"
+      >
+        Zu Training B
+      </button>
+    </nav>
+  )
+}
+
 function renderTrainingPage(
   state: TrainingState,
   initialEntry = '/training/history/workout-latest',
@@ -164,6 +190,7 @@ function renderTrainingPage(
     <ToastProvider>
       <MemoryRouter initialEntries={[initialEntry]}>
         <TrainingProvider profileId="profile-a" repository={repository}>
+          <WorkoutRouteControls />
           <Routes>
             <Route path="/training/history" element={<WorkoutHistoryPage />} />
             <Route
@@ -494,6 +521,83 @@ describe('CompletedWorkoutPage', () => {
     expect(repository.save).not.toHaveBeenCalled()
   })
 
+  it('marks and describes only the invalid workout fields until they are fixed', async () => {
+    const user = userEvent.setup()
+    const invalidSet = {
+      ...workoutExercise().sets[0],
+      weightKg: -1,
+      reps: -1,
+      rating: 11,
+    }
+    const invalidWorkout = completedWorkout({
+      exercises: [workoutExercise({ sets: [invalidSet] })],
+    })
+    const repository = renderTrainingPage(trainingState([invalidWorkout]))
+
+    await screen.findByRole('heading', { name: 'Oberkörper schwer' })
+    await user.click(screen.getByRole('button', { name: 'Training bearbeiten' }))
+    const editor = screen.getByRole('group', {
+      name: 'Bankdrücken bearbeiten',
+    })
+    const name = screen.getByRole('textbox', { name: 'Trainingsname' })
+    const targetSets = within(editor).getByRole('spinbutton', {
+      name: 'Zielsätze für Bankdrücken',
+    })
+    const minimum = within(editor).getByRole('spinbutton', {
+      name: 'Minimale Wiederholungen für Bankdrücken',
+    })
+    const maximum = within(editor).getByRole('spinbutton', {
+      name: 'Maximale Wiederholungen für Bankdrücken',
+    })
+    const note = within(editor).getByRole('textbox', {
+      name: 'Notiz für Bankdrücken',
+    })
+    const weight = within(editor).getByRole('spinbutton', {
+      name: 'Satz 1 Gewicht',
+    })
+    const repetitions = within(editor).getByRole('spinbutton', {
+      name: 'Satz 1 Wiederholungen',
+    })
+    const rating = within(editor).getByRole('combobox', {
+      name: 'Satz 1 Bewertung',
+    })
+    await user.clear(name)
+    await user.clear(minimum)
+    await user.type(minimum, '13')
+    await user.clear(maximum)
+    await user.type(maximum, '12')
+    await user.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Bitte prüfe die markierten Trainingswerte.')
+    expect(alert).toHaveAttribute('id')
+    const errorId = alert.id
+    for (const field of [name, maximum, weight, repetitions, rating]) {
+      expect(field).toHaveAttribute('aria-invalid', 'true')
+      expect(field).toHaveAttribute('aria-describedby', errorId)
+    }
+    for (const field of [targetSets, minimum, note]) {
+      expect(field).not.toHaveAttribute('aria-invalid', 'true')
+      expect(field).not.toHaveAttribute('aria-describedby', errorId)
+    }
+    expect(repository.save).not.toHaveBeenCalled()
+
+    await user.type(name, 'Korrigiertes Training')
+    await user.clear(maximum)
+    await user.type(maximum, '14')
+    await user.clear(weight)
+    await user.type(weight, '80')
+    await user.clear(repetitions)
+    await user.type(repetitions, '12')
+    await user.selectOptions(rating, '7')
+
+    for (const field of [name, maximum, weight, repetitions, rating]) {
+      expect(field).not.toHaveAttribute('aria-invalid', 'true')
+      expect(field).not.toHaveAttribute('aria-describedby', errorId)
+    }
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   it('blocks draft interaction until the completed-workout save is confirmed', async () => {
     const user = userEvent.setup()
     const saveGate = deferred<void>()
@@ -513,7 +617,90 @@ describe('CompletedWorkoutPage', () => {
     expect(screen.getByRole('button', { name: 'Bearbeitung abbrechen' })).toBeDisabled()
 
     await act(async () => saveGate.resolve())
-    expect(await screen.findByRole('heading', { name: 'Oberkörper schwer' })).toBeInTheDocument()
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('textbox', { name: 'Trainingsname' }),
+      ).not.toBeInTheDocument(),
+    )
+    expect(
+      screen.getByRole('button', { name: 'Training bearbeiten' }),
+    ).toBeInTheDocument()
+  })
+
+  it('discards route-local edit state when navigating between workout ids', async () => {
+    const user = userEvent.setup()
+    const otherWorkout = completedWorkout({
+      id: 'workout-other',
+      name: 'Training B',
+      completedAt: '2026-07-26T09:00:00.000Z',
+    })
+    const repository = renderTrainingPage(
+      trainingState([completedWorkout(), otherWorkout]),
+    )
+
+    await screen.findByRole('heading', { name: 'Oberkörper schwer' })
+    await user.click(screen.getByRole('button', { name: 'Training bearbeiten' }))
+    const nameInput = screen.getByRole('textbox', { name: 'Trainingsname' })
+    await user.clear(nameInput)
+    await user.type(nameInput, 'Entwurf nur für A')
+
+    await user.click(screen.getByRole('button', { name: 'Zu Training B' }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'Training B' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('textbox', { name: 'Trainingsname' }),
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Zu Training A' }))
+    expect(
+      await screen.findByRole('heading', { name: 'Oberkörper schwer' }),
+    ).toBeInTheDocument()
+    expect(repository.save).not.toHaveBeenCalled()
+  })
+
+  it('keeps a pending A save isolated when the same route renders workout B', async () => {
+    const user = userEvent.setup()
+    const saveGate = deferred<void>()
+    const otherWorkout = completedWorkout({
+      id: 'workout-other',
+      name: 'Training B',
+      completedAt: '2026-07-26T09:00:00.000Z',
+    })
+    const repository = renderTrainingPage(
+      trainingState([completedWorkout(), otherWorkout]),
+      undefined,
+      { save: vi.fn(async () => saveGate.promise) },
+    )
+
+    await screen.findByRole('heading', { name: 'Oberkörper schwer' })
+    await user.click(screen.getByRole('button', { name: 'Training bearbeiten' }))
+    const nameInput = screen.getByRole('textbox', { name: 'Trainingsname' })
+    await user.clear(nameInput)
+    await user.type(nameInput, 'Gespeichertes Training A')
+    await user.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(1))
+
+    await user.click(screen.getByRole('button', { name: 'Zu Training B' }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'Training B' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Training bearbeiten' }),
+    ).toBeEnabled()
+    await act(async () => saveGate.resolve())
+    const savedWorkouts = vi.mocked(repository.save).mock.calls[0][1]
+      .completedWorkouts
+    expect(
+      savedWorkouts.find(({ id }) => id === 'workout-latest')?.name,
+    ).toBe('Gespeichertes Training A')
+    expect(
+      savedWorkouts.find(({ id }) => id === 'workout-other')?.name,
+    ).toBe('Training B')
+    expect(
+      screen.getByRole('heading', { name: 'Training B' }),
+    ).toBeInTheDocument()
   })
 
   it('discards a deep edit draft on cancel', async () => {

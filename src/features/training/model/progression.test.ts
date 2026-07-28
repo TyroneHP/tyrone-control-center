@@ -102,6 +102,94 @@ describe('getProgressionRecommendation', () => {
     })
   })
 
+  it('counts distinct completed workouts instead of duplicate exercise entries', () => {
+    const oneWorkout = makeOccurrence({
+      id: 'one-session',
+      completedAt: '2026-07-05T10:00:00.000Z',
+    })
+    const repeatedEntry = oneWorkout.exercises[0]
+    const oneSessionWithThreeEntries: CompletedWorkout = {
+      ...oneWorkout,
+      exercises: [
+        repeatedEntry,
+        {
+          ...repeatedEntry,
+          id: 'one-session-exercise-2',
+          sets: repeatedEntry.sets.map((set) => ({
+            ...set,
+            id: `${set.id}-copy-2`,
+          })),
+        },
+        {
+          ...repeatedEntry,
+          id: 'one-session-exercise-3',
+          sets: repeatedEntry.sets.map((set) => ({
+            ...set,
+            id: `${set.id}-copy-3`,
+          })),
+        },
+      ],
+    }
+    const threeSessions = [
+      oneWorkout,
+      makeOccurrence({
+        id: 'second-session',
+        completedAt: '2026-07-06T10:00:00.000Z',
+      }),
+      makeOccurrence({
+        id: 'third-session',
+        completedAt: '2026-07-07T10:00:00.000Z',
+      }),
+    ]
+
+    expect(
+      getProgressionRecommendation(
+        'bench-press',
+        [oneSessionWithThreeEntries],
+        DEFAULT_PREFERENCES,
+      ),
+    ).toBeNull()
+    expect(
+      getProgressionRecommendation(
+        'bench-press',
+        threeSessions,
+        DEFAULT_PREFERENCES,
+      ),
+    ).toEqual({
+      exerciseId: 'bench-press',
+      currentWeightKg: 80,
+      suggestedWeightKg: 82.5,
+      successfulWorkoutCount: 3,
+    })
+  })
+
+  it('requires every matching entry in a counted workout to succeed', () => {
+    const workout = makeOccurrence({
+      id: 'duplicate-entry-session',
+      completedAt: '2026-07-05T10:00:00.000Z',
+    })
+    const successfulEntry = workout.exercises[0]
+    const failedEntry = {
+      ...successfulEntry,
+      id: 'duplicate-entry-failed',
+      sets: [
+        {
+          ...successfulEntry.sets[0],
+          id: 'duplicate-entry-failed-set',
+          reps: 11,
+        },
+      ],
+    }
+
+    expect(
+      getProgressionRecommendation(
+        'bench-press',
+        [{ ...workout, exercises: [successfulEntry, failedEntry] }],
+        { ...DEFAULT_PREFERENCES, successfulWorkoutCount: 1 },
+      ),
+    ).toBeNull()
+  })
+
   it('uses chronological instants for the latest consecutive offset-timestamp occurrences', () => {
     const arrayFirstOlderFailure = makeOccurrence({
       id: 'array-first-older-failure',

@@ -2395,6 +2395,102 @@ describe('TrainingProvider', () => {
     expect(training?.state).toEqual(trainingState())
   })
 
+  it.each([
+    {
+      label: 'completed-workout edit',
+      mutate: (training: TrainingContextValue) =>
+        training.replaceCompletedWorkout(COMPLETED_WORKOUT.id, {
+          ...COMPLETED_WORKOUT,
+          name: 'Nicht gespeicherte Bearbeitung',
+        }),
+    },
+    {
+      label: 'completed-workout deletion',
+      mutate: (training: TrainingContextValue) =>
+        training.deleteCompletedWorkout(COMPLETED_WORKOUT.id),
+    },
+  ])(
+    'keeps reset authoritative over a late failed $label compensation',
+    async ({ mutate }) => {
+      const failedSave = deferred<void>()
+      const emptyState = trainingState()
+      const initialState = trainingState({
+        completedWorkouts: [COMPLETED_WORKOUT],
+      })
+      let storedState = initialState
+      let loadCount = 0
+      let saveCount = 0
+      const repository = createRepository({
+        load: vi.fn(async () => {
+          loadCount += 1
+          return loadCount === 1 ? initialState : storedState
+        }),
+        save: vi.fn(async (_profileId, state) => {
+          saveCount += 1
+          if (saveCount === 1) await failedSave.promise
+          storedState = state
+        }),
+        reset: vi.fn(async () => {
+          storedState = emptyState
+        }),
+      })
+      let training: TrainingContextValue | undefined
+      renderTraining(repository, 'profile-a', (value) => {
+        training = value
+      })
+      await screen.findByText('Trainingsdaten bereit')
+
+      let mutationResult!: Promise<boolean>
+      act(() => {
+        mutationResult = mutate(training!)
+      })
+      await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(1))
+      act(() => training!.updatePreferences({ showSetRating: false }))
+      const resetResult = training!.reset()
+
+      await act(async () => failedSave.reject(new Error('save unavailable')))
+      expect(await mutationResult).toBe(false)
+      await act(async () => resetResult)
+      await waitFor(() => expect(repository.reset).toHaveBeenCalledTimes(1))
+
+      expect(storedState).toEqual(emptyState)
+      expect(training?.state).toEqual(emptyState)
+      expect(repository.save).toHaveBeenCalledTimes(2)
+      expect(
+        screen.queryByRole('alert', {
+          name: 'Fehler: Trainingsdaten konnten nicht gespeichert werden.',
+        }),
+      ).not.toBeInTheDocument()
+    },
+  )
+
+  it('blocks new mutations while reset is queued', async () => {
+    const resetGate = deferred<void>()
+    const initialState = trainingState({
+      completedWorkouts: [COMPLETED_WORKOUT],
+    })
+    const repository = createRepository({
+      load: vi
+        .fn<TrainingRepository['load']>()
+        .mockResolvedValueOnce(initialState)
+        .mockResolvedValueOnce(trainingState()),
+      reset: vi.fn(async () => resetGate.promise),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Trainingsdaten bereit')
+
+    const resetResult = training!.reset()
+    act(() => training!.updatePreferences({ showSetRating: false }))
+
+    expect(training?.state.preferences.showSetRating).toBe(true)
+    expect(repository.save).not.toHaveBeenCalled()
+    await act(async () => resetGate.resolve())
+    await act(async () => resetResult)
+  })
+
   it('preserves recovery state and propagates a German reset failure', async () => {
     const corruption = new TrainingDataCorruptionError(
       'Die gespeicherten Trainingsdaten sind beschädigt.',

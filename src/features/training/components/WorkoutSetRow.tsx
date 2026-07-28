@@ -13,6 +13,10 @@ export interface WorkoutSetRowProps {
   set: WorkoutSetEntry
   showRating: boolean
   unit: ExerciseUnit
+  validationErrorId?: string
+  validationErrors?: Partial<
+    Record<'rating' | 'reps' | 'weightKg', boolean>
+  >
 }
 
 function optionalNumber(value: string, integer: boolean) {
@@ -38,6 +42,8 @@ export function WorkoutSetRow({
   set,
   showRating,
   unit,
+  validationErrorId,
+  validationErrors,
 }: WorkoutSetRowProps) {
   const setNumber = index + 1
   const showWeight =
@@ -53,6 +59,10 @@ export function WorkoutSetRow({
         <label>
           {weightLabel(loadMode)}
           <input
+            aria-describedby={
+              validationErrors?.weightKg ? validationErrorId : undefined
+            }
+            aria-invalid={validationErrors?.weightKg || undefined}
             aria-label={`Satz ${setNumber} Gewicht`}
             inputMode="decimal"
             min="0"
@@ -69,6 +79,10 @@ export function WorkoutSetRow({
       <label>
         {repetitionsLabel}
         <input
+          aria-describedby={
+            validationErrors?.reps ? validationErrorId : undefined
+          }
+          aria-invalid={validationErrors?.reps || undefined}
           aria-label={`Satz ${setNumber} ${repetitionsLabel}`}
           inputMode="numeric"
           min="0"
@@ -85,6 +99,10 @@ export function WorkoutSetRow({
         <label>
           Bewertung
           <select
+            aria-describedby={
+              validationErrors?.rating ? validationErrorId : undefined
+            }
+            aria-invalid={validationErrors?.rating || undefined}
             aria-label={`Satz ${setNumber} Bewertung`}
             onChange={(event) => {
               const rating = optionalNumber(event.target.value, true)

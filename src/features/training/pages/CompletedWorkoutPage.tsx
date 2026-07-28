@@ -172,22 +172,40 @@ function numberInput(value: string) {
   return value === '' ? 0 : Number(value)
 }
 
+function getCompletedWorkoutInvalidPaths(workout: CompletedWorkout) {
+  const result = completedWorkoutSchema.safeParse(workout)
+  return result.success
+    ? new Set<string>()
+    : new Set(
+        result.error.issues.map(({ path }) => path.map(String).join('.')),
+      )
+}
+
 function WorkoutExerciseEditor({
   catalogExercise,
   disabled,
   entry,
+  exerciseIndex,
+  invalidPaths,
   onChange,
   showRating,
+  validationErrorId,
 }: {
   catalogExercise: ExerciseDefinition | undefined
   disabled: boolean
   entry: WorkoutExerciseEntry
+  exerciseIndex: number
+  invalidPaths: ReadonlySet<string>
   onChange: (entry: WorkoutExerciseEntry) => void
   showRating: boolean
+  validationErrorId: string
 }) {
   const name = catalogExercise?.name ?? 'Unbekannte Übung'
   const measurementLabel =
     catalogExercise?.unit === 'seconds' ? 'Sekunden' : 'Wiederholungen'
+  const exercisePath = `exercises.${exerciseIndex}`
+  const hasError = (field: string) =>
+    invalidPaths.has(`${exercisePath}.${field}`)
   const updateSet = (setId: string, changes: Partial<WorkoutSetEntry>) => {
     onChange({
       ...entry,
@@ -204,6 +222,10 @@ function WorkoutExerciseEditor({
         <label>
           Zielsätze
           <input
+            aria-describedby={
+              hasError('targetSets') ? validationErrorId : undefined
+            }
+            aria-invalid={hasError('targetSets') || undefined}
             aria-label={`Zielsätze für ${name}`}
             inputMode="numeric"
             min="1"
@@ -218,6 +240,10 @@ function WorkoutExerciseEditor({
         <label>
           Minimale {measurementLabel}
           <input
+            aria-describedby={
+              hasError('repMin') ? validationErrorId : undefined
+            }
+            aria-invalid={hasError('repMin') || undefined}
             aria-label={`Minimale ${measurementLabel} für ${name}`}
             inputMode="numeric"
             min="1"
@@ -232,6 +258,10 @@ function WorkoutExerciseEditor({
         <label>
           Maximale {measurementLabel}
           <input
+            aria-describedby={
+              hasError('repMax') ? validationErrorId : undefined
+            }
+            aria-invalid={hasError('repMax') || undefined}
             aria-label={`Maximale ${measurementLabel} für ${name}`}
             inputMode="numeric"
             min="1"
@@ -303,6 +333,12 @@ function WorkoutExerciseEditor({
             set={set}
             showRating={showRating}
             unit={catalogExercise?.unit ?? 'kg-reps'}
+            validationErrorId={validationErrorId}
+            validationErrors={{
+              rating: hasError(`sets.${index}.rating`),
+              reps: hasError(`sets.${index}.reps`),
+              weightKg: hasError(`sets.${index}.weightKg`),
+            }}
           />
         ))}
       </ol>
@@ -310,9 +346,9 @@ function WorkoutExerciseEditor({
   )
 }
 
-export function CompletedWorkoutPage() {
+function CompletedWorkoutRoute({ workoutId }: { workoutId?: string }) {
   const navigate = useNavigate()
-  const { workoutId } = useParams()
+  const validationErrorId = useId()
   const {
     catalog,
     deleteCompletedWorkout,
@@ -324,7 +360,9 @@ export function CompletedWorkoutPage() {
   const [draft, setDraft] = useState<CompletedWorkout>()
   const [editing, setEditing] = useState(false)
   const [savePending, setSavePending] = useState(false)
-  const [validationError, setValidationError] = useState(false)
+  const [invalidPaths, setInvalidPaths] = useState<ReadonlySet<string> | null>(
+    null,
+  )
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deletePending, setDeletePending] = useState(false)
   const [deleteError, setDeleteError] = useState(false)
@@ -346,39 +384,44 @@ export function CompletedWorkoutPage() {
 
   const beginEdit = () => {
     setDraft(cloneWorkout(displayedWorkout))
-    setValidationError(false)
+    setInvalidPaths(null)
     setEditing(true)
   }
 
   const cancelEdit = () => {
     if (savePending) return
     setDraft(undefined)
-    setValidationError(false)
+    setInvalidPaths(null)
     setEditing(false)
   }
 
   const updateDraftExercise = (replacement: WorkoutExerciseEntry) => {
-    setDraft((current) =>
-      current
-        ? {
-            ...current,
-            exercises: current.exercises.map((entry) =>
-              entry.id === replacement.id ? replacement : entry,
-            ),
-          }
-        : current,
-    )
+    if (!draft) return
+    const nextDraft = {
+      ...draft,
+      exercises: draft.exercises.map((entry) =>
+        entry.id === replacement.id ? replacement : entry,
+      ),
+    }
+    setDraft(nextDraft)
+    if (invalidPaths !== null) {
+      setInvalidPaths(getCompletedWorkoutInvalidPaths(nextDraft))
+    }
   }
 
   const saveDraft = async () => {
     if (!draft || savePending) return
     const result = completedWorkoutSchema.safeParse(draft)
     if (!result.success) {
-      setValidationError(true)
+      setInvalidPaths(
+        new Set(
+          result.error.issues.map(({ path }) => path.map(String).join('.')),
+        ),
+      )
       return
     }
 
-    setValidationError(false)
+    setInvalidPaths(new Set())
     setSavePending(true)
     const saved = await replaceCompletedWorkout(
       displayedWorkout.id,
@@ -387,6 +430,7 @@ export function CompletedWorkoutPage() {
     setSavePending(false)
     if (!saved) return
     setDraft(undefined)
+    setInvalidPaths(null)
     setEditing(false)
   }
 
@@ -429,29 +473,38 @@ export function CompletedWorkoutPage() {
           <label>
             Trainingsname
             <input
+              aria-describedby={
+                invalidPaths?.has('name') ? validationErrorId : undefined
+              }
+              aria-invalid={invalidPaths?.has('name') || undefined}
               aria-label="Trainingsname"
               disabled={savePending}
-              onChange={(event) =>
-                setDraft((current) =>
-                  current ? { ...current, name: event.target.value } : current,
-                )
-              }
+              onChange={(event) => {
+                const nextDraft = { ...draft, name: event.target.value }
+                setDraft(nextDraft)
+                if (invalidPaths !== null) {
+                  setInvalidPaths(getCompletedWorkoutInvalidPaths(nextDraft))
+                }
+              }}
               type="text"
               value={draft.name}
             />
           </label>
-          {draft.exercises.map((entry) => (
+          {draft.exercises.map((entry, exerciseIndex) => (
             <WorkoutExerciseEditor
               catalogExercise={catalog.find(({ id }) => id === entry.exerciseId)}
               disabled={savePending}
               entry={entry}
+              exerciseIndex={exerciseIndex}
+              invalidPaths={invalidPaths ?? new Set()}
               key={entry.id}
               onChange={updateDraftExercise}
               showRating={state.preferences.showSetRating}
+              validationErrorId={validationErrorId}
             />
           ))}
-          {validationError ? (
-            <InlineAlert variant="error">
+          {invalidPaths?.size ? (
+            <InlineAlert id={validationErrorId} variant="error">
               Bitte prüfe die markierten Trainingswerte.
             </InlineAlert>
           ) : null}
@@ -542,4 +595,9 @@ export function CompletedWorkoutPage() {
       </ResponsiveDialog>
     </section>
   )
+}
+
+export function CompletedWorkoutPage() {
+  const { workoutId } = useParams()
+  return <CompletedWorkoutRoute key={workoutId ?? 'missing'} workoutId={workoutId} />
 }

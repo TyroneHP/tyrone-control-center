@@ -15,7 +15,7 @@ export interface ProgressionRecommendation {
 
 interface ExerciseOccurrence {
   completedAt: string
-  entry: WorkoutExerciseEntry
+  entries: WorkoutExerciseEntry[]
 }
 
 interface CountedSet {
@@ -46,11 +46,13 @@ function getExerciseOccurrences(
   completedWorkouts: readonly CompletedWorkout[],
 ): ExerciseOccurrence[] {
   return completedWorkouts
-    .flatMap((workout) =>
-      workout.exercises
-        .filter((entry) => entry.exerciseId === exerciseId)
-        .map((entry) => ({ completedAt: workout.completedAt, entry })),
-    )
+    .map((workout) => ({
+      completedAt: workout.completedAt,
+      entries: workout.exercises.filter(
+        (entry) => entry.exerciseId === exerciseId,
+      ),
+    }))
+    .filter(({ entries }) => entries.length > 0)
     .sort(
       (left, right) =>
         Date.parse(right.completedAt) - Date.parse(left.completedAt),
@@ -62,24 +64,26 @@ function getCountedSets(
 ): CountedSet[] | null {
   const countedSets: CountedSet[] = []
 
-  for (const { entry } of occurrences) {
-    const eligibleSets = entry.sets.filter((set) =>
-      isEligibleSet(set, entry.loadMode),
-    )
-    if (eligibleSets.length === 0) {
-      return null
-    }
+  for (const { entries } of occurrences) {
+    for (const entry of entries) {
+      const eligibleSets = entry.sets.filter((set) =>
+        isEligibleSet(set, entry.loadMode),
+      )
+      if (eligibleSets.length === 0) {
+        return null
+      }
 
-    countedSets.push(
-      ...eligibleSets.map((set) => ({
-        loadMode: entry.loadMode,
-        weightKg:
-          entry.loadMode === 'bodyweight' ? 0 : (set.weightKg as number),
-        reps: set.reps,
-        rating: set.rating,
-        repMax: entry.repMax,
-      })),
-    )
+      countedSets.push(
+        ...eligibleSets.map((set) => ({
+          loadMode: entry.loadMode,
+          weightKg:
+            entry.loadMode === 'bodyweight' ? 0 : (set.weightKg as number),
+          reps: set.reps,
+          rating: set.rating,
+          repMax: entry.repMax,
+        })),
+      )
+    }
   }
 
   return countedSets
