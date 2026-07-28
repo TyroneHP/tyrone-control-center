@@ -186,6 +186,7 @@ export function TrainingHomePage() {
             </button>
           </>
         }
+        dismissible={false}
         onClose={() => setPendingTemplate(undefined)}
         open={Boolean(pendingTemplate)}
         title="Aktives Training"

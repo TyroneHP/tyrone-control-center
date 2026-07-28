@@ -179,13 +179,20 @@ describe('TrainingHomePage', () => {
     await screen.findByRole('heading', { name: 'Training' })
     await user.click(screen.getAllByRole('button', { name: 'Training starten: Oberkörper' })[0])
     const dialog = await screen.findByRole('dialog', { name: 'Aktives Training' })
-    expect(within(dialog).getByRole('button', { name: 'Fortsetzen' })).toBeInTheDocument()
     expect(
-      within(dialog).getByRole('button', { name: 'Aktives Training abschließen' }),
-    ).toBeInTheDocument()
-    expect(
-      within(dialog).getByRole('button', { name: 'Aktives Training verwerfen' }),
-    ).toBeInTheDocument()
+      within(dialog)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual([
+      'Fortsetzen',
+      'Aktives Training abschließen',
+      'Aktives Training verwerfen',
+    ])
+
+    await user.keyboard('{Escape}')
+    expect(dialog).toBeInTheDocument()
+    await user.click(screen.getByTestId('responsive-dialog-backdrop'))
+    expect(dialog).toBeInTheDocument()
 
     await user.click(within(dialog).getByRole('button', { name: 'Fortsetzen' }))
     expect(screen.getByLabelText('Aktueller Pfad')).toHaveTextContent('/training/active')

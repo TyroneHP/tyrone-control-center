@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -84,6 +84,28 @@ async function addExercise(user: ReturnType<typeof userEvent.setup>, name: strin
   const details = await screen.findByRole('dialog', { name })
   await user.click(
     within(details).getByRole('button', { name: 'Zum Training hinzufügen' }),
+  )
+}
+
+function installSortableGeometry() {
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+    function getBoundingClientRect(this: HTMLElement) {
+      const top =
+        this instanceof HTMLLIElement && this.textContent?.includes('Klimmzug')
+          ? 100
+          : 0
+      return {
+        bottom: top + 80,
+        height: 80,
+        left: 0,
+        right: 320,
+        toJSON: () => undefined,
+        top,
+        width: 320,
+        x: 0,
+        y: top,
+      } as DOMRect
+    },
   )
 }
 
@@ -210,25 +232,7 @@ describe('WorkoutTemplateEditorPage', () => {
   })
 
   it('supports keyboard drag sorting and keeps orders contiguous', async () => {
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
-      function getBoundingClientRect(this: HTMLElement) {
-        const top =
-          this instanceof HTMLLIElement && this.textContent?.includes('Klimmzug')
-            ? 100
-            : 0
-        return {
-          bottom: top + 80,
-          height: 80,
-          left: 0,
-          right: 320,
-          toJSON: () => undefined,
-          top,
-          width: 320,
-          x: 0,
-          y: top,
-        } as DOMRect
-      },
-    )
+    installSortableGeometry()
     const user = userEvent.setup()
     const repository = renderEditor()
 
@@ -242,6 +246,62 @@ describe('WorkoutTemplateEditorPage', () => {
     await user.keyboard('[Space]')
     await user.keyboard('{ArrowDown}')
     await user.keyboard('[Space]')
+    await user.click(screen.getByRole('button', { name: 'Trainingsplan speichern' }))
+
+    await waitFor(() => {
+      const exercises = vi.mocked(repository.save).mock.calls.at(-1)?.[1].templates[0]
+        ?.exercises
+      expect(exercises?.map(({ exerciseId, order }) => [exerciseId, order])).toEqual([
+        ['pull-up', 0],
+        ['bench-press', 1],
+      ])
+    })
+  })
+
+  it('sorts exercises with a pointer drag and persists contiguous orders', async () => {
+    installSortableGeometry()
+    const user = userEvent.setup()
+    const repository = renderEditor()
+
+    await screen.findByRole('heading', { name: 'Trainingsplan erstellen' })
+    await user.type(screen.getByLabelText('Name des Trainingsplans'), 'Pointer')
+    await addExercise(user, 'Bankdrücken')
+    await addExercise(user, 'Klimmzug')
+
+    const handle = screen.getByRole('button', {
+      name: 'Übung verschieben: Bankdrücken',
+    })
+    fireEvent.pointerDown(handle, {
+      button: 0,
+      clientX: 20,
+      clientY: 40,
+      isPrimary: true,
+      pointerId: 1,
+    })
+    fireEvent.pointerMove(document, {
+      clientX: 20,
+      clientY: 140,
+      isPrimary: true,
+      pointerId: 1,
+    })
+    fireEvent.pointerUp(document, {
+      clientX: 20,
+      clientY: 140,
+      isPrimary: true,
+      pointerId: 1,
+    })
+
+    const exerciseList = screen.getByRole('list')
+    await waitFor(() =>
+      expect(
+        within(exerciseList)
+          .getAllByRole('heading')
+          .map((heading) => heading.textContent),
+      ).toEqual(['Klimmzug', 'Bankdrücken']),
+    )
+    // PointerSensor deliberately keeps its document click guard for 50 ms
+    // after dropping so the release cannot activate the dragged control.
+    await new Promise((resolve) => setTimeout(resolve, 60))
     await user.click(screen.getByRole('button', { name: 'Trainingsplan speichern' }))
 
     await waitFor(() => {
