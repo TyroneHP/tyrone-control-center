@@ -72,6 +72,28 @@ function cloneWorkoutExercises(
   }))
 }
 
+function normalizeLoadMode(
+  definition: ExerciseDefinition | undefined,
+  loadMode: WorkoutExerciseEntry['loadMode'] | undefined,
+) {
+  if (!definition) return loadMode ?? 'external'
+  if (!definition.supportsBodyweightModes) return 'external'
+  return loadMode && loadMode !== 'external' ? loadMode : 'bodyweight'
+}
+
+function cloneCompletedWorkoutExercises(
+  exercises: readonly WorkoutExerciseEntry[],
+  catalog: readonly ExerciseDefinition[],
+): WorkoutExerciseEntry[] {
+  return cloneWorkoutExercises(exercises).map((exercise) => ({
+    ...exercise,
+    loadMode: normalizeLoadMode(
+      catalog.find(({ id }) => id === exercise.exerciseId),
+      exercise.loadMode,
+    ),
+  }))
+}
+
 function normalizeOrder<T extends { order: number }>(
   entries: readonly T[],
 ): T[] {
@@ -133,13 +155,6 @@ function createWorkoutExerciseEntry(
   definition: ExerciseDefinition | undefined,
 ): WorkoutExerciseEntry {
   const grip = previousEntry ? previousEntry.grip : exercise.preferredGrip
-  const loadMode = definition?.supportsBodyweightModes
-    ? previousEntry && previousEntry.loadMode !== 'external'
-      ? previousEntry.loadMode
-      : 'bodyweight'
-    : definition
-      ? 'external'
-      : (previousEntry?.loadMode ?? 'external')
   return {
     id: crypto.randomUUID(),
     exerciseId: exercise.exerciseId,
@@ -148,7 +163,7 @@ function createWorkoutExerciseEntry(
     repMin: exercise.repMin,
     repMax: exercise.repMax,
     ...(grip === undefined ? {} : { grip }),
-    loadMode,
+    loadMode: normalizeLoadMode(definition, previousEntry?.loadMode),
     note: previousEntry?.note ?? '',
     sets: previousEntry
       ? previousEntry.sets.map(clonePrefilledSet)
@@ -434,6 +449,7 @@ export function removeWorkoutSet(
 export function completeWorkout(
   state: TrainingState,
   completedAt: string,
+  catalog: readonly ExerciseDefinition[] = [],
 ): TrainingState {
   const activeWorkout = requireActiveWorkout(state)
   const completedWorkout: CompletedWorkout = {
@@ -444,7 +460,7 @@ export function completeWorkout(
     name: activeWorkout.name,
     startedAt: activeWorkout.startedAt,
     completedAt,
-    exercises: cloneWorkoutExercises(activeWorkout.exercises),
+    exercises: cloneCompletedWorkoutExercises(activeWorkout.exercises, catalog),
   }
 
   return {

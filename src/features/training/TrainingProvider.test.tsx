@@ -357,6 +357,60 @@ describe('TrainingProvider', () => {
     })
   })
 
+  it('normalizes a legacy bodyweight entry before atomic complete and start', async () => {
+    const legacyActive: ActiveWorkout = {
+      ...ACTIVE_WORKOUT,
+      exercises: [
+        {
+          id: 'legacy-pull-up',
+          exerciseId: 'pull-up',
+          order: 0,
+          targetSets: 1,
+          repMin: 6,
+          repMax: 10,
+          loadMode: 'external',
+          note: '',
+          sets: [
+            {
+              id: 'legacy-pull-up-set',
+              weightKg: 15,
+              reps: 10,
+              rating: 7,
+              completed: true,
+            },
+          ],
+        },
+      ],
+    }
+    const repository = createRepository({
+      load: vi.fn(async () => trainingState({ activeWorkout: legacyActive })),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => {
+      training = value
+    })
+    await screen.findByText('Aktiv: Bestehendes Training')
+
+    let result: boolean | undefined
+    await act(async () => {
+      result = await training!.resolveActiveWorkoutAndStart(
+        BODYWEIGHT_WORKOUT_TEMPLATE,
+        '2026-07-27T06:00:00.000Z',
+        'complete',
+      )
+    })
+
+    expect(result).toBe(true)
+    expect(training?.state.completedWorkouts[0].exercises[0]).toMatchObject({
+      exerciseId: 'pull-up',
+      loadMode: 'bodyweight',
+    })
+    expect(training?.state.activeWorkout?.exercises[0]).toMatchObject({
+      exerciseId: 'pull-up',
+      loadMode: 'bodyweight',
+    })
+  })
+
   it('keeps a failed mutation in memory and surfaces a German persistence error', async () => {
     const repository = createRepository({
       save: vi.fn(async () => {

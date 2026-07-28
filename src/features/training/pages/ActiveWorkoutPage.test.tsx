@@ -1157,6 +1157,66 @@ describe('ActiveWorkoutPage', () => {
     })
   })
 
+  it('normalizes legacy external bodyweight entries when finishing without selector interaction', async () => {
+    const user = userEvent.setup()
+    const repository = createRepository(
+      trainingState({
+        activeWorkout: {
+          ...ACTIVE_WORKOUT,
+          exercises: [
+            { ...PULL_UP_ENTRY, loadMode: 'external', order: 0 },
+            {
+              ...PULL_UP_ENTRY,
+              exerciseId: 'dip',
+              id: 'entry-dip-legacy',
+              loadMode: 'external',
+              order: 1,
+              sets: [
+                {
+                  ...PULL_UP_ENTRY.sets[0],
+                  id: 'set-dip-legacy',
+                  weightKg: 20,
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    )
+    renderActive(repository)
+
+    await screen.findByRole('heading', { name: 'Oberkörper' })
+    expect(screen.getByLabelText('Belastungsmodus für Klimmzug')).toHaveValue(
+      'bodyweight',
+    )
+    expect(screen.getByLabelText('Belastungsmodus für Dip')).toHaveValue(
+      'bodyweight',
+    )
+    await user.click(screen.getByRole('button', { name: 'Training abschließen' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Training abschließen?',
+    })
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Training abschließen' }),
+    )
+
+    await screen.findByLabelText('Aktueller Pfad')
+    const completed = repository.read().completedWorkouts.at(-1)
+    expect(
+      completed?.exercises.map(({ exerciseId, loadMode, sets }) => ({
+        exerciseId,
+        loadMode,
+        weightKg: sets[0].weightKg,
+      })),
+    ).toEqual([
+      { exerciseId: 'pull-up', loadMode: 'bodyweight', weightKg: 15 },
+      { exerciseId: 'dip', loadMode: 'bodyweight', weightKg: 20 },
+    ])
+    expect(completed?.exercises).not.toContainEqual(
+      expect.objectContaining({ loadMode: 'external' }),
+    )
+  })
+
   it('finishes only after persistence succeeds and opens the completed workout', async () => {
     const user = userEvent.setup()
     const saveGate = deferred<void>()

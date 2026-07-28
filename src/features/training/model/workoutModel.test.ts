@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { STANDARD_EXERCISES } from './exerciseCatalog'
+import { getProgressionRecommendation } from './progression'
 import type {
   ActiveWorkout,
   CompletedWorkout,
@@ -811,6 +812,87 @@ describe('active workouts', () => {
 })
 
 describe('workout completion and history', () => {
+  it('normalizes only legacy external bodyweight modes when completing', () => {
+    const state = makeState({
+      activeWorkout: makeActiveWorkout([
+        makeWorkoutExercise({
+          id: 'legacy-pull-up',
+          exerciseId: 'pull-up',
+          loadMode: 'external',
+        }),
+        makeWorkoutExercise({
+          id: 'legacy-dip',
+          exerciseId: 'dip',
+          loadMode: 'external',
+        }),
+        makeWorkoutExercise({
+          id: 'added-pull-up',
+          exerciseId: 'pull-up',
+          loadMode: 'added',
+        }),
+        makeWorkoutExercise({
+          id: 'assisted-dip',
+          exerciseId: 'dip',
+          loadMode: 'assisted',
+        }),
+      ]),
+    })
+
+    const result = completeWorkout(state, FINISHED, STANDARD_EXERCISES)
+
+    expect(
+      result.completedWorkouts[0].exercises.map(({ id, loadMode }) => ({
+        id,
+        loadMode,
+      })),
+    ).toEqual([
+      { id: 'legacy-pull-up', loadMode: 'bodyweight' },
+      { id: 'legacy-dip', loadMode: 'bodyweight' },
+      { id: 'added-pull-up', loadMode: 'added' },
+      { id: 'assisted-dip', loadMode: 'assisted' },
+    ])
+    expect(state.activeWorkout?.exercises.map(({ loadMode }) => loadMode)).toEqual(
+      ['external', 'external', 'added', 'assisted'],
+    )
+  })
+
+  it('uses normalized bodyweight semantics for progression after completion', () => {
+    const active = makeActiveWorkout([
+      makeWorkoutExercise({
+        exerciseId: 'pull-up',
+        loadMode: 'external',
+        repMax: 12,
+        sets: [
+          {
+            id: 'legacy-bodyweight-set',
+            weightKg: 25,
+            reps: 12,
+            rating: 7,
+            completed: true,
+          },
+        ],
+      }),
+    ])
+    const completed = completeWorkout(
+      makeState({ activeWorkout: active }),
+      FINISHED,
+      STANDARD_EXERCISES,
+    ).completedWorkouts
+
+    expect(completed[0].exercises[0].loadMode).toBe('bodyweight')
+    expect(
+      getProgressionRecommendation('pull-up', completed, {
+        ...makeState().preferences,
+        successfulWorkoutCount: 1,
+      }),
+    ).toEqual({
+      exerciseId: 'pull-up',
+      currentWeightKg: 0,
+      suggestedWeightKg: 2.5,
+      successfulWorkoutCount: 1,
+    })
+  })
+
   it('persists every set on completion, clears the active slot, and preserves an untouched note', () => {
     const active = makeActiveWorkout([
       makeWorkoutExercise({

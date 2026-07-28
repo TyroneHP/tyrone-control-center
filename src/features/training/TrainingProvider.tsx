@@ -835,7 +835,11 @@ export function TrainingProvider({
           }
           const resolvedState =
             resolution === 'complete'
-              ? completeWorkoutModel(current, startedAt)
+              ? completeWorkoutModel(
+                  current,
+                  startedAt,
+                  getExerciseCatalog(current),
+                )
               : { ...current, activeWorkout: null }
           return startWorkoutModel(
             resolvedState,
@@ -946,7 +950,12 @@ export function TrainingProvider({
   const completeWorkout = useCallback(
     (completedAt: string) =>
       updateState(
-        (current) => completeWorkoutModel(current, completedAt),
+        (current) =>
+          completeWorkoutModel(
+            current,
+            completedAt,
+            getExerciseCatalog(current),
+          ),
         undefined,
         workoutResolutionOptions,
       ),
