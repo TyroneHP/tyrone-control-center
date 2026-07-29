@@ -1,6 +1,6 @@
 import { createServer } from 'vite'
 
-const appUrl = 'http://127.0.0.1:5173/login'
+const appUrl = process.env.E2E_APP_URL ?? 'http://127.0.0.1:5173/login'
 
 async function existingServerIsReady() {
   try {

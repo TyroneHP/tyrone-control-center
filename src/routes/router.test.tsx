@@ -1,3 +1,5 @@
+import 'fake-indexeddb/auto'
+
 import { render, screen } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
@@ -114,6 +116,23 @@ describe('application routing', () => {
     ).toBeInTheDocument()
     expect(
       screen.getByRole('table', { name: /Monatskalender/ }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Bereich vorbereitet')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['/training', 'Training'],
+    ['/training/library', 'Übungsbibliothek'],
+    ['/training/templates/new', 'Trainingsplan erstellen'],
+    ['/training/templates/template-upper/edit', 'Trainingsplan nicht gefunden'],
+    ['/training/active', 'Kein aktives Training'],
+    ['/training/history', 'Trainingsverlauf'],
+    ['/training/history/workout-1', 'Abgeschlossenes Training'],
+  ])('renders the training route %s', async (path, heading) => {
+    renderRoute(path, activeClient())
+
+    expect(
+      await screen.findByRole('heading', { name: heading }),
     ).toBeInTheDocument()
     expect(screen.queryByText('Bereich vorbereitet')).not.toBeInTheDocument()
   })

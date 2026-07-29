@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" data-exercise-id="dumbbell-curl">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#f59e0b"/></marker></defs>
+  <g fill="none" stroke="#26313a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <g data-equipment="pair-of-dumbbells"><path d="M132 258h40m-8-16v32m-24-32v32M326 258h40m-8-16v32m-24-32v32" stroke-width="6"/><path d="M70 309h355" stroke-width="4"/></g>
+    <g data-pose="end" opacity="0.38"><circle cx="246" cy="78" r="18"/><path d="M246 97v117m0-74-42 22-27-82m69 60 42 22 29-82m-71 134-43 89m43-89 43 89"/><path d="M158 69h38m-8-16v32m-22-32v32M298 69h38m-8-16v32m-22-32v32" stroke-width="6"/></g>
+    <g data-pose="start"><circle cx="246" cy="78" r="18"/><path d="M246 97v117m0-74-42 22-52 96m94-118 42 22 58 96m-100-44-43 89m43-89 43 89"/></g>
+    <path data-motion="arrow" d="M385 248q20-100-37-174" stroke="#f59e0b" stroke-width="6" marker-end="url(#arrow)"/>
+  </g>
+  <g data-muscle-map="front" stroke="#26313a" stroke-width="2" fill="none"><circle cx="535" cy="73" r="12"/><path d="M535 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path data-muscle="primary" d="M510 112l10-5 5 24-10 18-8-6m53-31-10-5-5 24 10 18 8-6" fill="#f59e0b" stroke="none"/><path data-muscle="secondary" d="M515 149l8-4 4 28-8 19-7-6m46-37-8-4-4 28 8 19 7-6" fill="#f59e0b" opacity="0.38" stroke="none"/></g>
+  <g data-muscle-map="back" stroke="#26313a" stroke-width="2" fill="none"><circle cx="596" cy="73" r="12"/><path d="M596 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path d="M581 103q15-12 30 0v38q-15 10-30 0Z" fill="#e7eaec" stroke="none"/></g>
+</svg>

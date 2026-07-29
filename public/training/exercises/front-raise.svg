@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" data-exercise-id="front-raise">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#f59e0b"/></marker></defs>
+  <g fill="none" stroke="#26313a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <g data-equipment="pair-of-dumbbells"><path d="M223 251h26m-22-12v24m18-24v24M231 248h27m-23-12v24m19-24v24" stroke-width="6"/><path d="M332 151h26m-22-12v24m18-24v24M341 143h27m-23-12v24m19-24v24" stroke-width="6" opacity="0.38"/><path d="M70 309h355" stroke-width="4"/></g>
+    <g data-pose="end" opacity="0.38"><circle cx="210" cy="80" r="18"/><path d="M210 99v113m0-76-31 46m31-46 31 46m-31 30-42 91m42-91 42 91"/><polyline data-limb="near-arm" points="214,135 284,138 354,143"/><polyline data-limb="far-arm" points="218,138 278,146 345,151"/></g>
+    <g data-pose="start"><circle cx="210" cy="80" r="18"/><path d="M210 99v113m0-76-31 46m31-46 31 46m-31 30-42 91m42-91 42 91"/><polyline data-limb="near-arm" points="214,135 232,185 244,248"/><polyline data-limb="far-arm" points="218,138 226,188 236,251"/></g>
+    <path data-motion="arrow" d="M244 248Q330 230 354 143" stroke="#f59e0b" stroke-width="6" marker-end="url(#arrow)"/>
+  </g>
+  <g data-muscle-map="front" stroke="#26313a" stroke-width="2" fill="none"><circle cx="535" cy="73" r="12"/><path d="M535 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path data-muscle="primary" d="M510 101q8-10 15 2l-5 18-13-6m53-14q-8-10-15 2l5 18 13-6" fill="#f59e0b" stroke="none"/><path data-muscle="secondary" d="M520 104q15-10 30 0v12q-15 6-30 0m8-22h14l8 14-15 8-15-8Z" fill="#f59e0b" opacity="0.38" stroke="none"/></g>
+  <g data-muscle-map="back" stroke="#26313a" stroke-width="2" fill="none"><circle cx="596" cy="73" r="12"/><path d="M596 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path d="M581 103q15-12 30 0v38q-15 10-30 0Z" fill="#e7eaec" stroke="none"/></g>
+</svg>

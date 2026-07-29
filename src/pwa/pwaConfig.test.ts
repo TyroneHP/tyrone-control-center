@@ -16,7 +16,7 @@ describe('PWA configuration', () => {
         theme_color: '#071526',
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,woff2}'],
+        globPatterns: ['**/*.{js,css,html,svg,webp,woff2}'],
         navigateFallback: 'index.html',
         runtimeCaching: [],
       },

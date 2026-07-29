@@ -1,0 +1,339 @@
+.training-home,
+.exercise-library,
+.active-workout,
+.workout-template-editor,
+.training-settings {
+  min-inline-size: 0;
+}
+
+.training-home,
+.exercise-library,
+.active-workout,
+.workout-template-editor,
+.workout-history,
+.completed-workout {
+  display: grid;
+  width: min(100%, 72rem);
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+  margin-inline: auto;
+}
+
+.training-home__header,
+.exercise-library__header,
+.active-workout__header,
+.training-home__section-heading,
+.workout-template-editor__exercise-heading,
+.workout-history > header,
+.completed-workout > header {
+  display: flex;
+  width: 100%;
+  min-inline-size: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.training-home__header > div,
+.exercise-library__header > div,
+.active-workout__header > div,
+.workout-history > header > div,
+.completed-workout > header > div,
+.active-workout__exercise-header > div {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.training-home__template-grid,
+.exercise-library__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.training-home__quick-links,
+.active-workout__exercise-actions,
+.active-workout__actions,
+.workout-template-editor__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.exercise-library__filters label {
+  display: block;
+  min-inline-size: 0;
+}
+
+.exercise-library__filters input:not([type='checkbox']),
+.exercise-library__filters select {
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+
+:where(
+  .training-home,
+  .exercise-library,
+  .active-workout,
+  .workout-template-editor,
+  .workout-history,
+  .completed-workout,
+  .training-settings,
+  .training-recovery-notice
+) :where(button, input, select, textarea, a[href]),
+.exercise-picker__list button,
+.exercise-editor :where(button, input, select, textarea),
+body:has(
+  .training-home,
+  .exercise-library,
+  .active-workout,
+  .workout-template-editor,
+  .workout-history,
+  .completed-workout
+) .responsive-dialog__actions button {
+  min-height: 44px;
+}
+
+:where(
+  .training-home,
+  .exercise-library,
+  .active-workout,
+  .workout-template-editor,
+  .workout-history,
+  .completed-workout
+) a[href] {
+  display: inline-flex;
+  align-items: center;
+}
+
+:where(
+  .exercise-library,
+  .active-workout,
+  .workout-template-editor,
+  .completed-workout,
+  .exercise-editor
+) input[type='checkbox'] {
+  inline-size: 44px;
+  margin: 0;
+}
+
+.training-recovery-notice {
+  display: grid;
+  gap: 0.75rem;
+  width: min(100%, 72rem);
+  margin: 1rem auto;
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-control);
+  padding: 1rem;
+  background: var(--color-danger-soft);
+}
+
+.training-recovery-notice p {
+  margin: 0;
+}
+
+.training-settings {
+  min-inline-size: 0;
+}
+
+.training-settings__toggle,
+.training-settings fieldset,
+.training-settings__progression-fields,
+.training-settings__progression-fields label {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.training-settings__toggle {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-glass);
+}
+
+.training-settings__toggle span {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.training-settings small,
+.training-settings fieldset:disabled {
+  color: var(--color-text-muted);
+}
+
+.training-settings input,
+.training-settings select,
+.training-settings button,
+.training-settings__toggle {
+  min-height: 44px;
+}
+
+.training-settings input[type='checkbox'] {
+  inline-size: 44px;
+  margin: 0;
+}
+
+.training-settings fieldset {
+  min-inline-size: 0;
+  margin: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  padding: 1rem;
+}
+
+.training-settings legend {
+  padding-inline: 0.3rem;
+  font-weight: 700;
+}
+
+.training-settings__progression-fields {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.training-settings__progression-fields input,
+.active-workout input,
+.active-workout select,
+.active-workout textarea {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  padding: 0.65rem 0.85rem;
+  background: var(--color-input);
+  color: var(--color-text);
+}
+
+.exercise-card__image,
+.exercise-detail__image {
+  display: block;
+  max-inline-size: 100%;
+  block-size: auto;
+}
+
+.exercise-card__content {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.table-scroll {
+  max-inline-size: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+.table-scroll table {
+  min-inline-size: max-content;
+}
+
+.active-workout button,
+.active-workout input,
+.active-workout select,
+.active-workout textarea {
+  min-height: 44px;
+}
+
+.active-workout input[type='checkbox'] {
+  inline-size: 44px;
+  margin: 0;
+}
+
+.active-workout__exercise-list,
+.active-workout__sets {
+  display: grid;
+  gap: 1rem;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.active-workout__exercise-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.75rem;
+}
+
+.active-workout__drag-handle {
+  inline-size: 44px;
+}
+
+.workout-set-row {
+  display: grid;
+  grid-template-columns: auto repeat(4, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: 0.75rem;
+  min-inline-size: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  padding: 0.75rem;
+}
+
+.workout-set-row label {
+  display: grid;
+  gap: 0.35rem;
+  min-inline-size: 0;
+}
+
+.workout-set-row__number {
+  margin: 0;
+  font-weight: 700;
+}
+
+@media (max-width: 767px) {
+  .training-home__header,
+  .exercise-library__header,
+  .active-workout__header,
+  .training-home__section-heading,
+  .workout-template-editor__exercise-heading,
+  .workout-history > header,
+  .completed-workout > header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .training-home__template-grid,
+  .exercise-library__grid,
+  .training-settings__progression-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .training-home,
+  .exercise-library,
+  .active-workout,
+  .workout-template-editor,
+  .workout-history,
+  .completed-workout {
+    box-sizing: border-box;
+    max-inline-size: 100vw;
+  }
+
+  .active-workout__exercise-header,
+  .workout-set-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .active-workout__exercise-actions,
+  .active-workout__actions,
+  .workout-template-editor__actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .active-workout__actions {
+    position: sticky;
+    inset-block-end: calc(5.75rem + env(safe-area-inset-bottom));
+    z-index: 1;
+    margin-inline: -1rem;
+    padding:
+      0.75rem
+      1rem
+      max(0.75rem, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--color-border);
+    background: var(--color-bg-elevated);
+    box-shadow: 0 -12px 24px var(--color-overlay);
+  }
+}

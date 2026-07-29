@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" data-exercise-id="dumbbell-bench-press">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#f59e0b"/></marker></defs>
+  <g fill="none" stroke="#26313a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <g data-equipment="flat-bench-dumbbells"><path d="M75 267H355M105 267v34m220-34v34"/><path d="M180 188h35m-8-15v30m-19-30v30M275 188h35m-8-15v30m-19-30v30" stroke-width="6"/></g>
+    <g data-pose="end" opacity="0.38"><circle cx="327" cy="229" r="14"/><path d="M313 235H165l-46 38m46-38-22 58m103-58v-79m0 0h-23m23 0h23m41 79v-79m0 0h-23m23 0h23"/><path d="M223 145h46m18 0h46" stroke-width="5"/></g>
+    <g data-pose="start"><circle cx="327" cy="229" r="14"/><path d="M313 235H165l-46 38m46-38-22 58m103-58-31-47m31 47 31-47m33 47-31-47m31 47 31-47"/></g>
+    <path data-motion="arrow" d="M370 203V135" stroke="#f59e0b" stroke-width="6" marker-end="url(#arrow)"/>
+  </g>
+  <g data-muscle-map="front" stroke="#26313a" stroke-width="2" fill="none"><circle cx="535" cy="73" r="12"/><path d="M535 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path data-muscle="primary" d="M520 103q15-12 30 0v22q-15 9-30 0Z" fill="#f59e0b" stroke="none"/><path data-muscle="secondary" d="M512 104l-8 30 9 5 10-31m34-4 8 30-9 5-9-31" fill="#f59e0b" opacity="0.38" stroke="none"/></g>
+  <g data-muscle-map="back" stroke="#26313a" stroke-width="2" fill="none"><circle cx="596" cy="73" r="12"/><path d="M596 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path d="M581 103q15-12 30 0v38q-15 10-30 0Z" fill="#e7eaec" stroke="none"/></g>
+</svg>

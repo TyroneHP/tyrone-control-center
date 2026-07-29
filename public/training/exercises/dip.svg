@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" data-exercise-id="dip">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#f59e0b"/></marker></defs>
+  <g fill="none" stroke="#26313a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <g data-equipment="parallel-dip-bars"><path d="M75 309h370M110 146h126v163m174-163H284v163M110 146v38m300-38v38" stroke-width="8"/></g>
+    <g data-pose="end" opacity="0.38"><circle cx="260" cy="80" r="18"/><path d="M260 99l12 115m-6-75-55 7 26 48m29-55 55 7-26 48m-23 20-31 86m31-86 55 72"/></g>
+    <g data-pose="start"><circle cx="260" cy="137" r="18"/><path d="M260 156l12 105m-6-75-55-40 26 48m29-8 55-40-26 48m-23 67-31 39m31-39 55 25"/></g>
+    <path data-motion="arrow" d="M365 211V105" stroke="#f59e0b" stroke-width="6" marker-end="url(#arrow)"/>
+  </g>
+  <g data-muscle-map="front" stroke="#26313a" stroke-width="2" fill="none"><circle cx="535" cy="73" r="12"/><path d="M535 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path data-muscle="primary" d="M520 103q15-12 30 0v22q-15 9-30 0Z" fill="#f59e0b" stroke="none"/><path data-muscle="secondary" d="M510 101q8-10 15 2l-5 18-13-6m53-14q-8-10-15 2l5 18 13-6" fill="#f59e0b" opacity="0.38" stroke="none"/></g>
+  <g data-muscle-map="back" stroke="#26313a" stroke-width="2" fill="none"><circle cx="596" cy="73" r="12"/><path d="M596 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path data-muscle="primary" d="M575 110l9-4 8 28-10 22-9-6m44-40-9-4-8 28 10 22 9-6" fill="#f59e0b" stroke="none"/></g>
+</svg>

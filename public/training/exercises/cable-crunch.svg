@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" data-exercise-id="cable-crunch">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#f59e0b"/></marker></defs>
+  <g fill="none" stroke="#26313a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <g data-equipment="high-pulley-rope"><path d="M48 43v269h107M48 53h97v259"/><rect x="66" y="117" width="41" height="117" rx="4"/><circle cx="136" cy="79" r="10"/><path d="M136 79l122 61" stroke-width="3"/><path d="M258 140v32m0 0-18 24m18-24 18 24" stroke-width="5"/><path d="M55 309h390" stroke-width="4"/></g>
+    <g data-pose="end" opacity="0.38"><circle cx="278" cy="169" r="17"/><path d="M267 184q-43 34-28 74m17-53-37-34m48 13 48 29 33 37m-109 8-40 44m40-44 54 44"/></g>
+    <g data-pose="start"><circle cx="280" cy="107" r="17"/><path d="M273 124l-18 126m8-81-44 2m54-47 42 34 33 92m-93 0-40 52m40-52 54 52"/></g>
+    <path data-motion="arrow" d="M382 120q4 96-73 145" stroke="#f59e0b" stroke-width="6" marker-end="url(#arrow)"/>
+  </g>
+  <g data-muscle-map="front" stroke="#26313a" stroke-width="2" fill="none"><circle cx="535" cy="73" r="12"/><path d="M535 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path data-muscle="primary" d="M528 118h14v47h-14Z" fill="#f59e0b" stroke="none"/><path data-muscle="secondary" d="M520 119l8 1v43l-9-5m31-39-8 1v43l9-5" fill="#f59e0b" opacity="0.38" stroke="none"/></g>
+  <g data-muscle-map="back" stroke="#26313a" stroke-width="2" fill="none"><circle cx="596" cy="73" r="12"/><path d="M596 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path d="M581 103q15-12 30 0v38q-15 10-30 0Z" fill="#e7eaec" stroke="none"/></g>
+</svg>

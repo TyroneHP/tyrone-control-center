@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" data-exercise-id="katana-triceps-extension">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#f59e0b"/></marker></defs>
+  <g fill="none" stroke="#26313a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <g data-equipment="single-high-cable"><path d="M49 43v269h105M49 53h95v259"/><rect x="66" y="118" width="41" height="116" rx="4"/><circle cx="135" cy="78" r="10"/><path d="M135 78l140 84" stroke-width="3"/><path d="M263 153l25 18" stroke-width="5"/></g>
+    <g data-pose="end" opacity="0.38"><circle cx="302" cy="89" r="18"/><path d="M302 108v111m0-74-46-16-77-70m123 86 47 27 54-63m-101 110-42 85m42-85 43 85"/><path d="M162 48l29 21" stroke-width="5"/></g>
+    <g data-pose="start"><circle cx="302" cy="89" r="18"/><path d="M302 108v111m0-74-46-16 18 34m28-18 47 27-40 21m-7 26-42 85m42-85 43 85"/></g>
+    <path data-motion="arrow" d="M306 196q-86-35-124-106" stroke="#f59e0b" stroke-width="6" marker-end="url(#arrow)"/>
+  </g>
+  <g data-muscle-map="front" stroke="#26313a" stroke-width="2" fill="none"><circle cx="535" cy="73" r="12"/><path d="M535 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path data-muscle="secondary" d="M510 101q8-10 15 2l-5 18-13-6m53-14q-8-10-15 2l5 18 13-6" fill="#f59e0b" opacity="0.38" stroke="none"/></g>
+  <g data-muscle-map="back" stroke="#26313a" stroke-width="2" fill="none"><circle cx="596" cy="73" r="12"/><path d="M596 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path data-muscle="primary" d="M575 110l9-4 8 28-10 22-9-6m44-40-9-4-8 28 10 22 9-6" fill="#f59e0b" stroke="none"/></g>
+</svg>

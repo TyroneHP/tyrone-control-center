@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" data-exercise-id="overhead-cable-triceps-extension">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#f59e0b"/></marker></defs>
+  <g fill="none" stroke="#26313a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <g data-equipment="low-cable-rope"><path d="M48 43v269h105M48 53h95v259"/><rect x="66" y="118" width="41" height="116" rx="4"/><circle cx="136" cy="282" r="10"/><path d="M136 282l150-154" stroke-width="3"/><path d="M280 119l15 25m-15-25-20 22" stroke-width="5"/></g>
+    <g data-pose="end" opacity="0.38"><circle cx="305" cy="91" r="18"/><path d="M305 110l33 108m-20-66-27-68-2-53m29 121 54-51 45-40m-79 157-12 90m12-90 65 75"/></g>
+    <g data-pose="start"><circle cx="305" cy="91" r="18"/><path d="M305 110l33 108m-20-66-27-68-10 51m37 17 54-51-28 62m-6 55-12 90m12-90 65 75"/></g>
+    <path data-motion="arrow" d="M350 163q55-31 74-87" stroke="#f59e0b" stroke-width="6" marker-end="url(#arrow)"/>
+  </g>
+  <g data-muscle-map="front" stroke="#26313a" stroke-width="2" fill="none"><circle cx="535" cy="73" r="12"/><path d="M535 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path data-muscle="secondary" d="M510 101q8-10 15 2l-5 18-13-6m53-14q-8-10-15 2l5 18 13-6" fill="#f59e0b" opacity="0.38" stroke="none"/></g>
+  <g data-muscle-map="back" stroke="#26313a" stroke-width="2" fill="none"><circle cx="596" cy="73" r="12"/><path d="M596 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path data-muscle="primary" d="M575 110l9-4 8 28-10 22-9-6m44-40-9-4-8 28 10 22 9-6" fill="#f59e0b" stroke="none"/></g>
+</svg>

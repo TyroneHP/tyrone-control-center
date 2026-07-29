@@ -22,7 +22,7 @@ export const pwaOptions = {
   },
   workbox: {
     navigateFallback: 'index.html',
-    globPatterns: ['**/*.{js,css,html,svg,woff2}'],
+    globPatterns: ['**/*.{js,css,html,svg,webp,woff2}'],
     runtimeCaching: [],
   },
 } satisfies Partial<VitePWAOptions>

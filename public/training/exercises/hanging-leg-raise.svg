@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" data-exercise-id="hanging-leg-raise">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#f59e0b"/></marker></defs>
+  <g fill="none" stroke="#26313a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <g data-equipment="pull-up-bar"><path d="M70 308V52m340 256V52M70 58h340M94 58v34m292-34v34" stroke-width="8"/></g>
+    <g data-pose="end" opacity="0.38"><circle cx="205" cy="113" r="17"/><path d="M200 130v100m0-77-35-95m35 95 35-95"/><polyline data-limb="near-leg" points="200,230 278,231 365,235"/><polyline data-limb="far-leg" points="198,230 272,238 356,244"/></g>
+    <g data-pose="start"><circle cx="205" cy="113" r="17"/><path d="M200 130v100m0-77-35-95m35 95 35-95"/><polyline data-limb="near-leg" points="200,230 205,270 212,315"/><polyline data-limb="far-leg" points="198,230 199,270 204,315"/></g>
+    <path data-motion="arrow" d="M212 315Q330 300 365 235" stroke="#f59e0b" stroke-width="6" marker-end="url(#arrow)"/>
+  </g>
+  <g data-muscle-map="front" stroke="#26313a" stroke-width="2" fill="none"><circle cx="535" cy="73" r="12"/><path d="M535 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path data-muscle="primary" d="M528 118h14v47h-14m-11 48 10-42h8l-9 42m27 0-10-42h-8l9 42" fill="#f59e0b" stroke="none"/><path data-muscle="secondary" d="M515 149l8-4 4 28-8 19-7-6m46-37-8-4-4 28 8 19 7-6" fill="#f59e0b" opacity="0.38" stroke="none"/></g>
+  <g data-muscle-map="back" stroke="#26313a" stroke-width="2" fill="none"><circle cx="596" cy="73" r="12"/><path d="M596 86v86m-22-65 22-16 22 16m-31 64-9 42m27-42 9 42"/><path d="M581 103q15-12 30 0v38q-15 10-30 0Z" fill="#e7eaec" stroke="none"/></g>
+</svg>
