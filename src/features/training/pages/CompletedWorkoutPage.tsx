@@ -373,7 +373,7 @@ function CompletedWorkoutRoute({ workoutId }: { workoutId?: string }) {
 
   if (!displayedWorkout) {
     return (
-      <section aria-labelledby="completed-workout-heading">
+      <section aria-labelledby="completed-workout-heading" className="completed-workout">
         <h1 id="completed-workout-heading">Abgeschlossenes Training</h1>
         <h2>Training nicht gefunden</h2>
         <p>Dieses abgeschlossene Training ist nicht mehr vorhanden.</p>
@@ -450,7 +450,7 @@ function CompletedWorkoutRoute({ workoutId }: { workoutId?: string }) {
   }
 
   return (
-    <section aria-labelledby="completed-workout-heading">
+    <section aria-labelledby="completed-workout-heading" className="completed-workout">
       <header>
         <div>
           <p>Abgeschlossenes Training</p>

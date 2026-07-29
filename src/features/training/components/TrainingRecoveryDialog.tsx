@@ -21,7 +21,7 @@ function CorruptionRecoveryDialog({
   exportRaw,
   reset,
 }: Pick<TrainingContextValue, 'exportRaw' | 'reset'>) {
-  const [dismissed, setDismissed] = useState(false)
+  const [open, setOpen] = useState(true)
   const [resetConfirmationOpen, setResetConfirmationOpen] = useState(false)
   const [resetPending, setResetPending] = useState(false)
   const [exportPending, setExportPending] = useState(false)
@@ -52,19 +52,31 @@ function CorruptionRecoveryDialog({
 
   return (
     <>
+      {!open ? (
+        <aside className="training-recovery-notice" role="alert">
+          <p>Trainingsdaten bleiben gesperrt, bis die Wiederherstellung abgeschlossen ist.</p>
+          <button
+            className="button button--secondary"
+            onClick={() => setOpen(true)}
+            type="button"
+          >
+            Trainingsdaten wiederherstellen
+          </button>
+        </aside>
+      ) : null}
       <ResponsiveDialog
         actions={
           <>
             <button
-              className="button--secondary"
+              className="button button--secondary"
               disabled={exportPending || resetPending}
-              onClick={() => setDismissed(true)}
+              onClick={() => setOpen(false)}
               type="button"
             >
               Abbrechen
             </button>
             <button
-              className="button--secondary"
+              className="button button--secondary"
               disabled={exportPending || resetPending}
               onClick={() => void exportData()}
               type="button"
@@ -72,7 +84,7 @@ function CorruptionRecoveryDialog({
               {exportPending ? 'Export wird vorbereitet …' : 'Rohdaten exportieren'}
             </button>
             <button
-              className="button--danger"
+              className="button button--danger"
               disabled={exportPending || resetPending}
               onClick={() => setResetConfirmationOpen(true)}
               type="button"
@@ -82,8 +94,8 @@ function CorruptionRecoveryDialog({
           </>
         }
         dismissible={false}
-        onClose={() => setDismissed(true)}
-        open={!dismissed}
+        onClose={() => setOpen(false)}
+        open={open}
         title="Trainingsdaten wiederherstellen"
       >
         <p>
@@ -98,7 +110,7 @@ function CorruptionRecoveryDialog({
         actions={
           <>
             <button
-              className="button--secondary"
+              className="button button--secondary"
               disabled={resetPending}
               onClick={() => setResetConfirmationOpen(false)}
               type="button"
@@ -106,7 +118,7 @@ function CorruptionRecoveryDialog({
               Abbrechen
             </button>
             <button
-              className="button--danger"
+              className="button button--danger"
               disabled={resetPending}
               onClick={() => void confirmReset()}
               type="button"
@@ -119,7 +131,7 @@ function CorruptionRecoveryDialog({
         onClose={() => {
           if (!resetPending) setResetConfirmationOpen(false)
         }}
-        open={!dismissed && resetConfirmationOpen}
+        open={open && resetConfirmationOpen}
         title="Trainingsbereich zurücksetzen?"
       >
         <p>

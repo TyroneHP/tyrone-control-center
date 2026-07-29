@@ -33,6 +33,7 @@ import {
   type WorkoutSetChanges,
 } from './model/workoutModel'
 import { IndexedDbTrainingRepository } from './persistence/indexedDbTrainingRepository'
+import { TrainingDataCorruptionError } from './persistence/trainingMigrations'
 import type { TrainingRepository } from './persistence/trainingRepository'
 import { TrainingContext } from './trainingContext'
 
@@ -804,6 +805,26 @@ export function TrainingProvider({
       try {
         return await trainingRepository.loadImage(operationProfileId, imageId)
       } catch (cause) {
+        if (cause instanceof TrainingDataCorruptionError) {
+          if (
+            activeProfileRef.current === operationProfileId &&
+            generationRef.current === operationGeneration
+          ) {
+            loadedProfileRef.current = null
+            stateRef.current = EMPTY_TRAINING_STATE
+            setView((current) =>
+              current.profileId === operationProfileId
+                ? {
+                    ...current,
+                    recoveryError: cause,
+                    state: EMPTY_TRAINING_STATE,
+                  }
+                : current,
+            )
+            toast.show({ message: LOAD_ERROR_MESSAGE, variant: 'error' })
+          }
+          throw cause
+        }
         throw operationError(
           IMAGE_LOAD_ERROR_MESSAGE,
           cause,
@@ -812,7 +833,7 @@ export function TrainingProvider({
         )
       }
     },
-    [operationError, profileId, trainingRepository],
+    [operationError, profileId, toast, trainingRepository],
   )
 
   const deleteImage = useCallback(

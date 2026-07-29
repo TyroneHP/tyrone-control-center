@@ -9,6 +9,7 @@ import type { TrainingState } from './model/trainingTypes'
 import type { TrainingRepository } from './persistence/trainingRepository'
 import { TrainingDataCorruptionError } from './persistence/trainingMigrations'
 import { TrainingSettings } from './TrainingSettings'
+import { useTraining } from './useTraining'
 
 function trainingState(overrides: Partial<TrainingState> = {}): TrainingState {
   return {
@@ -44,6 +45,31 @@ function renderTrainingSettings(repository = createRepository()) {
     </ToastProvider>,
   )
   return repository
+}
+
+function CorruptImageActions() {
+  const { loadImage, saveImage, updatePreferences } = useTraining()
+
+  return (
+    <>
+      <button onClick={() => void loadImage('corrupt-image').catch(() => undefined)} type="button">
+        Beschädigtes Bild laden
+      </button>
+      <button onClick={() => updatePreferences({ showSetRating: false })} type="button">
+        Einstellungen ändern
+      </button>
+      <button
+        onClick={() =>
+          void saveImage('new-image', new Blob(['new image'], { type: 'image/webp' })).catch(
+            () => undefined,
+          )
+        }
+        type="button"
+      >
+        Bild speichern
+      </button>
+    </>
+  )
 }
 
 afterEach(() => {
@@ -167,6 +193,69 @@ describe('TrainingRecoveryDialog', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Abbrechen' }))
     expect(repository.reset).not.toHaveBeenCalled()
     expect(repository.exportRaw).toHaveBeenCalledOnce()
+  })
+
+  it('keeps cancelled corruption recovery reachable while mutations remain blocked', async () => {
+    const user = userEvent.setup()
+    const repository = createRepository(trainingState(), {
+      load: vi.fn(async () => {
+        throw new TrainingDataCorruptionError('Beschädigte Trainingsdaten')
+      }),
+    })
+
+    renderTrainingSettings(repository)
+
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Trainingsdaten wiederherstellen',
+    })
+    await user.click(within(dialog).getByRole('button', { name: 'Abbrechen' }))
+    await user.click(screen.getByLabelText('Satzbewertungen anzeigen'))
+
+    expect(repository.reset).not.toHaveBeenCalled()
+    expect(repository.save).not.toHaveBeenCalled()
+    await user.click(
+      screen.getByRole('button', { name: 'Trainingsdaten wiederherstellen' }),
+    )
+    expect(
+      await screen.findByRole('dialog', {
+        name: 'Trainingsdaten wiederherstellen',
+      }),
+    ).toBeVisible()
+  })
+
+  it('offers recovery and blocks writes after detecting a corrupt stored image', async () => {
+    const user = userEvent.setup()
+    const corruption = new TrainingDataCorruptionError(
+      'Die gespeicherten Trainingsbilder sind beschädigt.',
+    )
+    const repository = createRepository(trainingState(), {
+      loadImage: vi.fn(async () => {
+        throw corruption
+      }),
+    })
+
+    render(
+      <ToastProvider>
+        <TrainingProvider profileId="profile-a" repository={repository}>
+          <TrainingSettings />
+          <CorruptImageActions />
+          <TrainingRecoveryDialog />
+        </TrainingProvider>
+      </ToastProvider>,
+    )
+    await screen.findByRole('heading', { name: 'Training' })
+    await user.click(screen.getByRole('button', { name: 'Beschädigtes Bild laden' }))
+
+    expect(
+      await screen.findByRole('dialog', {
+        name: 'Trainingsdaten wiederherstellen',
+      }),
+    ).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Einstellungen ändern' }))
+    await user.click(screen.getByRole('button', { name: 'Bild speichern' }))
+
+    expect(repository.save).not.toHaveBeenCalled()
+    expect(repository.saveImage).not.toHaveBeenCalled()
   })
 
   it('requires confirmation before resetting corrupted training data', async () => {

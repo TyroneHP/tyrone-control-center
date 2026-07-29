@@ -22,7 +22,7 @@ export function WorkoutHistoryPage() {
   if (loading) return <p>Trainingsverlauf wird geladen …</p>
 
   return (
-    <section aria-labelledby="workout-history-heading">
+    <section aria-labelledby="workout-history-heading" className="workout-history">
       <header>
         <div>
           <h1 id="workout-history-heading">Trainingsverlauf</h1>
