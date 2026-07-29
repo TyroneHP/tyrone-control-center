@@ -44,10 +44,13 @@
 - Modify: `src/features/training/model/trainingTypes.ts`
 - Modify: `src/features/training/model/trainingSchemas.ts`
 - Modify: `src/features/training/model/trainingDefaults.ts`
+- Modify: `src/features/training/model/workoutModel.ts`
+- Modify: `src/features/training/model/workoutModel.test.ts`
 - Modify: `src/features/training/persistence/trainingMigrations.ts`
 - Modify: `src/features/training/persistence/indexedDbTrainingRepository.ts`
 - Test: `src/features/training/model/trainingSchemas.test.ts`
 - Test: `src/features/training/persistence/indexedDbTrainingRepository.test.ts`
+- Modify: existing training test fixtures that construct workout exercise entries
 
 **Interfaces:**
 - Produces `ExerciseSnapshot`, `BodyWeightEntry`, `BodyWeightSnapshot`, `AnalyticsRangeSelection`, `AnalyticsPreferences`, and `TrainingState` with `schemaVersion: 2`.
@@ -114,6 +117,8 @@ Make `exerciseSnapshot` required and `bodyWeightSnapshot` optional on workout ex
 - [ ] **Step 4: Implement v1-to-v2 and IndexedDB migration**
 
 Combine `STANDARD_EXERCISES` with version-1 custom definitions for snapshot lookup. Map active/completed exercises without changing IDs, order, sets, notes, grips, modes or timestamps. Use a neutral fallback snapshot with empty muscles only when deleted custom metadata is unrecoverable. Bump `DATABASE_VERSION` to 2 and create stores only when absent.
+
+Update `workoutModel` in the same task so newly started and newly extended active workouts immediately receive the required catalog snapshot. Update existing typed fixtures with explicit snapshots or a shared test factory; do not make the persisted field optional merely to satisfy compilation.
 
 ```ts
 upgrade(database) {
@@ -310,12 +315,11 @@ Commit `feat(training): add dashboard and muscle analytics`.
 
 **Interfaces:**
 - Context adds `saveBodyWeightEntry`, `moveBodyWeightEntry`, `deleteBodyWeightEntry`, `updateAnalyticsPreferences`, `dismissBalanceInsight`, and `refreshWorkoutBodyWeightSnapshots`.
-- Starting or adding exercises creates catalog snapshots.
 - Completing a workout captures eligible body-weight snapshots and removes the active session in one persisted state change.
 
 - [ ] **Step 1: Write RED lifecycle tests**
 
-Assert snapshot creation, exact/earlier/no/later body weight at completion, stability after source edits, one-time missing-snapshot backfill, explicit refresh, custom-exercise deletion/change stability and preserved snapshots during historical editing.
+Assert exact/earlier/no/later body weight at completion, stability after source edits, one-time missing-snapshot backfill, explicit refresh, custom-exercise deletion/change stability and preserved snapshots during historical editing.
 
 - [ ] **Step 2: Write RED provider tests**
 
@@ -327,7 +331,7 @@ Run the model/provider files and record missing API/type failures.
 
 - [ ] **Step 4: Implement minimal lifecycle changes**
 
-Create snapshots from catalog definitions when workout entries are created. Resolve body weight from the local workout day at completion. Preserve snapshots through normal edits. After weight saves, backfill only missing snapshots and never overwrite an existing snapshot automatically.
+Resolve body weight from the local workout day at completion. Preserve exercise and body-weight snapshots through normal edits. After weight saves, backfill only missing body-weight snapshots and never overwrite an existing snapshot automatically.
 
 - [ ] **Step 5: Implement provider API and confirm GREEN**
 
