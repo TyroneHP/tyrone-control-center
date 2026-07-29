@@ -570,3 +570,59 @@ body:has(
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.analytics-filter-row,
+.record-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.75rem;
+}
+
+.record-card-grid article,
+.record-card-grid dl,
+.record-history,
+.muscle-ranking,
+.muscle-contributions {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.record-card-grid dl,
+.record-history,
+.muscle-ranking,
+.muscle-contributions {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.record-card-grid dd {
+  margin: 0.2rem 0 0;
+  font-weight: 800;
+}
+
+.record-history li,
+.muscle-contributions li {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-soft);
+}
+
+.muscle-ranking button {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) auto auto;
+  width: 100%;
+  min-height: 44px;
+  gap: 0.5rem;
+  align-items: center;
+  text-align: start;
+}
+
+@media (max-width: 35rem) {
+  .muscle-ranking button {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
