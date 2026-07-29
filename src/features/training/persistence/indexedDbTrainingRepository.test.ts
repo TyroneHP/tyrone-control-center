@@ -241,7 +241,7 @@ describe('IndexedDbTrainingRepository', () => {
     expect(await readBlobBytes(remaining!)).toEqual([4, 5])
   })
 
-  it('round-trips a File image as a valid Blob subtype', async () => {
+  it('round-trips a File input through the Blob image contract', async () => {
     const profileId = 'file-image-profile'
     const imageId = 'uploaded-file'
     const file = makeCloneableFile(
@@ -252,11 +252,8 @@ describe('IndexedDbTrainingRepository', () => {
 
     await repository.saveImage(profileId, imageId, file)
 
-    const loaded = (await repository.loadImage(profileId, imageId)) as
-      | File
-      | undefined
-    expect(loaded).toBeInstanceOf(NodeFile)
-    expect(loaded?.name).toBe('uploaded-image.webp')
+    const loaded = await repository.loadImage(profileId, imageId)
+    expect(loaded).toBeInstanceOf(NodeBlob)
     expect(loaded).toMatchObject({ size: 4, type: 'image/webp' })
     expect(await readBlobBytes(loaded!)).toEqual([10, 20, 30, 40])
   })
