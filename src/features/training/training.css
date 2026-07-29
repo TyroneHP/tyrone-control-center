@@ -425,6 +425,11 @@ body:has(
   vector-effect: non-scaling-stroke;
 }
 
+.analytics-chart__line--secondary {
+  stroke: var(--color-info);
+  stroke-dasharray: 3 2;
+}
+
 .analytics-chart__point,
 .analytics-chart__bar {
   fill: #f48a3d;
@@ -625,4 +630,56 @@ body:has(
   .muscle-ranking button {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.bodyweight-header,
+.bodyweight-list li,
+.bodyweight-list li > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bodyweight-list {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.bodyweight-list li {
+  padding: 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-soft);
+}
+
+.bodyweight-list li > div:first-child,
+.bodyweight-form {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.bodyweight-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  color: var(--color-text-muted);
+}
+
+.bodyweight-chart-legend span::before {
+  display: inline-block;
+  width: 1.5rem;
+  height: 0.2rem;
+  margin-inline-end: 0.4rem;
+  background: #f48a3d;
+  content: '';
+  vertical-align: middle;
+}
+
+.bodyweight-chart-legend span:last-child::before {
+  background: var(--color-info);
 }

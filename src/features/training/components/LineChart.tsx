@@ -12,6 +12,8 @@ export interface LineChartProps {
   data: readonly ChartDatum[]
   unit: string
   onSelect?: (point: ChartDatum) => void
+  secondaryData?: readonly ChartDatum[]
+  secondaryLabel?: string
 }
 
 const numberFormatter = new Intl.NumberFormat('de-DE', {
@@ -30,19 +32,26 @@ function reduceVisualPoints(data: readonly ChartDatum[]) {
   return data.filter((point) => selected.has(point))
 }
 
-export function LineChart({ ariaLabel, data, onSelect, unit }: LineChartProps) {
+export function LineChart({ ariaLabel, data, onSelect, secondaryData = [], secondaryLabel, unit }: LineChartProps) {
   const titleId = useId()
   const descriptionId = useId()
   const [selected, setSelected] = useState<ChartDatum>()
   const visual = useMemo(() => reduceVisualPoints(data), [data])
   if (data.length === 0) return <p>Keine Diagrammdaten vorhanden.</p>
 
-  const minimum = Math.min(...visual.map(({ value }) => value))
-  const maximum = Math.max(...visual.map(({ value }) => value))
+  const secondaryVisual = reduceVisualPoints(secondaryData)
+  const allValues = [...visual, ...secondaryVisual].map(({ value }) => value)
+  const minimum = Math.min(...allValues)
+  const maximum = Math.max(...allValues)
   const span = maximum - minimum || 1
   const coordinates = visual.map((point, index) => ({
     point,
     x: visual.length === 1 ? 50 : (index / (visual.length - 1)) * 100,
+    y: 92 - ((point.value - minimum) / span) * 80,
+  }))
+  const secondaryCoordinates = secondaryVisual.map((point, index) => ({
+    point,
+    x: secondaryVisual.length === 1 ? 50 : (index / (secondaryVisual.length - 1)) * 100,
     y: 92 - ((point.value - minimum) / span) * 80,
   }))
   const select = (point: ChartDatum) => {
@@ -68,6 +77,14 @@ export function LineChart({ ariaLabel, data, onSelect, unit }: LineChartProps) {
           fill="none"
           points={coordinates.map(({ x, y }) => `${x},${y}`).join(' ')}
         />
+        {secondaryCoordinates.length ? (
+          <polyline
+            aria-label={secondaryLabel}
+            className="analytics-chart__line analytics-chart__line--secondary"
+            fill="none"
+            points={secondaryCoordinates.map(({ x, y }) => `${x},${y}`).join(' ')}
+          />
+        ) : null}
         {coordinates.map(({ point, x, y }) => (
           <circle className="analytics-chart__point" cx={x} cy={y} key={point.id} r="2.5" />
         ))}

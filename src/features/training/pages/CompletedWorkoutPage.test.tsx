@@ -794,4 +794,40 @@ describe('CompletedWorkoutPage', () => {
       'workout-middle',
     ])
   })
+
+  it('warns about a missing body-weight snapshot and resolves only an exact or earlier measurement explicitly', async () => {
+    const user = userEvent.setup()
+    const pullUp = workoutExercise({
+      id: 'pull-up-entry', exerciseId: 'pull-up', loadMode: 'added',
+      bodyWeightSnapshot: undefined,
+      sets: [{ id: 'pull-up-set', weightKg: 10, reps: 8, rating: 7, completed: true }],
+    })
+    renderTrainingPage(trainingState([
+      completedWorkout({ exercises: [pullUp] }),
+    ], {
+      bodyWeightEntries: [
+        { id: 'earlier', date: '2026-07-26', weightKg: 80, note: '', createdAt: '2026-07-26T08:00:00Z', updatedAt: '2026-07-26T08:00:00Z' },
+        { id: 'later', date: '2026-07-28', weightKg: 90, note: '', createdAt: '2026-07-28T08:00:00Z', updatedAt: '2026-07-28T08:00:00Z' },
+      ],
+    }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Für dieses Training ist noch kein Körpergewicht gespeichert')
+    await user.click(screen.getByRole('button', { name: 'Körpergewicht neu bestimmen' }))
+    expect(await screen.findByText(/80 kg.*26\. Juli 2026/)).toBeInTheDocument()
+    expect(screen.getByRole('cell', { name: '90 kg' })).toBeInTheDocument()
+  })
+
+  it('shows a stable historical body-weight snapshot and total load', async () => {
+    const pullUp = workoutExercise({
+      id: 'pull-up-entry', exerciseId: 'pull-up', loadMode: 'assisted',
+      bodyWeightSnapshot: { weightKg: 82, sourceDate: '2026-07-27', capturedAt: '2026-07-27T09:00:00Z' },
+      sets: [{ id: 'pull-up-set', weightKg: 20, reps: 8, rating: 7, completed: true }],
+    })
+    renderTrainingPage(trainingState([completedWorkout({ exercises: [pullUp] })], {
+      bodyWeightEntries: [{ id: 'changed', date: '2026-07-27', weightKg: 90, note: '', createdAt: '2026-07-27T08:00:00Z', updatedAt: '2026-07-28T08:00:00Z' }],
+    }))
+
+    expect(await screen.findByText(/82 kg.*27\. Juli 2026/)).toBeInTheDocument()
+    expect(screen.getByRole('cell', { name: '62 kg' })).toBeInTheDocument()
+  })
 })

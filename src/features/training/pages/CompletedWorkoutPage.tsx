@@ -6,6 +6,9 @@ import {
   ResponsiveDialog,
 } from '../../../design-system'
 import { WorkoutSetRow } from '../components/WorkoutSetRow'
+import { toLocalDateKey } from '../analytics/dateRangeAnalytics'
+import { getSetLoadKg } from '../analytics/loadAnalytics'
+import { findBodyWeightForWorkoutDate } from '../model/bodyWeightModel'
 import { getProgressionRecommendation } from '../model/progression'
 import { completedWorkoutSchema } from '../model/trainingSchemas'
 import type {
@@ -25,6 +28,9 @@ const dateTimeFormatter = new Intl.DateTimeFormat('de-DE', {
 const numberFormatter = new Intl.NumberFormat('de-DE', {
   maximumFractionDigits: 2,
 })
+const dateFormatter = new Intl.DateTimeFormat('de-DE', {
+  day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+})
 
 function cloneWorkout(workout: CompletedWorkout): CompletedWorkout {
   return structuredClone(workout)
@@ -37,6 +43,10 @@ function formatDateTime(value: string) {
 
 function formatNumber(value: number) {
   return numberFormatter.format(value)
+}
+
+function formatDateKey(value: string) {
+  return dateFormatter.format(new Date(`${value}T12:00:00.000Z`))
 }
 
 function loadModeLabel(loadMode: LoadMode) {
@@ -104,14 +114,22 @@ function RecommendationCard({
 }
 
 function WorkoutExerciseDetails({
+  canRefreshSnapshot,
   catalog,
   entry,
+  onRefreshSnapshot,
   showRating,
+  snapshotError,
+  snapshotPending,
   state,
 }: {
+  canRefreshSnapshot: boolean
   catalog: readonly ExerciseDefinition[]
   entry: WorkoutExerciseEntry
+  onRefreshSnapshot: () => void
   showRating: boolean
+  snapshotError: boolean
+  snapshotPending: boolean
   state: TrainingState
 }) {
   const titleId = useId()
@@ -125,6 +143,9 @@ function WorkoutExerciseDetails({
     (entry.loadMode === 'external' &&
       (catalogExercise?.unit ?? 'kg-reps') === 'kg-reps')
   const showLoad = showWeight || Boolean(catalogExercise?.supportsBodyweightModes)
+  const supportsBodyweightModes =
+    catalogExercise?.supportsBodyweightModes ??
+    entry.exerciseSnapshot.supportsBodyweightModes
 
   return (
     <section aria-labelledby={titleId}>
@@ -135,6 +156,31 @@ function WorkoutExerciseDetails({
           {measurementLabel}
         </p>
         {showLoad ? <p>Belastung: {loadModeLabel(entry.loadMode)}</p> : null}
+        {supportsBodyweightModes ? (
+          entry.bodyWeightSnapshot ? (
+            <p>
+              Verwendetes Körpergewicht: {formatNumber(entry.bodyWeightSnapshot.weightKg)} kg
+              {' '}· Messung vom {formatDateKey(entry.bodyWeightSnapshot.sourceDate)}
+            </p>
+          ) : (
+            <InlineAlert variant="info">
+              Für dieses Training ist noch kein Körpergewicht gespeichert. Gesamtlast, Volumen und 1RM bleiben deshalb offen.
+            </InlineAlert>
+          )
+        ) : null}
+        {supportsBodyweightModes ? (
+          canRefreshSnapshot ? (
+            <button
+              className="button--secondary"
+              disabled={snapshotPending}
+              onClick={onRefreshSnapshot}
+              type="button"
+            >
+              {snapshotPending ? 'Körpergewicht wird bestimmt …' : 'Körpergewicht neu bestimmen'}
+            </button>
+          ) : <p>Keine Messung am Trainingstag oder davor verfügbar.</p>
+        ) : null}
+        {snapshotError ? <InlineAlert variant="error">Körpergewicht konnte nicht gespeichert werden.</InlineAlert> : null}
         <p>Griff: {entry.grip ?? 'Keine Angabe'}</p>
         <p>Notiz: {entry.note || 'Keine Notiz'}</p>
         <div className="table-scroll" tabIndex={0}>
@@ -144,6 +190,7 @@ function WorkoutExerciseDetails({
               <tr>
                 <th scope="col">Satz</th>
                 {showWeight ? <th scope="col">Gewicht</th> : null}
+                {supportsBodyweightModes ? <th scope="col">Gesamtlast</th> : null}
                 <th scope="col">{measurementLabel}</th>
                 {showRating ? <th scope="col">Bewertung</th> : null}
                 <th scope="col">Status</th>
@@ -154,6 +201,9 @@ function WorkoutExerciseDetails({
                 <tr key={set.id}>
                   <th scope="row">{index + 1}</th>
                   {showWeight ? <td>{setWeight(set, entry.loadMode)}</td> : null}
+                  {supportsBodyweightModes ? (
+                    <td>{getSetLoadKg(entry, set) === undefined ? '–' : `${formatNumber(getSetLoadKg(entry, set)!)} kg`}</td>
+                  ) : null}
                   <td>{set.reps ?? '–'}</td>
                   {showRating ? <td>{set.rating ?? '–'}</td> : null}
                   <td>{set.completed ? 'Abgeschlossen' : 'Offen'}</td>
@@ -354,6 +404,7 @@ function CompletedWorkoutRoute({ workoutId }: { workoutId?: string }) {
     deleteCompletedWorkout,
     loading,
     replaceCompletedWorkout,
+    refreshWorkoutBodyWeightSnapshots,
     state,
   } = useTraining()
   const workout = state.completedWorkouts.find(({ id }) => id === workoutId)
@@ -367,6 +418,8 @@ function CompletedWorkoutRoute({ workoutId }: { workoutId?: string }) {
   const [deletePending, setDeletePending] = useState(false)
   const [deleteError, setDeleteError] = useState(false)
   const [deletionSnapshot, setDeletionSnapshot] = useState<CompletedWorkout>()
+  const [snapshotPending, setSnapshotPending] = useState(false)
+  const [snapshotError, setSnapshotError] = useState(false)
   const displayedWorkout = workout ?? (deletePending ? deletionSnapshot : undefined)
 
   if (loading) return <p>Training wird geladen …</p>
@@ -447,6 +500,32 @@ function CompletedWorkoutRoute({ workoutId }: { workoutId?: string }) {
     }
     setDeleteOpen(false)
     navigate('/training/history')
+  }
+
+  let snapshotSourceAvailable = false
+  if (displayedWorkout) {
+    try {
+      snapshotSourceAvailable = Boolean(
+        findBodyWeightForWorkoutDate(
+          state.bodyWeightEntries,
+          toLocalDateKey(displayedWorkout.startedAt),
+        ),
+      )
+    } catch {
+      snapshotSourceAvailable = false
+    }
+  }
+
+  const refreshSnapshot = async () => {
+    if (!displayedWorkout || snapshotPending || !snapshotSourceAvailable) return
+    setSnapshotPending(true)
+    setSnapshotError(false)
+    const saved = await refreshWorkoutBodyWeightSnapshots(
+      displayedWorkout.id,
+      new Date().toISOString(),
+    )
+    setSnapshotPending(false)
+    setSnapshotError(!saved)
   }
 
   return (
@@ -549,10 +628,14 @@ function CompletedWorkoutRoute({ workoutId }: { workoutId?: string }) {
               .sort((left, right) => left.order - right.order)
               .map((entry) => (
                 <WorkoutExerciseDetails
+                  canRefreshSnapshot={snapshotSourceAvailable}
                   catalog={catalog}
                   entry={entry}
                   key={entry.id}
+                  onRefreshSnapshot={() => void refreshSnapshot()}
                   showRating={state.preferences.showSetRating}
+                  snapshotError={snapshotError}
+                  snapshotPending={snapshotPending}
                   state={state}
                 />
               ))}
