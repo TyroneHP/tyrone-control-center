@@ -374,7 +374,7 @@ body:has(
   min-height: 44px;
   align-items: center;
   padding: 0.65rem 0.85rem;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-control);
   color: var(--color-text-muted);
   font-weight: 700;
   text-decoration: none;
@@ -383,11 +383,86 @@ body:has(
 
 .training-navigation__link.is-active,
 .progress-navigation__link.is-active {
-  color: var(--color-accent-strong);
-  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+  background: var(--color-primary-soft);
 }
 
 .training-analytics-page {
   width: min(100%, 72rem);
   margin-inline: auto;
+}
+
+.analytics-period-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+  padding: 0;
+  border: 0;
+}
+
+.analytics-period-filter label,
+.analytics-period-filter__custom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.analytics-chart {
+  min-inline-size: 0;
+  margin: 0;
+}
+
+.analytics-chart svg {
+  width: 100%;
+  height: clamp(12rem, 35vw, 20rem);
+  overflow: visible;
+}
+
+.analytics-chart__line {
+  stroke: #f48a3d;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.analytics-chart__point,
+.analytics-chart__bar {
+  fill: #f48a3d;
+}
+
+.analytics-chart__values {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.35rem;
+  padding: 0;
+  list-style: none;
+}
+
+.analytics-chart__values button {
+  width: 100%;
+  min-height: 44px;
+}
+
+.training-heatmap {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 0.35rem;
+  min-width: max-content;
+}
+
+.training-heatmap__day {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.15rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-soft);
+}
+
+.training-heatmap__day.has-complete {
+  border-color: var(--color-success);
+}
+
+.training-heatmap__day.has-incomplete {
+  box-shadow: inset 0 -3px 0 var(--color-warning);
 }
