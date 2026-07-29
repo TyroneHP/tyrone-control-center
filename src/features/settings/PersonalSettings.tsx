@@ -7,6 +7,7 @@ import {
 } from '../shell/navigation'
 import { ThemeSwitch } from '../../preferences/ThemeSwitch'
 import { useDevicePreferences } from '../../preferences/useDevicePreferences'
+import { TrainingSettings } from '../training/TrainingSettings'
 
 const pinnableNavigationItems = navigationItems.filter(
   (item): item is NavigationItem & { id: PinnableNavigationId } =>
@@ -124,6 +125,8 @@ export function PersonalSettings() {
           })}
         </div>
       </div>
+
+      <TrainingSettings />
     </>
   )
 }

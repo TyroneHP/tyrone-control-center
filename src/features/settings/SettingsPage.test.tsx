@@ -11,6 +11,9 @@ import { DevicePreferencesProvider } from '../../preferences/DevicePreferencesPr
 import type { Profile } from '../auth/authContextValue'
 import { AuthContext } from '../auth/authContextValue'
 import type { AuthApi } from '../auth/authApi'
+import { TrainingProvider } from '../training/TrainingProvider'
+import { EMPTY_TRAINING_STATE } from '../training/model/trainingDefaults'
+import type { TrainingRepository } from '../training/persistence/trainingRepository'
 import {
   AccountFunctionError,
   type AccountManagement,
@@ -69,12 +72,32 @@ function renderPage(
               status: 'authenticated',
             }}
           >
-            <SettingsPage api={api} authApi={authApi} />
+            <TrainingProvider
+              profileId={currentProfile.id}
+              repository={trainingRepository()}
+            >
+              <SettingsPage api={api} authApi={authApi} />
+            </TrainingProvider>
           </AuthContext.Provider>
         </QueryClientProvider>
       </DevicePreferencesProvider>
     </ToastProvider>,
   )
+}
+
+function trainingRepository(): TrainingRepository {
+  return {
+    deleteImage: vi.fn(async () => undefined),
+    exportRaw: vi.fn(async () => 'null'),
+    load: vi.fn(async () => ({
+      ...EMPTY_TRAINING_STATE,
+      preferences: { ...EMPTY_TRAINING_STATE.preferences },
+    })),
+    loadImage: vi.fn(async () => undefined),
+    reset: vi.fn(async () => undefined),
+    save: vi.fn(async () => undefined),
+    saveImage: vi.fn(async () => undefined),
+  }
 }
 
 function deviceStorage(): DevicePreferenceStorage {
@@ -157,6 +180,14 @@ describe('SettingsPage', () => {
     expect(
       screen.getByRole('heading', { name: 'Mobile Navigation' }),
     ).toBeInTheDocument()
+    const trainingHeading = screen.getByRole('heading', { name: 'Training' })
+    expect(trainingHeading).toBeInTheDocument()
+    expect(
+      screen
+        .getByRole('heading', { name: 'Mobile Navigation' })
+        .compareDocumentPosition(trainingHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(screen.getByRole('heading', { name: 'Sitzungen' })).toBeInTheDocument()
     const memberNotices = screen.getAllByText(
       'Diese Kontoverwaltung ist nur für Administratoren verfügbar.',
