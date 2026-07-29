@@ -337,3 +337,57 @@ body:has(
     box-shadow: 0 -12px 24px var(--color-overlay);
   }
 }
+.training-layout,
+.progress-layout,
+.training-analytics-page {
+  min-inline-size: 0;
+}
+
+.training-layout,
+.progress-layout,
+.training-analytics-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.training-navigation,
+.progress-navigation {
+  max-inline-size: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.training-navigation ul,
+.progress-navigation ul {
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+  gap: 0.35rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.training-navigation__link,
+.progress-navigation__link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--radius-pill);
+  color: var(--color-text-muted);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.training-navigation__link.is-active,
+.progress-navigation__link.is-active {
+  color: var(--color-accent-strong);
+  background: var(--color-accent-soft);
+}
+
+.training-analytics-page {
+  width: min(100%, 72rem);
+  margin-inline: auto;
+}
