@@ -834,6 +834,89 @@ describe('active workouts', () => {
 })
 
 describe('workout completion and history', () => {
+  it('captures exact or earlier body weight atomically when completing bodyweight exercises', () => {
+    const pullUp = makeWorkoutExercise({
+      exerciseId: 'pull-up',
+      loadMode: 'bodyweight',
+    })
+    const state = makeState({
+      activeWorkout: {
+        ...makeActiveWorkout([pullUp]),
+        startedAt: '2026-07-26T09:00:00.000Z',
+      },
+      bodyWeightEntries: [
+        {
+          id: 'earlier', date: '2026-07-24', weightKg: 81, note: '',
+          createdAt: '2026-07-24T06:00:00.000Z', updatedAt: '2026-07-24T06:00:00.000Z',
+        },
+        {
+          id: 'later', date: '2026-07-27', weightKg: 80, note: '',
+          createdAt: '2026-07-27T06:00:00.000Z', updatedAt: '2026-07-27T06:00:00.000Z',
+        },
+      ],
+    })
+
+    const result = completeWorkout(state, FINISHED, STANDARD_EXERCISES)
+
+    expect(result.activeWorkout).toBeNull()
+    expect(result.completedWorkouts[0].exercises[0].bodyWeightSnapshot).toEqual({
+      weightKg: 81,
+      sourceDate: '2026-07-24',
+      capturedAt: FINISHED,
+    })
+    expect(state.activeWorkout).not.toBeNull()
+  })
+
+  it('leaves bodyweight snapshots empty without an exact or earlier measurement', () => {
+    const pullUp = makeWorkoutExercise({
+      exerciseId: 'pull-up',
+      loadMode: 'bodyweight',
+    })
+    const state = makeState({
+      activeWorkout: makeActiveWorkout([pullUp]),
+      bodyWeightEntries: [{
+        id: 'future', date: '2026-07-27', weightKg: 80, note: '',
+        createdAt: '2026-07-27T06:00:00.000Z', updatedAt: '2026-07-27T06:00:00.000Z',
+      }],
+    })
+
+    const completed = completeWorkout(state, FINISHED, STANDARD_EXERCISES)
+    expect(
+      completed.completedWorkouts[0].exercises[0].bodyWeightSnapshot,
+    ).toBeUndefined()
+  })
+
+  it('preserves historical exercise and bodyweight snapshots during edits', () => {
+    const original = makeCompletedWorkout({
+      exercises: [makeWorkoutExercise({
+        bodyWeightSnapshot: {
+          weightKg: 80,
+          sourceDate: '2026-07-25',
+          capturedAt: '2026-07-25T10:00:00.000Z',
+        },
+      })],
+    })
+    const edited = {
+      ...original,
+      exercises: [{
+        ...original.exercises[0],
+        sets: [{ ...original.exercises[0].sets[0], weightKg: 90 }],
+      }],
+    }
+    const result = replaceCompletedWorkout(
+      makeState({ completedWorkouts: [original] }),
+      original.id,
+      edited,
+    )
+
+    expect(result.completedWorkouts[0].exercises[0].exerciseSnapshot).toEqual(
+      original.exercises[0].exerciseSnapshot,
+    )
+    expect(result.completedWorkouts[0].exercises[0].bodyWeightSnapshot).toEqual(
+      original.exercises[0].bodyWeightSnapshot,
+    )
+  })
+
   it('normalizes only legacy external bodyweight modes when completing', () => {
     const state = makeState({
       activeWorkout: makeActiveWorkout([

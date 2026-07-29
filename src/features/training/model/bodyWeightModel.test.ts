@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest'
 import type { BodyWeightEntry } from './trainingTypes'
 import {
   BodyWeightDateConflictError,
+  backfillMissingBodyWeightSnapshots,
   deleteBodyWeightEntry,
   findBodyWeightForWorkoutDate,
   moveBodyWeightEntry,
+  refreshWorkoutBodyWeightSnapshots,
   upsertBodyWeightEntry,
 } from './bodyWeightModel'
 
@@ -115,4 +117,97 @@ describe('body-weight model', () => {
       ).toThrow('Bitte gib ein plausibles Gewicht')
     },
   )
+
+  it('backfills only missing snapshots from the exact or latest earlier date', () => {
+    const baseWorkout = {
+      id: 'workout-1',
+      name: 'Zug',
+      startedAt: '2026-07-25T09:00:00.000Z',
+      completedAt: '2026-07-25T10:00:00.000Z',
+      exercises: [{
+        id: 'pull-up-entry',
+        exerciseId: 'pull-up',
+        exerciseSnapshot: {
+          exerciseId: 'pull-up',
+          name: 'Klimmzüge',
+          primaryMuscles: ['Latissimus'],
+          secondaryMuscles: ['Bizeps'],
+          unit: 'reps' as const,
+          supportsBodyweightModes: true,
+        },
+        order: 0,
+        targetSets: 1,
+        repMin: 6,
+        repMax: 10,
+        loadMode: 'bodyweight' as const,
+        note: '',
+        sets: [],
+      }],
+    }
+    const alreadyCaptured = {
+      ...baseWorkout,
+      id: 'workout-2',
+      exercises: [{
+        ...baseWorkout.exercises[0],
+        bodyWeightSnapshot: {
+          weightKg: 79,
+          sourceDate: '2026-07-24',
+          capturedAt: '2026-07-25T10:00:00.000Z',
+        },
+      }],
+    }
+
+    const result = backfillMissingBodyWeightSnapshots(
+      [baseWorkout, alreadyCaptured],
+      [FIRST, SECOND],
+      '2026-07-29T10:00:00.000Z',
+    )
+
+    expect(result[0].exercises[0].bodyWeightSnapshot).toEqual({
+      weightKg: 81,
+      sourceDate: '2026-07-25',
+      capturedAt: '2026-07-29T10:00:00.000Z',
+    })
+    expect(result[1].exercises[0].bodyWeightSnapshot).toEqual(
+      alreadyCaptured.exercises[0].bodyWeightSnapshot,
+    )
+  })
+
+  it('explicitly refreshes or removes historical snapshots without changing other fields', () => {
+    const workout = {
+      id: 'workout-1',
+      name: 'Zug',
+      startedAt: '2026-07-25T09:00:00.000Z',
+      completedAt: '2026-07-25T10:00:00.000Z',
+      exercises: [{
+        id: 'pull-up-entry',
+        exerciseId: 'pull-up',
+        exerciseSnapshot: {
+          exerciseId: 'pull-up', name: 'Klimmzüge',
+          primaryMuscles: ['Latissimus'], secondaryMuscles: ['Bizeps'],
+          unit: 'reps' as const, supportsBodyweightModes: true,
+        },
+        bodyWeightSnapshot: {
+          weightKg: 79, sourceDate: '2026-07-24',
+          capturedAt: '2026-07-25T10:00:00.000Z',
+        },
+        order: 0, targetSets: 1, repMin: 6, repMax: 10,
+        loadMode: 'bodyweight' as const, note: '', sets: [],
+      }],
+    }
+
+    const refreshed = refreshWorkoutBodyWeightSnapshots(
+      workout,
+      [SECOND],
+      '2026-07-29T10:00:00.000Z',
+    )
+    expect(refreshed.exercises[0].bodyWeightSnapshot?.weightKg).toBe(81)
+    const removed = refreshWorkoutBodyWeightSnapshots(
+      workout,
+      [],
+      '2026-07-29T10:00:00.000Z',
+    )
+    expect(removed.exercises[0].bodyWeightSnapshot).toBeUndefined()
+    expect(removed.id).toBe(workout.id)
+  })
 })

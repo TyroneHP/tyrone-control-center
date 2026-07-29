@@ -1,4 +1,10 @@
-import type { BodyWeightEntry } from './trainingTypes'
+import { toLocalDateKey } from '../analytics/dateRangeAnalytics'
+import type {
+  BodyWeightEntry,
+  BodyWeightSnapshot,
+  CompletedWorkout,
+  WorkoutExerciseEntry,
+} from './trainingTypes'
 
 export interface BodyWeightEntryInput {
   date: string
@@ -135,4 +141,79 @@ export function findBodyWeightForWorkoutDate(
   return entries
     .filter(({ date }) => date <= workoutDate)
     .sort((left, right) => right.date.localeCompare(left.date))[0]
+}
+
+function resolveSnapshot(
+  entries: readonly BodyWeightEntry[],
+  workout: CompletedWorkout,
+  capturedAt: string,
+): BodyWeightSnapshot | undefined {
+  let workoutDate: string
+  try {
+    workoutDate = toLocalDateKey(workout.startedAt)
+  } catch {
+    return undefined
+  }
+  const source = findBodyWeightForWorkoutDate(entries, workoutDate)
+  return source
+    ? {
+        weightKg: source.weightKg,
+        sourceDate: source.date,
+        capturedAt,
+      }
+    : undefined
+}
+
+function withBodyWeightSnapshot(
+  exercise: WorkoutExerciseEntry,
+  snapshot: BodyWeightSnapshot | undefined,
+) {
+  if (!exercise.exerciseSnapshot.supportsBodyweightModes) return exercise
+  if (snapshot) return { ...exercise, bodyWeightSnapshot: snapshot }
+  const { bodyWeightSnapshot: _snapshot, ...withoutSnapshot } = exercise
+  void _snapshot
+  return withoutSnapshot
+}
+
+export function refreshWorkoutBodyWeightSnapshots(
+  workout: CompletedWorkout,
+  entries: readonly BodyWeightEntry[],
+  capturedAt: string,
+): CompletedWorkout {
+  const snapshot = resolveSnapshot(entries, workout, capturedAt)
+  return {
+    ...workout,
+    exercises: workout.exercises.map((exercise) =>
+      withBodyWeightSnapshot(exercise, snapshot),
+    ),
+  }
+}
+
+export function backfillMissingBodyWeightSnapshots(
+  workouts: readonly CompletedWorkout[],
+  entries: readonly BodyWeightEntry[],
+  capturedAt: string,
+): CompletedWorkout[] {
+  return workouts.map((workout) => {
+    if (
+      !workout.exercises.some(
+        (exercise) =>
+          exercise.exerciseSnapshot.supportsBodyweightModes &&
+          exercise.bodyWeightSnapshot === undefined,
+      )
+    ) {
+      return workout
+    }
+    const snapshot = resolveSnapshot(entries, workout, capturedAt)
+    if (!snapshot) return workout
+    return {
+      ...workout,
+      exercises: workout.exercises.map((exercise) =>
+        exercise.exerciseSnapshot.supportsBodyweightModes &&
+        exercise.bodyWeightSnapshot === undefined
+          ? { ...exercise, bodyWeightSnapshot: snapshot }
+          : exercise,
+      ),
+    }
+  })
 }
