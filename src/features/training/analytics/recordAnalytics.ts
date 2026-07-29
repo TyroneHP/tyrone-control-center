@@ -107,6 +107,12 @@ function buildHistory(
   return history
 }
 
+export function getAllExerciseRecordHistory(
+  workouts: readonly CompletedWorkout[],
+) {
+  return buildHistory(workouts)
+}
+
 export function getExerciseRecordHistory(
   workouts: readonly CompletedWorkout[],
   exerciseId: string,
