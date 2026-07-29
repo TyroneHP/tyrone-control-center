@@ -31,7 +31,7 @@ export function TrainingHeatmap({
         const status = [
           day.hasCompleteWorkout ? 'vollständig' : '',
           day.hasIncompleteWorkout ? 'unvollständig' : '',
-        ].filter(Boolean).join(' und ')
+        ].filter(Boolean).join(' und ') || 'keine Trainingsaktivität'
         return (
           <button
             aria-label={`${formatDate(day.date)}: ${day.completedSetCount} abgeschlossene Sätze, ${status}`}

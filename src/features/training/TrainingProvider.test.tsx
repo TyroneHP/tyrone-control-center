@@ -4003,18 +4003,24 @@ describe('TrainingProvider', () => {
       training!.updateAnalyticsPreferences({ exerciseMetric: 'volume' })
       training!.dismissBalanceInsight('back-versus-chest')
     })
-    await expect(
-      training!.refreshWorkoutBodyWeightSnapshots(
-        COMPLETED_WORKOUT.id,
-        '2026-07-29T10:00:00Z',
-      ),
-    ).resolves.toBe(true)
+    await act(async () => {
+      await expect(
+        training!.refreshWorkoutBodyWeightSnapshots(
+          COMPLETED_WORKOUT.id,
+          '2026-07-29T10:00:00Z',
+        ),
+      ).resolves.toBe(true)
+    })
 
     await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(3))
-    expect(training!.state.analyticsPreferences).toMatchObject({
-      exerciseMetric: 'volume',
-      dismissedBalanceInsightIds: ['back-versus-chest'],
+    await waitFor(() => {
+      expect(training!.state.analyticsPreferences).toMatchObject({
+        exerciseMetric: 'volume',
+        dismissedBalanceInsightIds: ['back-versus-chest'],
+      })
+      expect(
+        training!.state.completedWorkouts[0].exercises[0].bodyWeightSnapshot,
+      ).toMatchObject({ weightKg: 80 })
     })
-    expect(training!.state.completedWorkouts[0].exercises[0].bodyWeightSnapshot).toMatchObject({ weightKg: 80 })
   })
 })

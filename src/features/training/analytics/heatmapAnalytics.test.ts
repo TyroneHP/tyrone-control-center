@@ -32,7 +32,8 @@ describe('training heatmap', () => {
       startDate: '2026-07-01', endDate: '2026-07-31',
     })
 
-    expect(result).toEqual([{
+    expect(result).toHaveLength(31)
+    expect(result.find(({ date }) => date === '2026-07-10')).toEqual({
       date: '2026-07-10',
       completedSetCount: 3,
       hasCompleteWorkout: true,
@@ -41,7 +42,7 @@ describe('training heatmap', () => {
         { workoutId: 'complete', workoutName: 'Training complete', durationMinutes: 60, exerciseCount: 1, completedSetCount: 2, status: 'complete' },
         { workoutId: 'incomplete', workoutName: 'Training incomplete', durationMinutes: 60, exerciseCount: 1, completedSetCount: 1, status: 'incomplete' },
       ],
-    }])
+    })
   })
 
   it('filters by local date and orders days chronologically', () => {
@@ -50,6 +51,12 @@ describe('training heatmap', () => {
       workout('outside', '2026-06-30T10:00:00.000Z', 2),
       workout('earlier', '2026-07-02T10:00:00.000Z', 2),
     ], { startDate: '2026-07-01', endDate: '2026-07-31' })
-    expect(result.map(({ date }) => date)).toEqual(['2026-07-02', '2026-07-12'])
+    expect(result).toHaveLength(31)
+    expect(result[0].date).toBe('2026-07-01')
+    expect(result.at(-1)?.date).toBe('2026-07-31')
+    expect(result.find(({ date }) => date === '2026-07-03')).toMatchObject({
+      completedSetCount: 0,
+      workouts: [],
+    })
   })
 })

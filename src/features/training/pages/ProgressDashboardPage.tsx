@@ -171,7 +171,7 @@ export function ProgressDashboardPage() {
         title={selectedDay ? `Trainings am ${formatDate(selectedDay.date)}` : 'Trainingsdetails'}
       >
         {selectedDay ? (
-          <ul className="heatmap-day-details">
+          selectedDay.workouts.length ? <ul className="heatmap-day-details">
             {selectedDay.workouts.map((workout) => (
               <li key={workout.workoutId}>
                 <h3>{workout.workoutName}</h3>
@@ -181,7 +181,7 @@ export function ProgressDashboardPage() {
                 <Link to={`/training/history/${workout.workoutId}`}>Im Verlauf öffnen</Link>
               </li>
             ))}
-          </ul>
+          </ul> : <p>An diesem Tag wurde kein Training abgeschlossen.</p>
         ) : null}
       </ResponsiveDialog>
     </section>
