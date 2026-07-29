@@ -566,6 +566,9 @@ describe('TrainingProvider', () => {
     await screen.findByRole('alert', {
       name: 'Fehler: Trainingsdaten konnten nicht geladen werden.',
     })
+    await waitFor(() => {
+      expect(training?.recoveryError).toBe(corruption)
+    })
 
     const image = new Blob(['processed image'], { type: 'image/webp' })
     const saveResult = await training!
