@@ -518,3 +518,55 @@ body:has(
   padding: 0;
   list-style: none;
 }
+
+.exercise-analysis-layout {
+  display: grid;
+  grid-template-columns: minmax(13rem, 18rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.exercise-analysis-picker,
+.exercise-analysis-main,
+.exercise-progress-summary {
+  display: grid;
+  min-inline-size: 0;
+  gap: 0.75rem;
+}
+
+.exercise-analysis-picker ul,
+.exercise-point-details ul {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.exercise-analysis-picker button {
+  width: 100%;
+  min-height: 44px;
+  text-align: start;
+}
+
+.exercise-progress-summary dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.exercise-progress-summary dd {
+  margin: 0.25rem 0 0;
+  font-weight: 700;
+}
+
+.exercise-progress-summary .analytics-chart svg {
+  height: 8rem;
+}
+
+@media (max-width: 47.99rem) {
+  .exercise-analysis-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

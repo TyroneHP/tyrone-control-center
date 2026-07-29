@@ -5,6 +5,7 @@ import type { ExerciseDefinition } from '../model/trainingTypes'
 import { useCustomExerciseImageUrls } from '../useCustomExerciseImageUrls'
 import { useTraining } from '../useTraining'
 import { ExerciseCard } from './ExerciseCard'
+import { ExerciseProgressSummary } from './ExerciseProgressSummary'
 
 export interface ExerciseDetailsDialogProps {
   exercise?: ExerciseDefinition
@@ -61,6 +62,7 @@ export function ExerciseDetailsDialog({
   onSelect,
   open,
 }: ExerciseDetailsDialogProps) {
+  const { state } = useTraining()
   if (!exercise) return null
 
   const actions = (
@@ -115,6 +117,10 @@ export function ExerciseDetailsDialog({
             </div>
           ) : null}
         </dl>
+        <ExerciseProgressSummary
+          exercise={exercise}
+          workouts={state.completedWorkouts}
+        />
       </section>
     </ResponsiveDialog>
   )
