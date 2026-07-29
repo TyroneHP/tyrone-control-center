@@ -2,6 +2,8 @@ export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7
 export type ExerciseSource = 'standard' | 'custom'
 export type LoadMode = 'external' | 'bodyweight' | 'added' | 'assisted'
 export type ExerciseUnit = 'kg-reps' | 'reps' | 'seconds'
+export type ExerciseMetric = 'weight' | 'reps' | 'volume' | 'oneRepMax'
+export type MuscleMetric = 'sets' | 'volume'
 
 export interface ExerciseDefinition {
   id: string
@@ -16,6 +18,41 @@ export interface ExerciseDefinition {
   supportsBodyweightModes: boolean
   illustrationPath?: string
   customImageId?: string
+}
+
+export interface ExerciseSnapshot {
+  exerciseId: string
+  name: string
+  primaryMuscles: string[]
+  secondaryMuscles: string[]
+  unit: ExerciseUnit
+  supportsBodyweightModes: boolean
+}
+
+export interface BodyWeightSnapshot {
+  weightKg: number
+  sourceDate: string
+  capturedAt: string
+}
+
+export interface BodyWeightEntry {
+  id: string
+  date: string
+  weightKg: number
+  note: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type AnalyticsRangeSelection =
+  | { preset: '7d' | '30d' | '3m' | '6m' | '1y' | 'all' }
+  | { preset: 'custom'; startDate: string; endDate: string }
+
+export interface AnalyticsPreferences {
+  range: AnalyticsRangeSelection
+  exerciseMetric: ExerciseMetric
+  muscleMetric: MuscleMetric
+  dismissedBalanceInsightIds: string[]
 }
 
 export interface WorkoutTemplateExercise {
@@ -55,6 +92,8 @@ export interface WorkoutExerciseEntry {
   grip?: string
   loadMode: LoadMode
   note: string
+  exerciseSnapshot: ExerciseSnapshot
+  bodyWeightSnapshot?: BodyWeightSnapshot
   sets: WorkoutSetEntry[]
 }
 
@@ -80,11 +119,13 @@ export interface TrainingPreferences {
 }
 
 export interface TrainingState {
-  schemaVersion: 1
+  schemaVersion: 2
   customExercises: ExerciseDefinition[]
   favoriteExerciseIds: string[]
   templates: WorkoutTemplate[]
   activeWorkout: ActiveWorkout | null
   completedWorkouts: CompletedWorkout[]
+  bodyWeightEntries: BodyWeightEntry[]
+  analyticsPreferences: AnalyticsPreferences
   preferences: TrainingPreferences
 }

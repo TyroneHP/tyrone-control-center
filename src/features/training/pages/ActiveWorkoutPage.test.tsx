@@ -11,6 +11,10 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ToastProvider } from '../../../design-system'
 import { TrainingProvider } from '../TrainingProvider'
+import {
+  createExerciseSnapshot,
+  getExerciseDefinition,
+} from '../model/exerciseCatalog'
 import type {
   ActiveWorkout,
   CompletedWorkout,
@@ -23,9 +27,16 @@ import { migrateTrainingState } from '../persistence/trainingMigrations'
 import { ActiveWorkoutPage } from './ActiveWorkoutPage'
 import { TrainingHomePage } from './TrainingHomePage'
 
+function exerciseSnapshot(exerciseId: string) {
+  const exercise = getExerciseDefinition(exerciseId)
+  if (!exercise) throw new Error(`Missing test exercise: ${exerciseId}`)
+  return createExerciseSnapshot(exercise)
+}
+
 const BENCH_ENTRY: WorkoutExerciseEntry = {
   id: 'entry-bench',
   exerciseId: 'bench-press',
+  exerciseSnapshot: exerciseSnapshot('bench-press'),
   order: 0,
   targetSets: 1,
   repMin: 8,
@@ -46,6 +57,7 @@ const BENCH_ENTRY: WorkoutExerciseEntry = {
 const PULLDOWN_ENTRY: WorkoutExerciseEntry = {
   id: 'entry-pulldown',
   exerciseId: 'lat-pulldown',
+  exerciseSnapshot: exerciseSnapshot('lat-pulldown'),
   order: 1,
   targetSets: 1,
   repMin: 8,
@@ -67,6 +79,7 @@ const PULLDOWN_ENTRY: WorkoutExerciseEntry = {
 const PULL_UP_ENTRY: WorkoutExerciseEntry = {
   id: 'entry-pull-up',
   exerciseId: 'pull-up',
+  exerciseSnapshot: exerciseSnapshot('pull-up'),
   order: 0,
   targetSets: 1,
   repMin: 6,
@@ -87,6 +100,7 @@ const PULL_UP_ENTRY: WorkoutExerciseEntry = {
 const PLANK_ENTRY: WorkoutExerciseEntry = {
   id: 'entry-plank',
   exerciseId: 'plank',
+  exerciseSnapshot: exerciseSnapshot('plank'),
   order: 1,
   targetSets: 1,
   repMin: 30,
@@ -176,12 +190,19 @@ const CATALOG_UNITS_TEMPLATE: WorkoutTemplate = {
 
 function trainingState(overrides: Partial<TrainingState> = {}): TrainingState {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     customExercises: [],
     favoriteExerciseIds: [],
     templates: [],
     activeWorkout: ACTIVE_WORKOUT,
     completedWorkouts: [PREVIOUS_WORKOUT],
+    bodyWeightEntries: [],
+    analyticsPreferences: {
+      range: { preset: '30d' },
+      exerciseMetric: 'weight',
+      muscleMetric: 'sets',
+      dismissedBalanceInsightIds: [],
+    },
     preferences: {
       showSetRating: true,
       progressionEnabled: true,

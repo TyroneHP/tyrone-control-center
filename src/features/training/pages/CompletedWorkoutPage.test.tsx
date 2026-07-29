@@ -10,6 +10,10 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ToastProvider } from '../../../design-system'
 import { TrainingProvider } from '../TrainingProvider'
+import {
+  createExerciseSnapshot,
+  getExerciseDefinition,
+} from '../model/exerciseCatalog'
 import type {
   CompletedWorkout,
   TrainingState,
@@ -30,9 +34,15 @@ function deferred<T>() {
 function workoutExercise(
   overrides: Partial<WorkoutExerciseEntry> = {},
 ): WorkoutExerciseEntry {
+  const exerciseId = overrides.exerciseId ?? 'bench-press'
+  const exercise = getExerciseDefinition(exerciseId)
+  if (!exercise) throw new Error(`Missing test exercise: ${exerciseId}`)
+
   return {
     id: 'entry-bench',
-    exerciseId: 'bench-press',
+    exerciseId,
+    exerciseSnapshot:
+      overrides.exerciseSnapshot ?? createExerciseSnapshot(exercise),
     order: 0,
     targetSets: 1,
     repMin: 8,
@@ -122,12 +132,19 @@ function trainingState(
   overrides: Partial<TrainingState> = {},
 ): TrainingState {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     customExercises: [],
     favoriteExerciseIds: [],
     templates: [],
     activeWorkout: null,
     completedWorkouts,
+    bodyWeightEntries: [],
+    analyticsPreferences: {
+      range: { preset: '30d' },
+      exerciseMetric: 'weight',
+      muscleMetric: 'sets',
+      dismissedBalanceInsightIds: [],
+    },
     preferences: {
       showSetRating: true,
       progressionEnabled: true,

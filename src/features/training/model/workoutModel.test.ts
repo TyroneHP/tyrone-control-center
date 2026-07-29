@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { STANDARD_EXERCISES } from './exerciseCatalog'
+import {
+  createExerciseSnapshot,
+  createMissingExerciseSnapshot,
+  getExerciseDefinition,
+  STANDARD_EXERCISES,
+} from './exerciseCatalog'
 import { getProgressionRecommendation } from './progression'
 import type {
   ActiveWorkout,
@@ -38,9 +43,15 @@ const FINISHED = '2026-07-26T10:00:00.000Z'
 function makeWorkoutExercise(
   overrides: Partial<WorkoutExerciseEntry> = {},
 ): WorkoutExerciseEntry {
+  const exerciseId = overrides.exerciseId ?? 'bench-press'
+  const exercise = getExerciseDefinition(exerciseId)
+  if (!exercise) throw new Error(`Missing test exercise: ${exerciseId}`)
+
   return {
     id: 'entry-bench',
-    exerciseId: 'bench-press',
+    exerciseId,
+    exerciseSnapshot:
+      overrides.exerciseSnapshot ?? createExerciseSnapshot(exercise),
     order: 0,
     targetSets: 3,
     repMin: 8,
@@ -89,12 +100,19 @@ function makeCompletedWorkout(
 
 function makeState(overrides: Partial<TrainingState> = {}): TrainingState {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     customExercises: [],
     favoriteExerciseIds: [],
     templates: [],
     activeWorkout: null,
     completedWorkouts: [],
+    bodyWeightEntries: [],
+    analyticsPreferences: {
+      range: { preset: '30d' },
+      exerciseMetric: 'weight',
+      muscleMetric: 'sets',
+      dismissedBalanceInsightIds: [],
+    },
     preferences: {
       showSetRating: true,
       progressionEnabled: true,
@@ -419,6 +437,7 @@ describe('active workouts', () => {
     }))).toEqual([
       {
         exerciseId: 'back-squat',
+        exerciseSnapshot: createMissingExerciseSnapshot('back-squat'),
         order: 0,
         targetSets: 4,
         repMin: 4,
@@ -531,6 +550,9 @@ describe('active workouts', () => {
     )
     expect(entry && withoutId(entry)).toEqual({
       exerciseId: 'pull-up',
+      exerciseSnapshot: createExerciseSnapshot(
+        getExerciseDefinition('pull-up')!,
+      ),
       order: 0,
       targetSets: 3,
       repMin: 6,
@@ -935,6 +957,9 @@ describe('workout completion and history', () => {
         {
           id: 'entry-bench',
           exerciseId: 'bench-press',
+          exerciseSnapshot: createExerciseSnapshot(
+            getExerciseDefinition('bench-press')!,
+          ),
           order: 0,
           targetSets: 3,
           repMin: 8,
@@ -1010,6 +1035,9 @@ describe('workout completion and history', () => {
         {
           id: 'entry-bench',
           exerciseId: 'bench-press',
+          exerciseSnapshot: createExerciseSnapshot(
+            getExerciseDefinition('bench-press')!,
+          ),
           order: 0,
           targetSets: 3,
           repMin: 8,

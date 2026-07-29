@@ -102,12 +102,19 @@ function trainingState(
   overrides: Partial<TrainingState> = {},
 ): TrainingState {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     customExercises: [],
     favoriteExerciseIds: [],
     templates: [],
     activeWorkout: null,
     completedWorkouts: [],
+    bodyWeightEntries: [],
+    analyticsPreferences: {
+      range: { preset: '30d' },
+      exerciseMetric: 'weight',
+      muscleMetric: 'sets',
+      dismissedBalanceInsightIds: [],
+    },
     preferences: {
       showSetRating: true,
       progressionEnabled: true,
@@ -373,6 +380,14 @@ describe('TrainingProvider', () => {
         {
           id: 'legacy-pull-up',
           exerciseId: 'pull-up',
+          exerciseSnapshot: {
+            exerciseId: 'pull-up',
+            name: 'Klimmzüge',
+            primaryMuscles: ['Latissimus'],
+            secondaryMuscles: ['Bizeps'],
+            unit: 'kg-reps',
+            supportsBodyweightModes: true,
+          },
           order: 0,
           targetSets: 1,
           repMin: 6,

@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import {
+  createExerciseSnapshot,
+  getExerciseDefinition,
+} from './exerciseCatalog'
 import type {
   CompletedWorkout,
   LoadMode,
@@ -47,6 +51,9 @@ function makeOccurrence({
     },
   ],
 }: OccurrenceOptions): CompletedWorkout {
+  const exercise = getExerciseDefinition(exerciseId)
+  if (!exercise) throw new Error(`Missing test exercise: ${exerciseId}`)
+
   return {
     id,
     name: 'Push',
@@ -56,6 +63,7 @@ function makeOccurrence({
       {
         id: `${id}-exercise`,
         exerciseId,
+        exerciseSnapshot: createExerciseSnapshot(exercise),
         order: 0,
         targetSets: 2,
         repMin: 8,

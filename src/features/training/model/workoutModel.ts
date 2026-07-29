@@ -9,6 +9,10 @@ import type {
   WorkoutTemplate,
   WorkoutTemplateExercise,
 } from './trainingTypes'
+import {
+  createExerciseSnapshot,
+  createMissingExerciseSnapshot,
+} from './exerciseCatalog'
 
 export interface CreateWorkoutTemplateInput {
   name: string
@@ -155,6 +159,10 @@ function createWorkoutExerciseEntry(
   definition: ExerciseDefinition | undefined,
 ): WorkoutExerciseEntry {
   const grip = previousEntry ? previousEntry.grip : exercise.preferredGrip
+  const exerciseSnapshot = definition
+    ? createExerciseSnapshot(definition)
+    : previousEntry?.exerciseSnapshot ??
+      createMissingExerciseSnapshot(exercise.exerciseId)
   return {
     id: crypto.randomUUID(),
     exerciseId: exercise.exerciseId,
@@ -165,6 +173,7 @@ function createWorkoutExerciseEntry(
     ...(grip === undefined ? {} : { grip }),
     loadMode: normalizeLoadMode(definition, previousEntry?.loadMode),
     note: previousEntry?.note ?? '',
+    exerciseSnapshot,
     sets: previousEntry
       ? previousEntry.sets.map(clonePrefilledSet)
       : Array.from({ length: exercise.targetSets }, createEmptySet),

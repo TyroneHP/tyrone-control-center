@@ -8,7 +8,7 @@ import {
 import type { TrainingRepository } from './trainingRepository'
 
 const DATABASE_NAME = 'coregrid-training'
-const DATABASE_VERSION = 1
+const DATABASE_VERSION = 2
 
 interface TrainingDb extends DBSchema {
   states: { key: string; value: TrainingState }
@@ -18,8 +18,12 @@ interface TrainingDb extends DBSchema {
 function openTrainingDatabase() {
   return openDB<TrainingDb>(DATABASE_NAME, DATABASE_VERSION, {
     upgrade(database) {
-      database.createObjectStore('states')
-      database.createObjectStore('images')
+      if (!database.objectStoreNames.contains('states')) {
+        database.createObjectStore('states')
+      }
+      if (!database.objectStoreNames.contains('images')) {
+        database.createObjectStore('images')
+      }
     },
   })
 }
@@ -90,7 +94,11 @@ export class IndexedDbTrainingRepository implements TrainingRepository {
     if (!exists) return EMPTY_TRAINING_STATE
 
     try {
-      return migrateTrainingState(value)
+      const migrated = migrateTrainingState(value)
+      if ((value as { schemaVersion?: unknown })?.schemaVersion !== 2) {
+        await database.put('states', migrated, profileId)
+      }
+      return migrated
     } catch (error) {
       if (error instanceof TrainingDataCorruptionError) throw error
       throw new TrainingDataCorruptionError(
