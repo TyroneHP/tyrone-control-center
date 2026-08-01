@@ -344,6 +344,11 @@ body:has(
 }
 
 .training-layout,
+.progress-layout {
+  overflow-x: clip;
+}
+
+.training-layout,
 .progress-layout,
 .training-analytics-page {
   display: grid;

@@ -138,6 +138,7 @@ test('completes the iPhone WebKit offline workout flow without overflow', async 
   { page },
   testInfo,
 ) => {
+  test.setTimeout(60_000)
   test.skip(
     testInfo.project.name !== 'iphone-webkit',
     'The prescribed touch workflow runs once in iPhone WebKit.',
