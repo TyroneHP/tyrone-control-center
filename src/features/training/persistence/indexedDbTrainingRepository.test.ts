@@ -1,13 +1,17 @@
 import 'fake-indexeddb/auto'
 
 import { Blob as NodeBlob, File as NodeFile } from 'node:buffer'
-import { openDB, type DBSchema } from 'idb'
+import { deleteDB, openDB, type DBSchema } from 'idb'
 import type { TrainingState } from '../model/trainingTypes'
 import { IndexedDbTrainingRepository } from './indexedDbTrainingRepository'
-import { TrainingDataCorruptionError } from './trainingMigrations'
+import {
+  migrateTrainingState,
+  TrainingDataCorruptionError,
+} from './trainingMigrations'
+import { beforeAll } from 'vitest'
 
 const DATABASE_NAME = 'coregrid-training'
-const DATABASE_VERSION = 1
+const DATABASE_VERSION = 2
 
 interface RawTrainingDb extends DBSchema {
   states: { key: string; value: unknown }
@@ -15,12 +19,19 @@ interface RawTrainingDb extends DBSchema {
 }
 
 const EMPTY_STATE: TrainingState = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   customExercises: [],
   favoriteExerciseIds: [],
   templates: [],
   activeWorkout: null,
   completedWorkouts: [],
+  bodyWeightEntries: [],
+  analyticsPreferences: {
+    range: { preset: '30d' },
+    exerciseMetric: 'weight',
+    muscleMetric: 'sets',
+    dismissedBalanceInsightIds: [],
+  },
   preferences: {
     showSetRating: true,
     progressionEnabled: true,
@@ -35,12 +46,19 @@ function makeTrainingState(
   defaultIncrementKg = 2.5,
 ): TrainingState {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     customExercises: [],
     favoriteExerciseIds: [favoriteExerciseId],
     templates: [],
     activeWorkout: null,
     completedWorkouts: [],
+    bodyWeightEntries: [],
+    analyticsPreferences: {
+      range: { preset: '30d' },
+      exerciseMetric: 'weight',
+      muscleMetric: 'sets',
+      dismissedBalanceInsightIds: [],
+    },
     preferences: {
       showSetRating: true,
       progressionEnabled: true,
@@ -130,18 +148,142 @@ async function readBlobBytes(blob: Blob) {
 }
 
 describe('IndexedDbTrainingRepository', () => {
-  const repository = new IndexedDbTrainingRepository()
+  let repository: IndexedDbTrainingRepository
 
-  it('creates the version-one states and images stores on first use', async () => {
+  beforeAll(async () => {
+    await deleteDB(DATABASE_NAME)
+    const legacyDatabase = await openDB<RawTrainingDb>(DATABASE_NAME, 1, {
+      upgrade(database) {
+        database.createObjectStore('states')
+        database.createObjectStore('images')
+      },
+    })
+    await legacyDatabase.put(
+      'states',
+      {
+        schemaVersion: 1,
+        customExercises: [],
+        favoriteExerciseIds: ['bench-press'],
+        templates: [],
+        activeWorkout: {
+          id: 'legacy-active',
+          name: 'Legacy Active',
+          startedAt: '2026-07-28T18:00:00.000Z',
+          updatedAt: '2026-07-28T18:10:00.000Z',
+          exercises: [
+            {
+              id: 'legacy-active-bench',
+              exerciseId: 'bench-press',
+              order: 0,
+              targetSets: 1,
+              repMin: 8,
+              repMax: 12,
+              loadMode: 'external',
+              note: 'Phase 1 note',
+              sets: [
+                {
+                  id: 'legacy-set',
+                  weightKg: 70,
+                  reps: 10,
+                  rating: 7,
+                  completed: true,
+                },
+              ],
+            },
+          ],
+        },
+        completedWorkouts: [],
+        preferences: EMPTY_STATE.preferences,
+      },
+      'legacy-upgrade-profile',
+    )
+    await legacyDatabase.put(
+      'images',
+      {
+        profileId: 'legacy-upgrade-profile',
+        blob: makeCloneableBlob([10, 20, 30, 40], 'image/webp'),
+      },
+      'legacy-upgrade-profile:legacy-image',
+    )
+    legacyDatabase.close()
+    repository = new IndexedDbTrainingRepository()
+  })
+
+  it('upgrades to version two without replacing states or images', async () => {
     await repository.load('schema-profile')
 
     const database = await openRawTrainingDatabase()
     try {
-      expect(database.version).toBe(1)
+      expect(database.version).toBe(2)
       expect([...database.objectStoreNames]).toEqual(['images', 'states'])
     } finally {
       database.close()
     }
+  })
+
+  it('migrates realistic version-one state while preserving the image store', async () => {
+    const migrated = await repository.load('legacy-upgrade-profile')
+
+    expect(migrated).toMatchObject({
+      schemaVersion: 2,
+      favoriteExerciseIds: ['bench-press'],
+      bodyWeightEntries: [],
+      analyticsPreferences: {
+        range: { preset: '30d' },
+      },
+      activeWorkout: {
+        id: 'legacy-active',
+        exercises: [
+          {
+            id: 'legacy-active-bench',
+            note: 'Phase 1 note',
+            exerciseSnapshot: {
+              exerciseId: 'bench-press',
+              name: 'Bankdrücken',
+            },
+          },
+        ],
+      },
+    })
+    const image = await repository.loadImage(
+      'legacy-upgrade-profile',
+      'legacy-image',
+    )
+    expect(image).toMatchObject({ size: 4, type: 'image/webp' })
+    expect(await readBlobBytes(image!)).toEqual([10, 20, 30, 40])
+  })
+
+  it('migrates version one idempotently without duplicating source data', () => {
+    const legacy = {
+      schemaVersion: 1,
+      customExercises: [],
+      favoriteExerciseIds: ['bench-press'],
+      templates: [],
+      activeWorkout: null,
+      completedWorkouts: [],
+      preferences: EMPTY_STATE.preferences,
+    }
+
+    const once = migrateTrainingState(legacy)
+    const twice = migrateTrainingState(once)
+
+    expect(twice).toEqual(once)
+    expect(twice.favoriteExerciseIds).toEqual(['bench-press'])
+  })
+
+  it('repairs invalid version-two analytics preferences without discarding valid training data', () => {
+    const current = makeTrainingState('bench-press')
+    const repaired = migrateTrainingState({
+      ...current,
+      analyticsPreferences: {
+        ...current.analyticsPreferences,
+        exerciseMetric: 'invalid-metric',
+      },
+    })
+
+    expect(repaired.analyticsPreferences).toEqual(EMPTY_STATE.analyticsPreferences)
+    expect(repaired.favoriteExerciseIds).toEqual(['bench-press'])
+    expect(repaired.preferences).toEqual(current.preferences)
   })
 
   it('returns the empty training state for a profile without a record', async () => {
@@ -384,7 +526,7 @@ describe('IndexedDbTrainingRepository', () => {
     ).resolves.toMatchObject({ size: 2, type: 'image/webp' })
   })
 
-  it('migrates a version-zero state fixture to version one', async () => {
+  it('migrates a version-zero state fixture through version two', async () => {
     const profileId = 'migration-profile'
     await putRawState(profileId, {
       schemaVersion: 0,
@@ -403,12 +545,19 @@ describe('IndexedDbTrainingRepository', () => {
     })
 
     await expect(repository.load(profileId)).resolves.toEqual({
-      schemaVersion: 1,
+      schemaVersion: 2,
       customExercises: [],
       favoriteExerciseIds: ['bench-press'],
       templates: [],
       activeWorkout: null,
       completedWorkouts: [],
+      bodyWeightEntries: [],
+      analyticsPreferences: {
+        range: { preset: '30d' },
+        exerciseMetric: 'weight',
+        muscleMetric: 'sets',
+        dismissedBalanceInsightIds: [],
+      },
       preferences: {
         showSetRating: true,
         progressionEnabled: true,

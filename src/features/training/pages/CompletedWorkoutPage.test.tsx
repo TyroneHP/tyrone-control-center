@@ -10,6 +10,10 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ToastProvider } from '../../../design-system'
 import { TrainingProvider } from '../TrainingProvider'
+import {
+  createExerciseSnapshot,
+  getExerciseDefinition,
+} from '../model/exerciseCatalog'
 import type {
   CompletedWorkout,
   TrainingState,
@@ -30,9 +34,15 @@ function deferred<T>() {
 function workoutExercise(
   overrides: Partial<WorkoutExerciseEntry> = {},
 ): WorkoutExerciseEntry {
+  const exerciseId = overrides.exerciseId ?? 'bench-press'
+  const exercise = getExerciseDefinition(exerciseId)
+  if (!exercise) throw new Error(`Missing test exercise: ${exerciseId}`)
+
   return {
     id: 'entry-bench',
-    exerciseId: 'bench-press',
+    exerciseId,
+    exerciseSnapshot:
+      overrides.exerciseSnapshot ?? createExerciseSnapshot(exercise),
     order: 0,
     targetSets: 1,
     repMin: 8,
@@ -122,12 +132,19 @@ function trainingState(
   overrides: Partial<TrainingState> = {},
 ): TrainingState {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     customExercises: [],
     favoriteExerciseIds: [],
     templates: [],
     activeWorkout: null,
     completedWorkouts,
+    bodyWeightEntries: [],
+    analyticsPreferences: {
+      range: { preset: '30d' },
+      exerciseMetric: 'weight',
+      muscleMetric: 'sets',
+      dismissedBalanceInsightIds: [],
+    },
     preferences: {
       showSetRating: true,
       progressionEnabled: true,
@@ -776,5 +793,91 @@ describe('CompletedWorkoutPage', () => {
       'workout-oldest',
       'workout-middle',
     ])
+  })
+
+  it('warns about a missing body-weight snapshot and resolves only an exact or earlier measurement explicitly', async () => {
+    const user = userEvent.setup()
+    const pullUp = workoutExercise({
+      id: 'pull-up-entry', exerciseId: 'pull-up', loadMode: 'added',
+      bodyWeightSnapshot: undefined,
+      sets: [{ id: 'pull-up-set', weightKg: 10, reps: 8, rating: 7, completed: true }],
+    })
+    renderTrainingPage(trainingState([
+      completedWorkout({ exercises: [pullUp] }),
+    ], {
+      bodyWeightEntries: [
+        { id: 'earlier', date: '2026-07-26', weightKg: 80, note: '', createdAt: '2026-07-26T08:00:00Z', updatedAt: '2026-07-26T08:00:00Z' },
+        { id: 'later', date: '2026-07-28', weightKg: 90, note: '', createdAt: '2026-07-28T08:00:00Z', updatedAt: '2026-07-28T08:00:00Z' },
+      ],
+    }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Für dieses Training ist noch kein Körpergewicht gespeichert')
+    await user.click(screen.getByRole('button', { name: 'Körpergewicht neu bestimmen' }))
+    expect(await screen.findByText(/80 kg.*26\. Juli 2026/)).toBeInTheDocument()
+    expect(screen.getByRole('cell', { name: '90 kg' })).toBeInTheDocument()
+  })
+
+  it('shows a stable historical body-weight snapshot and total load', async () => {
+    const pullUp = workoutExercise({
+      id: 'pull-up-entry', exerciseId: 'pull-up', loadMode: 'assisted',
+      bodyWeightSnapshot: { weightKg: 82, sourceDate: '2026-07-27', capturedAt: '2026-07-27T09:00:00Z' },
+      sets: [{ id: 'pull-up-set', weightKg: 20, reps: 8, rating: 7, completed: true }],
+    })
+    renderTrainingPage(trainingState([completedWorkout({ exercises: [pullUp] })], {
+      bodyWeightEntries: [{ id: 'changed', date: '2026-07-27', weightKg: 90, note: '', createdAt: '2026-07-27T08:00:00Z', updatedAt: '2026-07-28T08:00:00Z' }],
+    }))
+
+    expect(await screen.findByText(/82 kg.*27\. Juli 2026/)).toBeInTheDocument()
+    expect(screen.getByRole('cell', { name: '62 kg' })).toBeInTheDocument()
+  })
+
+  it('uses the immutable exercise snapshot after a custom exercise was changed or removed', async () => {
+    const historical = workoutExercise({
+      exerciseSnapshot: {
+        exerciseId: 'deleted-custom',
+        name: 'Historische Zeitübung',
+        primaryMuscles: ['Bauch'],
+        secondaryMuscles: [],
+        unit: 'seconds',
+        supportsBodyweightModes: false,
+      },
+      sets: [{
+        id: 'historical-seconds', weightKg: null, reps: 45,
+        rating: 7, completed: true,
+      }],
+    })
+    historical.exerciseId = 'deleted-custom'
+    renderTrainingPage(trainingState([
+      completedWorkout({ exercises: [historical] }),
+    ]))
+
+    const details = await screen.findByRole('region', { name: 'Historische Zeitübung' })
+    expect(within(details).getByRole('columnheader', { name: 'Sekunden' })).toBeInTheDocument()
+    expect(within(details).queryByRole('columnheader', { name: 'Gewicht' })).not.toBeInTheDocument()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Training bearbeiten' }))
+    expect(screen.getByRole('group', { name: 'Historische Zeitübung bearbeiten' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Satz 1 Sekunden')).toBeInTheDocument()
+  })
+
+  it('can explicitly remove a stale snapshot when no qualifying measurement remains', async () => {
+    const user = userEvent.setup()
+    const pullUp = workoutExercise({
+      id: 'pull-up-entry', exerciseId: 'pull-up', loadMode: 'bodyweight',
+      bodyWeightSnapshot: {
+        weightKg: 82, sourceDate: '2026-07-27', capturedAt: '2026-07-27T09:00:00Z',
+      },
+      sets: [{ id: 'pull-up-set', weightKg: null, reps: 8, rating: 7, completed: true }],
+    })
+    const repository = renderTrainingPage(trainingState([
+      completedWorkout({ exercises: [pullUp] }),
+    ]))
+
+    await screen.findByText(/Verwendetes Körpergewicht: 82 kg/)
+    await user.click(screen.getByRole('button', { name: 'Gespeichertes Körpergewicht entfernen' }))
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(1))
+    expect(
+      vi.mocked(repository.save).mock.calls[0][1]
+        .completedWorkouts[0].exercises[0].bodyWeightSnapshot,
+    ).toBeUndefined()
   })
 })

@@ -1,11 +1,18 @@
 import { z } from 'zod'
 import type {
   ActiveWorkout,
+  AnalyticsPreferences,
+  AnalyticsRangeSelection,
+  BodyWeightEntry,
+  BodyWeightSnapshot,
   CompletedWorkout,
   ExerciseDefinition,
+  ExerciseMetric,
+  ExerciseSnapshot,
   ExerciseSource,
   ExerciseUnit,
   LoadMode,
+  MuscleMetric,
   TrainingPreferences,
   TrainingState,
   Weekday,
@@ -21,6 +28,19 @@ const nonEmptyTextSchema = z.string().min(1)
 const orderSchema = z.number().int().nonnegative()
 const targetSetsSchema = z.number().int().positive()
 const targetRepsSchema = z.number().int().positive()
+const localDateKeySchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((value) => {
+    const [year, month, day] = value.split('-').map(Number)
+    const date = new Date(Date.UTC(year, month - 1, day))
+    return (
+      date.getUTCFullYear() === year &&
+      date.getUTCMonth() === month - 1 &&
+      date.getUTCDate() === day
+    )
+  }, 'Invalid local calendar date')
+const bodyWeightKgSchema = z.number().min(20).max(500).multipleOf(0.01)
 
 function haveUniqueIds(values: readonly { id: string }[]) {
   return new Set(values.map(({ id }) => id)).size === values.length
@@ -79,6 +99,79 @@ export const exerciseDefinitionSchema: z.ZodType<ExerciseDefinition> = z
   })
   .strict()
 
+export const exerciseSnapshotSchema: z.ZodType<ExerciseSnapshot> = z
+  .object({
+    exerciseId: idSchema,
+    name: nonEmptyTextSchema,
+    primaryMuscles: z.array(nonEmptyTextSchema),
+    secondaryMuscles: z.array(nonEmptyTextSchema),
+    unit: exerciseUnitSchema,
+    supportsBodyweightModes: z.boolean(),
+  })
+  .strict()
+
+export const bodyWeightSnapshotSchema: z.ZodType<BodyWeightSnapshot> = z
+  .object({
+    weightKg: bodyWeightKgSchema,
+    sourceDate: localDateKeySchema,
+    capturedAt: nonEmptyTextSchema,
+  })
+  .strict()
+
+export const bodyWeightEntrySchema: z.ZodType<BodyWeightEntry> = z
+  .object({
+    id: idSchema,
+    date: localDateKeySchema,
+    weightKg: bodyWeightKgSchema,
+    note: textSchema,
+    createdAt: nonEmptyTextSchema,
+    updatedAt: nonEmptyTextSchema,
+  })
+  .strict()
+
+const analyticsRangePresetSchema = z.enum([
+  '7d',
+  '30d',
+  '3m',
+  '6m',
+  '1y',
+  'all',
+])
+
+export const analyticsRangeSelectionSchema: z.ZodType<AnalyticsRangeSelection> =
+  z.discriminatedUnion('preset', [
+    z.object({ preset: analyticsRangePresetSchema }).strict(),
+    z
+      .object({
+        preset: z.literal('custom'),
+        startDate: localDateKeySchema,
+        endDate: localDateKeySchema,
+      })
+      .strict(),
+  ])
+
+const exerciseMetricSchema: z.ZodType<ExerciseMetric> = z.enum([
+  'weight',
+  'reps',
+  'volume',
+  'oneRepMax',
+])
+const muscleMetricSchema: z.ZodType<MuscleMetric> = z.enum([
+  'sets',
+  'volume',
+])
+
+export const analyticsPreferencesSchema: z.ZodType<AnalyticsPreferences> = z
+  .object({
+    range: analyticsRangeSelectionSchema,
+    exerciseMetric: exerciseMetricSchema,
+    muscleMetric: muscleMetricSchema,
+    dismissedBalanceInsightIds: z.array(idSchema).refine(haveUniqueValues, {
+      message: 'Dismissed balance insight IDs must be unique',
+    }),
+  })
+  .strict()
+
 export const workoutTemplateExerciseSchema: z.ZodType<WorkoutTemplateExercise> =
   z
     .object({
@@ -132,6 +225,8 @@ export const workoutExerciseEntrySchema: z.ZodType<WorkoutExerciseEntry> = z
     grip: nonEmptyTextSchema.optional(),
     loadMode: loadModeSchema,
     note: textSchema,
+    exerciseSnapshot: exerciseSnapshotSchema,
+    bodyWeightSnapshot: bodyWeightSnapshotSchema.optional(),
     sets: z.array(workoutSetEntrySchema).refine(haveUniqueIds, {
       message: 'Workout set IDs must be unique',
     }),
@@ -182,7 +277,7 @@ export const trainingPreferencesSchema: z.ZodType<TrainingPreferences> = z
 
 export const trainingStateSchema: z.ZodType<TrainingState> = z
   .object({
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(2),
     customExercises: z.array(exerciseDefinitionSchema).refine(haveUniqueIds, {
       message: 'Custom exercise IDs must be unique',
     }),
@@ -196,6 +291,15 @@ export const trainingStateSchema: z.ZodType<TrainingState> = z
     completedWorkouts: z.array(completedWorkoutSchema).refine(haveUniqueIds, {
       message: 'Completed workout IDs must be unique',
     }),
+    bodyWeightEntries: z
+      .array(bodyWeightEntrySchema)
+      .refine(haveUniqueIds, {
+        message: 'Body-weight entry IDs must be unique',
+      })
+      .refine((entries) => haveUniqueValues(entries.map(({ date }) => date)), {
+        message: 'Body-weight entry dates must be unique',
+      }),
+    analyticsPreferences: analyticsPreferencesSchema,
     preferences: trainingPreferencesSchema,
   })
   .strict()

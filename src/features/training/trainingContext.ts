@@ -1,11 +1,13 @@
 import { createContext } from 'react'
 import type {
   CompletedWorkout,
+  AnalyticsPreferences,
   ExerciseDefinition,
   TrainingPreferences,
   TrainingState,
   WorkoutTemplate,
 } from './model/trainingTypes'
+import type { BodyWeightEntryInput } from './model/bodyWeightModel'
 import type {
   AddWorkoutExerciseInput,
   WorkoutExerciseChanges,
@@ -23,6 +25,16 @@ export interface TrainingContextValue {
   ) => void
   addWorkoutSet: (exerciseEntryId: string, updatedAt: string) => void
   completeWorkout: (completedAt: string) => Promise<boolean>
+  saveBodyWeightEntry: (
+    input: BodyWeightEntryInput,
+    timestamp: string,
+  ) => Promise<boolean>
+  moveBodyWeightEntry: (
+    entryId: string,
+    input: BodyWeightEntryInput,
+    timestamp: string,
+  ) => Promise<boolean>
+  deleteBodyWeightEntry: (entryId: string) => Promise<boolean>
   deleteCompletedWorkout: (workoutId: string) => Promise<boolean>
   deleteCustomExercise: (exerciseId: string) => Promise<void>
   deleteImage: (imageId: string) => Promise<void>
@@ -48,6 +60,10 @@ export interface TrainingContextValue {
     workoutId: string,
     replacement: CompletedWorkout,
   ) => Promise<boolean>
+  refreshWorkoutBodyWeightSnapshots: (
+    workoutId: string,
+    capturedAt: string,
+  ) => Promise<boolean>
   reset: () => Promise<void>
   resolveActiveWorkoutAndStart: (
     template: WorkoutTemplate,
@@ -59,6 +75,10 @@ export interface TrainingContextValue {
   saveWorkoutTemplate: (template: WorkoutTemplate) => void
   startWorkout: (template: WorkoutTemplate, startedAt: string) => void
   toggleFavoriteExercise: (exerciseId: string) => void
+  updateAnalyticsPreferences: (
+    changes: Partial<AnalyticsPreferences>,
+  ) => void
+  dismissBalanceInsight: (insightId: string) => void
   updatePreferences: (changes: Partial<TrainingPreferences>) => void
   updateWorkoutExercise: (
     exerciseEntryId: string,

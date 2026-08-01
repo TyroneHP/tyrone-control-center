@@ -1,4 +1,7 @@
-import type { ExerciseDefinition } from './trainingTypes'
+import type {
+  ExerciseDefinition,
+  ExerciseSnapshot,
+} from './trainingTypes'
 
 interface StandardExerciseInput {
   id: string
@@ -453,6 +456,32 @@ export const STANDARD_EXERCISES: readonly ExerciseDefinition[] = [
 export const exerciseById = new Map(
   STANDARD_EXERCISES.map((exercise) => [exercise.id, exercise]),
 )
+
+export function createExerciseSnapshot(
+  exercise: ExerciseDefinition,
+): ExerciseSnapshot {
+  return {
+    exerciseId: exercise.id,
+    name: exercise.name,
+    primaryMuscles: [...exercise.primaryMuscles],
+    secondaryMuscles: [...exercise.secondaryMuscles],
+    unit: exercise.unit,
+    supportsBodyweightModes: exercise.supportsBodyweightModes,
+  }
+}
+
+export function createMissingExerciseSnapshot(
+  exerciseId: string,
+): ExerciseSnapshot {
+  return {
+    exerciseId,
+    name: `Nicht mehr verfügbare Übung (${exerciseId})`,
+    primaryMuscles: [],
+    secondaryMuscles: [],
+    unit: 'kg-reps',
+    supportsBodyweightModes: false,
+  }
+}
 
 export function getExerciseDefinition(id: string): ExerciseDefinition | undefined {
   return exerciseById.get(id)

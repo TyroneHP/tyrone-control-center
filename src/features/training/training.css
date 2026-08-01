@@ -337,3 +337,354 @@ body:has(
     box-shadow: 0 -12px 24px var(--color-overlay);
   }
 }
+.training-layout,
+.progress-layout,
+.training-analytics-page {
+  min-inline-size: 0;
+}
+
+.training-layout,
+.progress-layout {
+  overflow-x: clip;
+}
+
+.training-layout,
+.progress-layout,
+.training-analytics-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.training-navigation,
+.progress-navigation {
+  max-inline-size: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.training-navigation ul,
+.progress-navigation ul {
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+  gap: 0.35rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.training-navigation__link,
+.progress-navigation__link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--radius-control);
+  color: var(--color-text-muted);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.training-navigation__link.is-active,
+.progress-navigation__link.is-active {
+  color: var(--color-accent-text);
+  background: var(--color-primary-soft);
+}
+
+.training-analytics-page {
+  width: min(100%, 72rem);
+  margin-inline: auto;
+}
+
+.analytics-period-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+  padding: 0;
+  border: 0;
+}
+
+.analytics-period-filter label,
+.analytics-period-filter__custom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.analytics-chart {
+  min-inline-size: 0;
+  margin: 0;
+}
+
+.analytics-chart svg {
+  width: 100%;
+  height: clamp(12rem, 35vw, 20rem);
+  overflow: visible;
+}
+
+.analytics-chart__line {
+  stroke: #f48a3d;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.analytics-chart__line--secondary {
+  stroke: var(--color-info);
+  stroke-dasharray: 3 2;
+}
+
+.analytics-chart__point,
+.analytics-chart__bar {
+  fill: #f48a3d;
+}
+
+.analytics-chart__values {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.35rem;
+  padding: 0;
+  list-style: none;
+}
+
+.analytics-chart__values button {
+  width: 100%;
+  min-height: 44px;
+}
+
+.training-heatmap {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 0.35rem;
+  min-width: max-content;
+}
+
+.training-heatmap__day {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.15rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-soft);
+}
+
+.training-heatmap__day.has-complete {
+  border-color: var(--color-success);
+}
+
+.training-heatmap__day.has-incomplete {
+  box-shadow: inset 0 -3px 0 var(--color-warning);
+}
+
+.analytics-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.analytics-metrics > div,
+.analytics-quick-links a {
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+}
+
+.analytics-metrics dt {
+  color: var(--color-text-muted);
+}
+
+.analytics-metrics dd {
+  margin: 0.35rem 0 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.training-heatmap-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  padding-block-end: 0.35rem;
+}
+
+.analytics-quick-links,
+.balance-insights {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.75rem;
+}
+
+.analytics-quick-links a {
+  min-height: 44px;
+  color: var(--color-accent-text);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.heatmap-day-details {
+  display: grid;
+  gap: 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.exercise-analysis-layout {
+  display: grid;
+  grid-template-columns: minmax(13rem, 18rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.exercise-analysis-picker,
+.exercise-analysis-main,
+.exercise-progress-summary {
+  display: grid;
+  min-inline-size: 0;
+  gap: 0.75rem;
+}
+
+.exercise-analysis-picker ul,
+.exercise-point-details ul {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.exercise-analysis-picker button {
+  width: 100%;
+  min-height: 44px;
+  text-align: start;
+}
+
+.exercise-progress-summary dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.exercise-progress-summary dd {
+  margin: 0.25rem 0 0;
+  font-weight: 700;
+}
+
+.exercise-progress-summary .analytics-chart svg {
+  height: 8rem;
+}
+
+@media (max-width: 47.99rem) {
+  .exercise-analysis-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.analytics-filter-row,
+.record-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.75rem;
+}
+
+.record-card-grid article,
+.record-card-grid dl,
+.record-history,
+.muscle-ranking,
+.muscle-contributions {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.record-card-grid dl,
+.record-history,
+.muscle-ranking,
+.muscle-contributions {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.record-card-grid dd {
+  margin: 0.2rem 0 0;
+  font-weight: 800;
+}
+
+.record-history li,
+.muscle-contributions li {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-soft);
+}
+
+.muscle-ranking button {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) auto auto;
+  width: 100%;
+  min-height: 44px;
+  gap: 0.5rem;
+  align-items: center;
+  text-align: start;
+}
+
+@media (max-width: 35rem) {
+  .muscle-ranking button {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.bodyweight-header,
+.bodyweight-list li,
+.bodyweight-list li > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bodyweight-list {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.bodyweight-list li {
+  padding: 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-soft);
+}
+
+.bodyweight-list li > div:first-child,
+.bodyweight-form {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.bodyweight-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  color: var(--color-text-muted);
+}
+
+.bodyweight-chart-legend span::before {
+  display: inline-block;
+  width: 1.5rem;
+  height: 0.2rem;
+  margin-inline-end: 0.4rem;
+  background: #f48a3d;
+  content: '';
+  vertical-align: middle;
+}
+
+.bodyweight-chart-legend span:last-child::before {
+  background: var(--color-info);
+}

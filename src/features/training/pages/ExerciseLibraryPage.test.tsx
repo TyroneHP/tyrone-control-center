@@ -22,12 +22,19 @@ const CUSTOM_EXERCISE: ExerciseDefinition = {
 
 function trainingState(overrides: Partial<TrainingState> = {}): TrainingState {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     customExercises: [],
     favoriteExerciseIds: [],
     templates: [],
     activeWorkout: null,
     completedWorkouts: [],
+    bodyWeightEntries: [],
+    analyticsPreferences: {
+      range: { preset: '30d' },
+      exerciseMetric: 'weight',
+      muscleMetric: 'sets',
+      dismissedBalanceInsightIds: [],
+    },
     preferences: {
       showSetRating: true,
       progressionEnabled: true,
@@ -119,7 +126,7 @@ describe('ExerciseLibraryPage', () => {
     expect(
       screen.queryByRole('heading', { name: 'Bankdrücken' }),
     ).not.toBeInTheDocument()
-  })
+  }, 10_000)
 
   it('shows only marked exercises when the favorites filter is selected', async () => {
     const user = userEvent.setup()
@@ -279,7 +286,7 @@ describe('ExerciseLibraryPage', () => {
         expect.objectContaining({ customExercises: [] }),
       ),
     )
-  })
+  }, 10_000)
 
   it('keeps a failed image-cleanup deletion visible and retries the captured blob only', async () => {
     const customWithImage: ExerciseDefinition = {

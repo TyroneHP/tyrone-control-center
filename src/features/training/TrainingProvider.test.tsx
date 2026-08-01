@@ -102,12 +102,19 @@ function trainingState(
   overrides: Partial<TrainingState> = {},
 ): TrainingState {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     customExercises: [],
     favoriteExerciseIds: [],
     templates: [],
     activeWorkout: null,
     completedWorkouts: [],
+    bodyWeightEntries: [],
+    analyticsPreferences: {
+      range: { preset: '30d' },
+      exerciseMetric: 'weight',
+      muscleMetric: 'sets',
+      dismissedBalanceInsightIds: [],
+    },
     preferences: {
       showSetRating: true,
       progressionEnabled: true,
@@ -373,6 +380,14 @@ describe('TrainingProvider', () => {
         {
           id: 'legacy-pull-up',
           exerciseId: 'pull-up',
+          exerciseSnapshot: {
+            exerciseId: 'pull-up',
+            name: 'Klimmzüge',
+            primaryMuscles: ['Latissimus'],
+            secondaryMuscles: ['Bizeps'],
+            unit: 'kg-reps',
+            supportsBodyweightModes: true,
+          },
           order: 0,
           targetSets: 1,
           repMin: 6,
@@ -565,6 +580,9 @@ describe('TrainingProvider', () => {
     })
     await screen.findByRole('alert', {
       name: 'Fehler: Trainingsdaten konnten nicht geladen werden.',
+    })
+    await waitFor(() => {
+      expect(training?.recoveryError).toBe(corruption)
     })
 
     const image = new Blob(['processed image'], { type: 'image/webp' })
@@ -3854,4 +3872,155 @@ describe('TrainingProvider', () => {
       }
     },
   )
+
+  it('serializes same-day body-weight upserts and backfills only missing snapshots', async () => {
+    const firstSave = deferred<void>()
+    const secondSave = deferred<void>()
+    const completedWorkout: CompletedWorkout = {
+      ...COMPLETED_WORKOUT,
+      startedAt: '2026-07-25T09:00:00.000Z',
+      exercises: [{
+        id: 'pull-up-entry',
+        exerciseId: 'pull-up',
+        exerciseSnapshot: {
+          exerciseId: 'pull-up', name: 'Klimmzüge',
+          primaryMuscles: ['Latissimus'], secondaryMuscles: ['Bizeps'],
+          unit: 'reps', supportsBodyweightModes: true,
+        },
+        order: 0, targetSets: 1, repMin: 6, repMax: 10,
+        loadMode: 'bodyweight', note: '', sets: [],
+      }],
+    }
+    let saveCount = 0
+    const repository = createRepository({
+      load: vi.fn(async () => trainingState({ completedWorkouts: [completedWorkout] })),
+      save: vi.fn(async () => {
+        saveCount += 1
+        await (saveCount === 1 ? firstSave.promise : secondSave.promise)
+      }),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => { training = value })
+    await screen.findByText('Trainingsdaten bereit')
+
+    let firstResult!: Promise<boolean>
+    let secondResult!: Promise<boolean>
+    act(() => {
+      firstResult = training!.saveBodyWeightEntry(
+        { date: '2026-07-25', weightKg: 80, note: '' },
+        '2026-07-29T10:00:00.000Z',
+      )
+      secondResult = training!.saveBodyWeightEntry(
+        { date: '2026-07-25', weightKg: 79.5, note: 'Korrigiert' },
+        '2026-07-29T10:05:00.000Z',
+      )
+    })
+
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(1))
+    const stableId = training!.state.bodyWeightEntries[0].id
+    expect(training!.state.bodyWeightEntries).toHaveLength(1)
+    expect(training!.state.bodyWeightEntries[0]).toMatchObject({
+      id: stableId,
+      weightKg: 79.5,
+      createdAt: '2026-07-29T10:00:00.000Z',
+      updatedAt: '2026-07-29T10:05:00.000Z',
+    })
+    expect(training!.state.completedWorkouts[0].exercises[0].bodyWeightSnapshot).toMatchObject({
+      weightKg: 80,
+      sourceDate: '2026-07-25',
+    })
+
+    await act(async () => firstSave.resolve())
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(2))
+    await act(async () => secondSave.resolve())
+    await expect(Promise.all([firstResult, secondResult])).resolves.toEqual([true, true])
+  })
+
+  it('rejects body-weight date conflicts without changing or saving state', async () => {
+    const initialState = trainingState({ bodyWeightEntries: [
+      { id: 'one', date: '2026-07-20', weightKg: 80, note: '', createdAt: '2026-07-20T06:00:00Z', updatedAt: '2026-07-20T06:00:00Z' },
+      { id: 'two', date: '2026-07-21', weightKg: 79.5, note: '', createdAt: '2026-07-21T06:00:00Z', updatedAt: '2026-07-21T06:00:00Z' },
+    ] })
+    const repository = createRepository({ load: vi.fn(async () => initialState) })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => { training = value })
+    await screen.findByText('Trainingsdaten bereit')
+
+    await expect(training!.moveBodyWeightEntry('two', {
+      date: '2026-07-20', weightKg: 79.5, note: '',
+    }, '2026-07-29T10:00:00Z')).rejects.toMatchObject({
+      name: 'BodyWeightDateConflictError',
+    })
+    expect(training!.state.bodyWeightEntries).toEqual(initialState.bodyWeightEntries)
+    expect(repository.save).not.toHaveBeenCalled()
+  })
+
+  it('rolls back a failed body-weight deletion', async () => {
+    const initialState = trainingState({ bodyWeightEntries: [{
+      id: 'one', date: '2026-07-20', weightKg: 80, note: '',
+      createdAt: '2026-07-20T06:00:00Z', updatedAt: '2026-07-20T06:00:00Z',
+    }] })
+    const repository = createRepository({
+      load: vi.fn(async () => initialState),
+      save: vi.fn(async () => { throw new Error('offline') }),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => { training = value })
+    await screen.findByText('Trainingsdaten bereit')
+
+    await expect(training!.deleteBodyWeightEntry('one')).resolves.toBe(false)
+    await waitFor(() => expect(training!.state.bodyWeightEntries).toEqual(initialState.bodyWeightEntries))
+  })
+
+  it('persists analytics preferences, dismissed insights and explicit snapshot refresh', async () => {
+    const completedWorkout: CompletedWorkout = {
+      ...COMPLETED_WORKOUT,
+      startedAt: '2026-07-25T09:00:00.000Z',
+      exercises: [{
+        id: 'pull-up-entry', exerciseId: 'pull-up',
+        exerciseSnapshot: {
+          exerciseId: 'pull-up', name: 'Klimmzüge', primaryMuscles: ['Latissimus'],
+          secondaryMuscles: [], unit: 'reps', supportsBodyweightModes: true,
+        },
+        order: 0, targetSets: 1, repMin: 6, repMax: 10,
+        loadMode: 'bodyweight', note: '', sets: [],
+      }],
+    }
+    const repository = createRepository({
+      load: vi.fn(async () => trainingState({
+        completedWorkouts: [completedWorkout],
+        bodyWeightEntries: [{
+          id: 'weight', date: '2026-07-25', weightKg: 80, note: '',
+          createdAt: '2026-07-25T06:00:00Z', updatedAt: '2026-07-25T06:00:00Z',
+        }],
+      })),
+    })
+    let training: TrainingContextValue | undefined
+    renderTraining(repository, 'profile-a', (value) => { training = value })
+    await screen.findByText('Trainingsdaten bereit')
+
+    act(() => {
+      training!.updateAnalyticsPreferences({ exerciseMetric: 'volume' })
+      training!.dismissBalanceInsight('back-versus-chest')
+    })
+    await act(async () => {
+      await expect(
+        training!.refreshWorkoutBodyWeightSnapshots(
+          COMPLETED_WORKOUT.id,
+          '2026-07-29T10:00:00Z',
+        ),
+      ).resolves.toBe(true)
+    })
+
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(3))
+    await waitFor(() => {
+      expect(training!.state.analyticsPreferences).toMatchObject({
+        exerciseMetric: 'volume',
+        dismissedBalanceInsightIds: ['back-versus-chest'],
+      })
+      expect(
+        training!.state.completedWorkouts[0].exercises[0].bodyWeightSnapshot,
+      ).toMatchObject({ weightKg: 80 })
+    })
+  })
 })

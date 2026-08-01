@@ -10,12 +10,21 @@ import { useToast } from '../../design-system'
 import { EMPTY_TRAINING_STATE } from './model/trainingDefaults'
 import { STANDARD_EXERCISES } from './model/exerciseCatalog'
 import type {
+  AnalyticsPreferences,
   CompletedWorkout,
   ExerciseDefinition,
   TrainingPreferences,
   TrainingState,
   WorkoutTemplate,
 } from './model/trainingTypes'
+import {
+  backfillMissingBodyWeightSnapshots,
+  deleteBodyWeightEntry as deleteBodyWeightEntryModel,
+  moveBodyWeightEntry as moveBodyWeightEntryModel,
+  refreshWorkoutBodyWeightSnapshots as refreshWorkoutBodyWeightSnapshotsModel,
+  upsertBodyWeightEntry,
+  type BodyWeightEntryInput,
+} from './model/bodyWeightModel'
 import {
   addWorkoutExercise as addWorkoutExerciseModel,
   addWorkoutSet as addWorkoutSetModel,
@@ -1533,6 +1542,171 @@ export function TrainingProvider({
     [updateState],
   )
 
+  const phaseTwoMutationOptions: UpdateStateOptions = useMemo(
+    () => ({
+      requireCurrentGenerationOnSuccess: true,
+      rollbackOnFailure: (current, previous, failed) => {
+        const bodyWeightEntries =
+          current.bodyWeightEntries === failed.bodyWeightEntries
+            ? previous.bodyWeightEntries
+            : current.bodyWeightEntries
+        const completedWorkouts =
+          current.completedWorkouts === failed.completedWorkouts
+            ? previous.completedWorkouts
+            : current.completedWorkouts
+        const analyticsPreferences =
+          current.analyticsPreferences === failed.analyticsPreferences
+            ? previous.analyticsPreferences
+            : current.analyticsPreferences
+        if (
+          bodyWeightEntries === current.bodyWeightEntries &&
+          completedWorkouts === current.completedWorkouts &&
+          analyticsPreferences === current.analyticsPreferences
+        ) {
+          return current
+        }
+        return {
+          ...current,
+          bodyWeightEntries,
+          completedWorkouts,
+          analyticsPreferences,
+        }
+      },
+    }),
+    [],
+  )
+
+  const saveBodyWeightEntry = useCallback(
+    async (input: BodyWeightEntryInput, timestamp: string) =>
+      updateState(
+        (current) => {
+          const bodyWeightEntries = upsertBodyWeightEntry(
+            current.bodyWeightEntries,
+            input,
+            timestamp,
+          )
+          return {
+            ...current,
+            bodyWeightEntries,
+            completedWorkouts: backfillMissingBodyWeightSnapshots(
+              current.completedWorkouts,
+              bodyWeightEntries,
+              timestamp,
+            ),
+          }
+        },
+        undefined,
+        phaseTwoMutationOptions,
+      ),
+    [phaseTwoMutationOptions, updateState],
+  )
+
+  const moveBodyWeightEntry = useCallback(
+    async (
+      entryId: string,
+      input: BodyWeightEntryInput,
+      timestamp: string,
+    ) =>
+      updateState(
+        (current) => {
+          const bodyWeightEntries = moveBodyWeightEntryModel(
+            current.bodyWeightEntries,
+            entryId,
+            input,
+            timestamp,
+          )
+          return {
+            ...current,
+            bodyWeightEntries,
+            completedWorkouts: backfillMissingBodyWeightSnapshots(
+              current.completedWorkouts,
+              bodyWeightEntries,
+              timestamp,
+            ),
+          }
+        },
+        undefined,
+        phaseTwoMutationOptions,
+      ),
+    [phaseTwoMutationOptions, updateState],
+  )
+
+  const deleteBodyWeightEntry = useCallback(
+    async (entryId: string) =>
+      updateState(
+        (current) => ({
+          ...current,
+          bodyWeightEntries: deleteBodyWeightEntryModel(
+            current.bodyWeightEntries,
+            entryId,
+          ),
+        }),
+        undefined,
+        phaseTwoMutationOptions,
+      ),
+    [phaseTwoMutationOptions, updateState],
+  )
+
+  const updateAnalyticsPreferences = useCallback(
+    (changes: Partial<AnalyticsPreferences>) => {
+      void updateState(
+        (current) => ({
+          ...current,
+          analyticsPreferences: {
+            ...current.analyticsPreferences,
+            ...changes,
+          },
+        }),
+        undefined,
+        phaseTwoMutationOptions,
+      )
+    },
+    [phaseTwoMutationOptions, updateState],
+  )
+
+  const dismissBalanceInsight = useCallback(
+    (insightId: string) => {
+      void updateState(
+        (current) => ({
+          ...current,
+          analyticsPreferences: {
+            ...current.analyticsPreferences,
+            dismissedBalanceInsightIds: [
+              ...new Set([
+                ...current.analyticsPreferences.dismissedBalanceInsightIds,
+                insightId,
+              ]),
+            ],
+          },
+        }),
+        undefined,
+        phaseTwoMutationOptions,
+      )
+    },
+    [phaseTwoMutationOptions, updateState],
+  )
+
+  const refreshWorkoutBodyWeightSnapshots = useCallback(
+    async (workoutId: string, capturedAt: string) =>
+      updateState(
+        (current) => ({
+          ...current,
+          completedWorkouts: current.completedWorkouts.map((workout) =>
+            workout.id === workoutId
+              ? refreshWorkoutBodyWeightSnapshotsModel(
+                  workout,
+                  current.bodyWeightEntries,
+                  capturedAt,
+                )
+              : workout,
+          ),
+        }),
+        undefined,
+        phaseTwoMutationOptions,
+      ),
+    [phaseTwoMutationOptions, updateState],
+  )
+
   const visibleView =
     view.profileId === profileId
       ? view
@@ -1554,11 +1728,13 @@ export function TrainingProvider({
         addWorkoutSet,
         catalog,
         completeWorkout,
+        deleteBodyWeightEntry,
         deleteCompletedWorkout,
         deleteCustomExercise,
         deleteImage,
         deleteWorkoutTemplate,
         discardWorkout,
+        dismissBalanceInsight,
         exportRaw,
         loadImage,
         loading: visibleView.loading,
@@ -1566,15 +1742,19 @@ export function TrainingProvider({
         removeWorkoutSet,
         reorderWorkoutExercise,
         replaceCompletedWorkout,
+        refreshWorkoutBodyWeightSnapshots,
         recoveryError: visibleView.recoveryError,
         reset,
         resolveActiveWorkoutAndStart,
         saveCustomExercise,
+        saveBodyWeightEntry,
         saveImage,
         saveWorkoutTemplate,
         startWorkout,
         state: visibleView.state,
         toggleFavoriteExercise,
+        moveBodyWeightEntry,
+        updateAnalyticsPreferences,
         updatePreferences,
         updateWorkoutExercise,
         updateWorkoutSet,

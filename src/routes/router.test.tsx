@@ -128,6 +128,11 @@ describe('application routing', () => {
     ['/training/active', 'Kein aktives Training'],
     ['/training/history', 'Trainingsverlauf'],
     ['/training/history/workout-1', 'Abgeschlossenes Training'],
+    ['/training/progress', 'Fortschritt'],
+    ['/training/progress/exercises', 'Übungsfortschritt'],
+    ['/training/progress/records', 'Persönliche Rekorde'],
+    ['/training/progress/muscles', 'Muskelgruppen'],
+    ['/training/progress/bodyweight', 'Körpergewicht'],
   ])('renders the training route %s', async (path, heading) => {
     renderRoute(path, activeClient())
 

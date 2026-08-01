@@ -11,6 +11,14 @@ import {
   workoutTemplateExerciseSchema,
   workoutTemplateSchema,
 } from './trainingSchemas'
+import type {
+  ActiveWorkout,
+  CompletedWorkout,
+  TrainingState,
+  WorkoutExerciseEntry,
+  WorkoutTemplate,
+  WorkoutTemplateExercise,
+} from './trainingTypes'
 
 function makeValidSet() {
   return {
@@ -22,7 +30,7 @@ function makeValidSet() {
   }
 }
 
-function makeValidWorkoutExercise() {
+function makeValidWorkoutExercise(): WorkoutExerciseEntry {
   return {
     id: 'workout-exercise-1',
     exerciseId: 'custom-exercise-1',
@@ -33,11 +41,19 @@ function makeValidWorkoutExercise() {
     grip: 'neutral',
     loadMode: 'external',
     note: 'Keep the tempo controlled.',
+    exerciseSnapshot: {
+      exerciseId: 'custom-exercise-1',
+      name: 'Cable Row',
+      primaryMuscles: ['back'],
+      secondaryMuscles: ['biceps'],
+      unit: 'kg-reps',
+      supportsBodyweightModes: false,
+    },
     sets: [makeValidSet()],
   }
 }
 
-function makeValidTemplateExercise() {
+function makeValidTemplateExercise(): WorkoutTemplateExercise {
   return {
     id: 'template-exercise-1',
     exerciseId: 'custom-exercise-1',
@@ -49,7 +65,7 @@ function makeValidTemplateExercise() {
   }
 }
 
-function makeValidTemplate() {
+function makeValidTemplate(): WorkoutTemplate {
   return {
     id: 'template-1',
     name: 'Full Body',
@@ -60,7 +76,7 @@ function makeValidTemplate() {
   }
 }
 
-function makeValidActiveWorkout() {
+function makeValidActiveWorkout(): ActiveWorkout {
   return {
     id: 'active-workout-1',
     templateId: 'template-1',
@@ -71,7 +87,7 @@ function makeValidActiveWorkout() {
   }
 }
 
-function makeValidCompletedWorkout() {
+function makeValidCompletedWorkout(): CompletedWorkout {
   return {
     id: 'completed-workout-1',
     templateId: 'template-1',
@@ -82,9 +98,9 @@ function makeValidCompletedWorkout() {
   }
 }
 
-function makeValidTrainingState() {
+function makeValidTrainingState(): TrainingState {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     customExercises: [
       {
         id: 'custom-exercise-1',
@@ -104,6 +120,22 @@ function makeValidTrainingState() {
     templates: [makeValidTemplate()],
     activeWorkout: makeValidActiveWorkout(),
     completedWorkouts: [makeValidCompletedWorkout()],
+    bodyWeightEntries: [
+      {
+        id: 'weight-1',
+        date: '2026-07-25',
+        weightKg: 82.5,
+        note: 'Morgens',
+        createdAt: '2026-07-25T06:00:00.000Z',
+        updatedAt: '2026-07-25T06:00:00.000Z',
+      },
+    ],
+    analyticsPreferences: {
+      range: { preset: '30d' },
+      exerciseMetric: 'weight',
+      muscleMetric: 'sets',
+      dismissedBalanceInsightIds: [],
+    },
     preferences: {
       showSetRating: true,
       progressionEnabled: true,
@@ -276,16 +308,59 @@ describe('training schemas', () => {
     ).toBe(false)
   })
 
-  it('requires schema version one', () => {
+  it('requires schema version two', () => {
     expect(trainingStateSchema.safeParse(makeValidTrainingState()).success).toBe(
       true,
     )
     expect(
       trainingStateSchema.safeParse({
         ...makeValidTrainingState(),
-        schemaVersion: 2,
+        schemaVersion: 1,
       }).success,
     ).toBe(false)
+  })
+
+  it('requires historical exercise snapshots', () => {
+    const { exerciseSnapshot: _snapshot, ...withoutSnapshot } =
+      makeValidWorkoutExercise()
+    void _snapshot
+
+    expect(workoutExerciseEntrySchema.safeParse(withoutSnapshot).success).toBe(
+      false,
+    )
+    expect(
+      workoutExerciseEntrySchema.safeParse({
+        ...makeValidWorkoutExercise(),
+        bodyWeightSnapshot: {
+          weightKg: 82.5,
+          sourceDate: '2026-07-25',
+          capturedAt: '2026-07-25T10:00:00.000Z',
+        },
+      }).success,
+    ).toBe(true)
+  })
+
+  it('validates unique plausible body-weight entries and custom ranges', () => {
+    const duplicateDate = makeValidTrainingState()
+    duplicateDate.bodyWeightEntries.push({
+      ...duplicateDate.bodyWeightEntries[0],
+      id: 'weight-2',
+    })
+    expect(trainingStateSchema.safeParse(duplicateDate).success).toBe(false)
+
+    for (const weightKg of [19.99, 500.01, 82.555]) {
+      const invalid = makeValidTrainingState()
+      invalid.bodyWeightEntries[0].weightKg = weightKg
+      expect(trainingStateSchema.safeParse(invalid).success).toBe(false)
+    }
+
+    const customRange = makeValidTrainingState()
+    customRange.analyticsPreferences.range = {
+      preset: 'custom',
+      startDate: '2026-06-01',
+      endDate: '2026-07-29',
+    }
+    expect(trainingStateSchema.safeParse(customRange).success).toBe(true)
   })
 
   it('rejects unknown keys instead of stripping them', () => {
@@ -312,12 +387,19 @@ describe('training schemas', () => {
       defaultIncrementKg: 2.5,
     })
     expect(EMPTY_TRAINING_STATE).toEqual({
-      schemaVersion: 1,
+      schemaVersion: 2,
       customExercises: [],
       favoriteExerciseIds: [],
       templates: [],
       activeWorkout: null,
       completedWorkouts: [],
+      bodyWeightEntries: [],
+      analyticsPreferences: {
+        range: { preset: '30d' },
+        exerciseMetric: 'weight',
+        muscleMetric: 'sets',
+        dismissedBalanceInsightIds: [],
+      },
       preferences: {
         showSetRating: true,
         progressionEnabled: true,

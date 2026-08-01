@@ -9,6 +9,11 @@ import type {
   WorkoutTemplate,
   WorkoutTemplateExercise,
 } from './trainingTypes'
+import {
+  createExerciseSnapshot,
+  createMissingExerciseSnapshot,
+} from './exerciseCatalog'
+import { refreshWorkoutBodyWeightSnapshots } from './bodyWeightModel'
 
 export interface CreateWorkoutTemplateInput {
   name: string
@@ -68,6 +73,14 @@ function cloneWorkoutExercises(
 ): WorkoutExerciseEntry[] {
   return exercises.map((exercise) => ({
     ...exercise,
+    exerciseSnapshot: {
+      ...exercise.exerciseSnapshot,
+      primaryMuscles: [...exercise.exerciseSnapshot.primaryMuscles],
+      secondaryMuscles: [...exercise.exerciseSnapshot.secondaryMuscles],
+    },
+    ...(exercise.bodyWeightSnapshot === undefined
+      ? {}
+      : { bodyWeightSnapshot: { ...exercise.bodyWeightSnapshot } }),
     sets: exercise.sets.map((set) => ({ ...set })),
   }))
 }
@@ -155,6 +168,10 @@ function createWorkoutExerciseEntry(
   definition: ExerciseDefinition | undefined,
 ): WorkoutExerciseEntry {
   const grip = previousEntry ? previousEntry.grip : exercise.preferredGrip
+  const exerciseSnapshot = definition
+    ? createExerciseSnapshot(definition)
+    : previousEntry?.exerciseSnapshot ??
+      createMissingExerciseSnapshot(exercise.exerciseId)
   return {
     id: crypto.randomUUID(),
     exerciseId: exercise.exerciseId,
@@ -165,6 +182,7 @@ function createWorkoutExerciseEntry(
     ...(grip === undefined ? {} : { grip }),
     loadMode: normalizeLoadMode(definition, previousEntry?.loadMode),
     note: previousEntry?.note ?? '',
+    exerciseSnapshot,
     sets: previousEntry
       ? previousEntry.sets.map(clonePrefilledSet)
       : Array.from({ length: exercise.targetSets }, createEmptySet),
@@ -452,7 +470,7 @@ export function completeWorkout(
   catalog: readonly ExerciseDefinition[] = [],
 ): TrainingState {
   const activeWorkout = requireActiveWorkout(state)
-  const completedWorkout: CompletedWorkout = {
+  const completedWorkout = refreshWorkoutBodyWeightSnapshots({
     id: activeWorkout.id,
     ...(activeWorkout.templateId === undefined
       ? {}
@@ -461,7 +479,7 @@ export function completeWorkout(
     startedAt: activeWorkout.startedAt,
     completedAt,
     exercises: cloneCompletedWorkoutExercises(activeWorkout.exercises, catalog),
-  }
+  }, state.bodyWeightEntries, completedAt)
 
   return {
     ...state,

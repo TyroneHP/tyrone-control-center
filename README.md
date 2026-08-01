@@ -52,6 +52,15 @@ gespeichert. Mobil sind Kalender, Aufgaben und Training voreingestellt;
 Die Personalisierung legt keine Daten in der Datenbank ab und benötigt kein
 Secret. Die deaktivierten Platzhalter bleiben weiterhin ohne Funktion.
 
+## Lokales Training
+
+Der Trainingsbereich bietet lokale Pläne, eine Übungsbibliothek, aktive und
+abgeschlossene Trainings sowie Fortschrittsanalysen, Rekorde, Muskelgruppen-
+Auswertungen und manuelle Körpergewichtsmessungen. Alle Trainingsdaten bleiben
+in IndexedDB auf dem jeweiligen Gerät und funktionieren offline; es findet
+keine Supabase-Synchronisierung statt. Architektur, Formeln, Migrationen und
+Testabläufe stehen in [docs/training.md](docs/training.md).
+
 ## Prüfungen
 
 ```bash
