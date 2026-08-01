@@ -830,4 +830,54 @@ describe('CompletedWorkoutPage', () => {
     expect(await screen.findByText(/82 kg.*27\. Juli 2026/)).toBeInTheDocument()
     expect(screen.getByRole('cell', { name: '62 kg' })).toBeInTheDocument()
   })
+
+  it('uses the immutable exercise snapshot after a custom exercise was changed or removed', async () => {
+    const historical = workoutExercise({
+      exerciseSnapshot: {
+        exerciseId: 'deleted-custom',
+        name: 'Historische Zeitübung',
+        primaryMuscles: ['Bauch'],
+        secondaryMuscles: [],
+        unit: 'seconds',
+        supportsBodyweightModes: false,
+      },
+      sets: [{
+        id: 'historical-seconds', weightKg: null, reps: 45,
+        rating: 7, completed: true,
+      }],
+    })
+    historical.exerciseId = 'deleted-custom'
+    renderTrainingPage(trainingState([
+      completedWorkout({ exercises: [historical] }),
+    ]))
+
+    const details = await screen.findByRole('region', { name: 'Historische Zeitübung' })
+    expect(within(details).getByRole('columnheader', { name: 'Sekunden' })).toBeInTheDocument()
+    expect(within(details).queryByRole('columnheader', { name: 'Gewicht' })).not.toBeInTheDocument()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Training bearbeiten' }))
+    expect(screen.getByRole('group', { name: 'Historische Zeitübung bearbeiten' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Satz 1 Sekunden')).toBeInTheDocument()
+  })
+
+  it('can explicitly remove a stale snapshot when no qualifying measurement remains', async () => {
+    const user = userEvent.setup()
+    const pullUp = workoutExercise({
+      id: 'pull-up-entry', exerciseId: 'pull-up', loadMode: 'bodyweight',
+      bodyWeightSnapshot: {
+        weightKg: 82, sourceDate: '2026-07-27', capturedAt: '2026-07-27T09:00:00Z',
+      },
+      sets: [{ id: 'pull-up-set', weightKg: null, reps: 8, rating: 7, completed: true }],
+    })
+    const repository = renderTrainingPage(trainingState([
+      completedWorkout({ exercises: [pullUp] }),
+    ]))
+
+    await screen.findByText(/Verwendetes Körpergewicht: 82 kg/)
+    await user.click(screen.getByRole('button', { name: 'Gespeichertes Körpergewicht entfernen' }))
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(1))
+    expect(
+      vi.mocked(repository.save).mock.calls[0][1]
+        .completedWorkouts[0].exercises[0].bodyWeightSnapshot,
+    ).toBeUndefined()
+  })
 })

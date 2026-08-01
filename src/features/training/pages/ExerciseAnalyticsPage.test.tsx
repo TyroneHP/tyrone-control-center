@@ -25,6 +25,11 @@ const ROW: ExerciseDefinition = {
   ...BENCH, id: 'row', name: 'Rudern', primaryMuscles: ['Rücken'],
   secondaryMuscles: ['Bizeps'], equipment: ['Kabelzug'],
 }
+const PULL_UP: ExerciseDefinition = {
+  ...BENCH, id: 'pull-up', name: 'Klimmzug', primaryMuscles: ['Latissimus'],
+  secondaryMuscles: ['Bizeps'], equipment: ['Klimmzugstange'], unit: 'reps',
+  supportsBodyweightModes: true,
+}
 
 function snapshot(exercise: ExerciseDefinition): ExerciseSnapshot {
   return {
@@ -151,5 +156,44 @@ describe('ExerciseAnalyticsPage', () => {
 
     expect(screen.queryByRole('option', { name: 'Gewicht' })).not.toBeInTheDocument()
     expect(screen.getByText('Noch keine passenden Trainingsdaten vorhanden.')).toBeInTheDocument()
+  })
+
+  it('offers load, volume and 1RM for bodyweight exercises with a historical snapshot', () => {
+    const pullUpWorkout = workout(
+      'pull-up-workout',
+      '2026-07-25',
+      snapshot(PULL_UP),
+      0,
+    )
+    pullUpWorkout.exercises[0] = {
+      ...pullUpWorkout.exercises[0],
+      loadMode: 'bodyweight',
+      bodyWeightSnapshot: {
+        weightKg: 80,
+        sourceDate: '2026-07-25',
+        capturedAt: '2026-07-25T10:00:00.000Z',
+      },
+      sets: [{
+        ...pullUpWorkout.exercises[0].sets[0],
+        weightKg: null,
+        reps: 8,
+      }],
+    }
+    training = {
+      state: { ...state(), completedWorkouts: [pullUpWorkout] },
+      catalog: [PULL_UP],
+      loading: false,
+      updateAnalyticsPreferences: vi.fn(),
+    } as unknown as TrainingContextValue
+    render(
+      <MemoryRouter initialEntries={['/training/progress/exercises?exercise=pull-up']}>
+        <ExerciseAnalyticsPage />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('option', { name: 'Gewicht' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Volumen' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Geschätztes 1RM' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Gewichtsverlauf Klimmzug' })).toBeInTheDocument()
   })
 })

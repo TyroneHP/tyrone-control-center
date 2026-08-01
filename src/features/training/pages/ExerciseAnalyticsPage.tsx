@@ -54,7 +54,7 @@ function getAnalysisExercises(
 
 function availableMetrics(exercise?: ExerciseDefinition): ExerciseMetric[] {
   if (!exercise) return []
-  return exercise.unit === 'kg-reps'
+  return exercise.unit === 'kg-reps' || exercise.supportsBodyweightModes
     ? ['weight', 'reps', 'volume', 'oneRepMax']
     : ['reps']
 }

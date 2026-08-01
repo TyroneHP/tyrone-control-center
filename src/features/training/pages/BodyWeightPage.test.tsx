@@ -59,6 +59,20 @@ describe('BodyWeightPage', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Nach dem Aufstehen')
   })
 
+  it('shows only measurements inside the selected period', () => {
+    renderPage([
+      ...ENTRIES,
+      {
+        id: 'outside', date: '2026-06-01', weightKg: 82,
+        note: 'Außerhalb', createdAt: '2026-06-01T08:00:00Z',
+        updatedAt: '2026-06-01T08:00:00Z',
+      },
+    ])
+
+    expect(screen.getByText('Morgens')).toBeInTheDocument()
+    expect(screen.queryByText('Außerhalb')).not.toBeInTheDocument()
+  })
+
   it('validates and creates a measurement with a decimal keyboard hint', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     renderPage([])

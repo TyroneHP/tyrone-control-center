@@ -77,6 +77,14 @@ afterEach(() => {
 })
 
 describe('ProgressDashboardPage', () => {
+  it('shows an honest empty state instead of invented zero metrics', () => {
+    renderDashboard(state())
+
+    expect(screen.getByText(/Noch keine Trainings- oder Körpergewichtsdaten/)).toBeInTheDocument()
+    expect(screen.queryByLabelText('Fortschrittskennzahlen')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Körpergewicht öffnen' })).toBeInTheDocument()
+  })
+
   it('renders metrics, quick links and explicit missing body-weight data', () => {
     renderDashboard(state({ completedWorkouts: [workout(0)] }))
 

@@ -81,7 +81,10 @@ export function ProgressDashboardPage() {
       muscleGroups,
       state.analyticsPreferences.dismissedBalanceInsightIds,
     )
-    return { heatmap, insights, metrics }
+    const hasData = workoutsInRange.length > 0 || state.bodyWeightEntries.some(
+      ({ date }) => isDateKeyInRange(date, range),
+    )
+    return { hasData, heatmap, insights, metrics }
   }, [rangeResult, state])
   const selectedDay = analytics?.heatmap.find(
     ({ date }) => date === selectedDate,
@@ -103,7 +106,7 @@ export function ProgressDashboardPage() {
       />
       {!rangeResult.valid ? <p role="alert">{rangeResult.reason}</p> : null}
 
-      {analytics ? (
+      {analytics?.hasData ? (
         <>
           <dl aria-label="Fortschrittskennzahlen" className="analytics-metrics">
             <div><dt>Trainings</dt><dd>{analytics.metrics.workoutCount}</dd></div>
@@ -151,6 +154,18 @@ export function ProgressDashboardPage() {
             </section>
           ) : null}
 
+          <nav aria-label="Fortschritts-Schnellzugriffe" className="analytics-quick-links">
+            <Link to="/training/progress/exercises">Übungsfortschritt öffnen</Link>
+            <Link to="/training/progress/records">Rekorde öffnen</Link>
+            <Link to="/training/progress/muscles">Muskelgruppen öffnen</Link>
+            <Link to="/training/progress/bodyweight">Körpergewicht öffnen</Link>
+          </nav>
+        </>
+      ) : null}
+
+      {analytics && !analytics.hasData ? (
+        <>
+          <p>Noch keine Trainings- oder Körpergewichtsdaten im gewählten Zeitraum vorhanden.</p>
           <nav aria-label="Fortschritts-Schnellzugriffe" className="analytics-quick-links">
             <Link to="/training/progress/exercises">Übungsfortschritt öffnen</Link>
             <Link to="/training/progress/records">Rekorde öffnen</Link>

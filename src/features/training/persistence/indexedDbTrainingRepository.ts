@@ -1,5 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import { EMPTY_TRAINING_STATE } from '../model/trainingDefaults'
+import { trainingStateSchema } from '../model/trainingSchemas'
 import type { TrainingState } from '../model/trainingTypes'
 import {
   migrateTrainingState,
@@ -95,7 +96,10 @@ export class IndexedDbTrainingRepository implements TrainingRepository {
 
     try {
       const migrated = migrateTrainingState(value)
-      if ((value as { schemaVersion?: unknown })?.schemaVersion !== 2) {
+      if (
+        (value as { schemaVersion?: unknown })?.schemaVersion !== 2 ||
+        !trainingStateSchema.safeParse(value).success
+      ) {
         await database.put('states', migrated, profileId)
       }
       return migrated

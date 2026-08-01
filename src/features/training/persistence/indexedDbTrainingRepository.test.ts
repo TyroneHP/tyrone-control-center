@@ -271,6 +271,21 @@ describe('IndexedDbTrainingRepository', () => {
     expect(twice.favoriteExerciseIds).toEqual(['bench-press'])
   })
 
+  it('repairs invalid version-two analytics preferences without discarding valid training data', () => {
+    const current = makeTrainingState('bench-press')
+    const repaired = migrateTrainingState({
+      ...current,
+      analyticsPreferences: {
+        ...current.analyticsPreferences,
+        exerciseMetric: 'invalid-metric',
+      },
+    })
+
+    expect(repaired.analyticsPreferences).toEqual(EMPTY_STATE.analyticsPreferences)
+    expect(repaired.favoriteExerciseIds).toEqual(['bench-press'])
+    expect(repaired.preferences).toEqual(current.preferences)
+  })
+
   it('returns the empty training state for a profile without a record', async () => {
     await expect(repository.load('missing-profile')).resolves.toEqual(
       EMPTY_STATE,

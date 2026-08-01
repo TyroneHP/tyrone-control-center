@@ -5,6 +5,7 @@ import {
 } from '../model/exerciseCatalog'
 import { DEFAULT_ANALYTICS_PREFERENCES } from '../model/trainingDefaults'
 import {
+  analyticsPreferencesSchema,
   exerciseDefinitionSchema,
   exerciseSnapshotSchema,
   trainingStateSchema,
@@ -110,7 +111,17 @@ export function migrateTrainingState(value: unknown): TrainingState {
   if (!isRecord(value)) {
     throw new TrainingDataCorruptionError('Unbekannte Trainingsdaten-Version.')
   }
-  if (value.schemaVersion === 2) return trainingStateSchema.parse(value)
+  if (value.schemaVersion === 2) {
+    const analyticsPreferences = analyticsPreferencesSchema.safeParse(
+      value.analyticsPreferences,
+    )
+    return trainingStateSchema.parse({
+      ...value,
+      analyticsPreferences: analyticsPreferences.success
+        ? analyticsPreferences.data
+        : cloneAnalyticsDefaults(),
+    })
+  }
   if (value.schemaVersion === 1 || value.schemaVersion === 0) {
     return migrateLegacyToV2(value)
   }

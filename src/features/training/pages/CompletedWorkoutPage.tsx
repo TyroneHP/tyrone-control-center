@@ -13,7 +13,6 @@ import { getProgressionRecommendation } from '../model/progression'
 import { completedWorkoutSchema } from '../model/trainingSchemas'
 import type {
   CompletedWorkout,
-  ExerciseDefinition,
   LoadMode,
   TrainingState,
   WorkoutExerciseEntry,
@@ -115,7 +114,6 @@ function RecommendationCard({
 
 function WorkoutExerciseDetails({
   canRefreshSnapshot,
-  catalog,
   entry,
   onRefreshSnapshot,
   showRating,
@@ -124,7 +122,6 @@ function WorkoutExerciseDetails({
   state,
 }: {
   canRefreshSnapshot: boolean
-  catalog: readonly ExerciseDefinition[]
   entry: WorkoutExerciseEntry
   onRefreshSnapshot: () => void
   showRating: boolean
@@ -133,19 +130,15 @@ function WorkoutExerciseDetails({
   state: TrainingState
 }) {
   const titleId = useId()
-  const catalogExercise = catalog.find(({ id }) => id === entry.exerciseId)
-  const name = catalogExercise?.name ?? 'Unbekannte Übung'
+  const { name, supportsBodyweightModes, unit } = entry.exerciseSnapshot
   const measurementLabel =
-    catalogExercise?.unit === 'seconds' ? 'Sekunden' : 'Wiederholungen'
+    unit === 'seconds' ? 'Sekunden' : 'Wiederholungen'
   const showWeight =
     entry.loadMode === 'added' ||
     entry.loadMode === 'assisted' ||
-    (entry.loadMode === 'external' &&
-      (catalogExercise?.unit ?? 'kg-reps') === 'kg-reps')
-  const showLoad = showWeight || Boolean(catalogExercise?.supportsBodyweightModes)
-  const supportsBodyweightModes =
-    catalogExercise?.supportsBodyweightModes ??
-    entry.exerciseSnapshot.supportsBodyweightModes
+    (entry.loadMode === 'external' && unit === 'kg-reps')
+  const showLoad = showWeight || supportsBodyweightModes
+  const canUpdateSnapshot = canRefreshSnapshot || entry.bodyWeightSnapshot !== undefined
 
   return (
     <section aria-labelledby={titleId}>
@@ -169,14 +162,18 @@ function WorkoutExerciseDetails({
           )
         ) : null}
         {supportsBodyweightModes ? (
-          canRefreshSnapshot ? (
+          canUpdateSnapshot ? (
             <button
               className="button--secondary"
               disabled={snapshotPending}
               onClick={onRefreshSnapshot}
               type="button"
             >
-              {snapshotPending ? 'Körpergewicht wird bestimmt …' : 'Körpergewicht neu bestimmen'}
+              {snapshotPending
+                ? 'Körpergewicht wird bestimmt …'
+                : canRefreshSnapshot
+                  ? 'Körpergewicht neu bestimmen'
+                  : 'Gespeichertes Körpergewicht entfernen'}
             </button>
           ) : <p>Keine Messung am Trainingstag oder davor verfügbar.</p>
         ) : null}
@@ -232,7 +229,6 @@ function getCompletedWorkoutInvalidPaths(workout: CompletedWorkout) {
 }
 
 function WorkoutExerciseEditor({
-  catalogExercise,
   disabled,
   entry,
   exerciseIndex,
@@ -241,7 +237,6 @@ function WorkoutExerciseEditor({
   showRating,
   validationErrorId,
 }: {
-  catalogExercise: ExerciseDefinition | undefined
   disabled: boolean
   entry: WorkoutExerciseEntry
   exerciseIndex: number
@@ -250,9 +245,9 @@ function WorkoutExerciseEditor({
   showRating: boolean
   validationErrorId: string
 }) {
-  const name = catalogExercise?.name ?? 'Unbekannte Übung'
+  const { name, supportsBodyweightModes, unit } = entry.exerciseSnapshot
   const measurementLabel =
-    catalogExercise?.unit === 'seconds' ? 'Sekunden' : 'Wiederholungen'
+    unit === 'seconds' ? 'Sekunden' : 'Wiederholungen'
   const exercisePath = `exercises.${exerciseIndex}`
   const hasError = (field: string) =>
     invalidPaths.has(`${exercisePath}.${field}`)
@@ -325,7 +320,7 @@ function WorkoutExerciseEditor({
         </label>
       </div>
 
-      {catalogExercise?.supportsBodyweightModes ? (
+      {supportsBodyweightModes ? (
         <label>
           Belastungsmodus
           <select
@@ -382,7 +377,7 @@ function WorkoutExerciseEditor({
             }
             set={set}
             showRating={showRating}
-            unit={catalogExercise?.unit ?? 'kg-reps'}
+            unit={unit}
             validationErrorId={validationErrorId}
             validationErrors={{
               rating: hasError(`sets.${index}.rating`),
@@ -400,7 +395,6 @@ function CompletedWorkoutRoute({ workoutId }: { workoutId?: string }) {
   const navigate = useNavigate()
   const validationErrorId = useId()
   const {
-    catalog,
     deleteCompletedWorkout,
     loading,
     replaceCompletedWorkout,
@@ -517,7 +511,7 @@ function CompletedWorkoutRoute({ workoutId }: { workoutId?: string }) {
   }
 
   const refreshSnapshot = async () => {
-    if (!displayedWorkout || snapshotPending || !snapshotSourceAvailable) return
+    if (!displayedWorkout || snapshotPending) return
     setSnapshotPending(true)
     setSnapshotError(false)
     const saved = await refreshWorkoutBodyWeightSnapshots(
@@ -571,7 +565,6 @@ function CompletedWorkoutRoute({ workoutId }: { workoutId?: string }) {
           </label>
           {draft.exercises.map((entry, exerciseIndex) => (
             <WorkoutExerciseEditor
-              catalogExercise={catalog.find(({ id }) => id === entry.exerciseId)}
               disabled={savePending}
               entry={entry}
               exerciseIndex={exerciseIndex}
@@ -629,7 +622,6 @@ function CompletedWorkoutRoute({ workoutId }: { workoutId?: string }) {
               .map((entry) => (
                 <WorkoutExerciseDetails
                   canRefreshSnapshot={snapshotSourceAvailable}
-                  catalog={catalog}
                   entry={entry}
                   key={entry.id}
                   onRefreshSnapshot={() => void refreshSnapshot()}

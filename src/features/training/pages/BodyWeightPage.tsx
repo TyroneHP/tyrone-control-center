@@ -4,7 +4,10 @@ import {
   getBodyWeightSummary,
   getSevenDayBodyWeightTrend,
 } from '../analytics/bodyWeightAnalytics'
-import { resolveAnalyticsRange } from '../analytics/dateRangeAnalytics'
+import {
+  isDateKeyInRange,
+  resolveAnalyticsRange,
+} from '../analytics/dateRangeAnalytics'
 import { AnalyticsPeriodFilter } from '../components/AnalyticsPeriodFilter'
 import { LineChart } from '../components/LineChart'
 import type { BodyWeightEntry } from '../model/trainingTypes'
@@ -59,9 +62,13 @@ export function BodyWeightPage() {
   )
   const analytics = useMemo(() => {
     if (!rangeResult.valid) return undefined
+    const entries = state.bodyWeightEntries.filter(({ date }) =>
+      isDateKeyInRange(date, rangeResult.range),
+    )
     return {
       summary: getBodyWeightSummary(state.bodyWeightEntries, rangeResult.range),
       trend: getSevenDayBodyWeightTrend(state.bodyWeightEntries, rangeResult.range),
+      entries,
     }
   }, [rangeResult, state.bodyWeightEntries])
 
@@ -157,7 +164,7 @@ export function BodyWeightPage() {
             unit="kg"
           />
           <ol aria-label="Körpergewichtsmessungen" className="bodyweight-list">
-            {[...state.bodyWeightEntries].sort((left, right) => right.date.localeCompare(left.date)).map((entry) => (
+            {[...analytics.entries].sort((left, right) => right.date.localeCompare(left.date)).map((entry) => (
               <li key={entry.id}>
                 <div><strong>{numberFormatter.format(entry.weightKg)} kg</strong><time dateTime={entry.date}>{formatDate(entry.date)}</time>{entry.note ? <span>{entry.note}</span> : null}</div>
                 <div>
