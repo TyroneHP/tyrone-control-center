@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom'
+import { Link, Outlet } from 'react-router-dom'
 import { TrainingDemoProvider } from '../demo/TrainingDemoProvider'
 import '../training-ui.css'
 
@@ -7,9 +7,9 @@ export function TrainingDemoLayout() {
     <TrainingDemoProvider>
       <div className="training-demo">
         <nav aria-label="Training">
-          <a href="/training">Dashboard</a>
-          <a href="/training/plans/new">Pläne</a>
-          <a href="/training/library">Bibliothek</a>
+          <Link to="/training">Dashboard</Link>
+          <Link to="/training/plans/new">Pläne</Link>
+          <Link to="/training/library">Bibliothek</Link>
         </nav>
         <Outlet />
       </div>
