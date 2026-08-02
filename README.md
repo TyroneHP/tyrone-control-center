@@ -54,12 +54,17 @@ Secret. Die deaktivierten Platzhalter bleiben weiterhin ohne Funktion.
 
 ## Lokales Training
 
-Der Trainingsbereich bietet lokale Pläne, eine Übungsbibliothek, aktive und
-abgeschlossene Trainings sowie Fortschrittsanalysen, Rekorde, Muskelgruppen-
-Auswertungen und manuelle Körpergewichtsmessungen. Alle Trainingsdaten bleiben
-in IndexedDB auf dem jeweiligen Gerät und funktionieren offline; es findet
-keine Supabase-Synchronisierung statt. Architektur, Formeln, Migrationen und
-Testabläufe stehen in [docs/training.md](docs/training.md).
+Der sichtbare Trainingsbereich ist eine lokale UI-Foundation mit Dashboard,
+Plänen, Bibliothek und aktivem Training. Seine Mock-Pläne, Favoriten und
+Trainingseingaben werden nicht persistiert und beginnen nach jedem Neuladen
+erneut im Ausgangszustand. Vorhandene Trainingsdaten in IndexedDB bleiben
+unverändert erhalten; die neu gestalteten Trainingsrouten lesen, schreiben oder
+migrieren sie nicht. Nur die beibehaltenen Trainingseinstellungen unter
+Einstellungen arbeiten weiter mit ihrem bestehenden lokalen Zustand. Frühere
+Deep Links für Verlauf und Analysen leiten auf `/training` um; sichtbare
+Historie, Fortschrittsanalysen und Körpergewichtsmessungen gehören nicht zu
+diesem Stand. Es findet keine Supabase-Synchronisierung statt. Umfang und
+Grenzen stehen in [docs/training.md](docs/training.md).
 
 ## Prüfungen
 

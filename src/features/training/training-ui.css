@@ -1,0 +1,251 @@
+.training-demo {
+  --training-accent: #ff7a45;
+  --training-accent-hover: #e96130;
+  --training-fab: #326ac1;
+  width: min(100%, 70rem);
+  margin-inline: auto;
+  padding: 1rem 1rem calc(6.5rem + env(safe-area-inset-bottom));
+}
+
+.training-demo > nav {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.training-demo > nav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-control);
+  padding-inline: 0.75rem;
+}
+
+.training-screen-header,
+.training-screen-header__leading,
+.training-screen-header__actions,
+.training-wizard-header,
+.training-demo__sticky-action,
+.compact-exercise-row > *,
+.training-set-row {
+  display: flex;
+  align-items: center;
+}
+
+.training-screen-header,
+.training-wizard-header {
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 0.5rem 1rem;
+}
+
+.training-screen-header__leading,
+.training-screen-header__actions {
+  gap: 0.75rem;
+}
+
+.training-screen-header h1,
+.training-wizard-header h1,
+.training-empty-state h2 {
+  margin: 0;
+  font-size: clamp(1.5rem, 4vw, 2rem);
+}
+
+.training-screen-header__eyebrow,
+.training-screen-header__subtitle,
+.training-wizard-header__progress,
+.training-empty-state p,
+.compact-exercise-row__copy > span {
+  margin: 0.25rem 0 0;
+  color: var(--color-text-muted);
+}
+
+.training-screen-header__back,
+.training-wizard-header > button,
+.training-sticky-action > button,
+.training-empty-state button,
+.training-set-row__delete {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-glass);
+  color: var(--color-text);
+  padding: 0.625rem 0.875rem;
+}
+
+.training-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-block: 1px solid var(--color-border);
+}
+
+.compact-exercise-row,
+.training-set-row {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.compact-exercise-row:last-child,
+.training-set-row:last-child {
+  border-bottom: 0;
+}
+
+.compact-exercise-row > * {
+  width: 100%;
+  gap: 0.75rem;
+  border: 0;
+  background: color-mix(in srgb, var(--color-glass) 88%, transparent);
+  color: var(--color-text);
+  padding: 0.75rem 0;
+  text-align: start;
+}
+
+.compact-exercise-row button {
+  cursor: pointer;
+}
+
+.training-demo :is(a, button, input, textarea, [role='button']),
+.training-sheet__actions :is(a, button, input, textarea, [role='button']),
+.training-sheet__content :is(a, button, input, textarea, [role='button']) {
+  min-block-size: 44px;
+  min-inline-size: 44px;
+}
+
+.compact-exercise-row__illustration {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 auto;
+  place-items: center;
+}
+
+.compact-exercise-row__copy {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.compact-exercise-row__trailing {
+  margin-left: auto;
+}
+
+.training-chip {
+  min-height: 44px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-glass);
+  color: var(--color-text);
+  padding: 0.5rem 0.875rem;
+}
+
+.training-chip[data-selected] {
+  border-color: var(--training-accent);
+  background: color-mix(in srgb, var(--training-accent, #ff7a45) 20%, var(--color-glass));
+}
+
+.training-fab,
+.training-demo__fab {
+  position: fixed;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: calc(5rem + env(safe-area-inset-bottom));
+  display: grid;
+  width: 3.5rem;
+  height: 3.5rem;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--training-fab, #326ac1);
+  box-shadow: var(--shadow-overlay);
+  color: var(--color-on-primary);
+}
+
+.training-sticky-action,
+.training-demo__sticky-action {
+  position: sticky;
+  bottom: calc(5rem + env(safe-area-inset-bottom));
+  z-index: 1;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  border-top: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-glass) 94%, transparent);
+  padding: 0.75rem 0 env(safe-area-inset-bottom);
+  backdrop-filter: blur(14px);
+}
+
+.training-sticky-action__primary,
+.training-empty-state button {
+  border-color: var(--training-accent, #ff7a45);
+  background: var(--training-accent, #ff7a45);
+  color: #1f120d;
+}
+
+.training-set-row {
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  padding: 0.75rem 0;
+}
+
+.training-set-row__number {
+  width: 100%;
+  margin: 0;
+  font-weight: 700;
+}
+
+.training-set-row__field {
+  display: grid;
+  flex: 1 1 7rem;
+  gap: 0.25rem;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.training-set-row__field input {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-input);
+  color: var(--color-text);
+  padding-inline: 0.625rem;
+}
+
+.training-set-row__completion {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-glass);
+  color: var(--color-text);
+  padding: 0.625rem 0.875rem;
+}
+
+.training-set-row__completion[aria-pressed='true'] {
+  border-color: var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.training-empty-state {
+  display: grid;
+  justify-items: start;
+  gap: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-glass);
+  padding: 1.25rem;
+}
+
+.training-empty-state button {
+  margin-top: 0.5rem;
+  padding-inline: 1rem;
+}
+
+.training-sheet__content {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .training-demo *,
+  .training-demo *::before,
+  .training-demo *::after {
+    transition-duration: 0ms;
+  }
+}

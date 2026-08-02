@@ -39,7 +39,7 @@ function clientWithoutSession() {
   } as unknown as SupabaseClient<Database>
 }
 
-function activeClient() {
+function activeClient(role: 'admin' | 'member' = 'admin') {
   const userId = '11111111-1111-1111-1111-111111111111'
   const session = {
     access_token: 'access-token',
@@ -58,7 +58,7 @@ function activeClient() {
     email: 'admin@example.test',
     id: userId,
     invitation_id: '22222222-2222-2222-2222-222222222222',
-    role: 'admin',
+    role,
     status: 'active',
     updated_at: '2026-07-17T00:00:00Z',
   }
@@ -77,7 +77,7 @@ function activeClient() {
   } as unknown as SupabaseClient<Database>
 }
 
-function renderRoute(path: string, client: SupabaseClient<Database>) {
+function renderRoute(path: string, client = activeClient()) {
   installWideMatchMedia()
   const router = createMemoryRouter(appRoutes, { initialEntries: [path] })
   render(
@@ -120,25 +120,30 @@ describe('application routing', () => {
     expect(screen.queryByText('Bereich vorbereitet')).not.toBeInTheDocument()
   })
 
-  it.each([
-    ['/training', 'Training'],
-    ['/training/library', 'Übungsbibliothek'],
-    ['/training/templates/new', 'Trainingsplan erstellen'],
-    ['/training/templates/template-upper/edit', 'Trainingsplan nicht gefunden'],
-    ['/training/active', 'Kein aktives Training'],
-    ['/training/history', 'Trainingsverlauf'],
-    ['/training/history/workout-1', 'Abgeschlossenes Training'],
-    ['/training/progress', 'Fortschritt'],
-    ['/training/progress/exercises', 'Übungsfortschritt'],
-    ['/training/progress/records', 'Persönliche Rekorde'],
-    ['/training/progress/muscles', 'Muskelgruppen'],
-    ['/training/progress/bodyweight', 'Körpergewicht'],
-  ])('renders the training route %s', async (path, heading) => {
-    renderRoute(path, activeClient())
+  it('renders personal settings with the retained training settings context', async () => {
+    renderRoute('/settings', activeClient('member'))
 
     expect(
-      await screen.findByRole('heading', { name: heading }),
-    ).toBeInTheDocument()
-    expect(screen.queryByText('Bereich vorbereitet')).not.toBeInTheDocument()
+      await screen.findByRole('heading', { name: 'Persönliche Einstellungen' }),
+    ).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Darstellung' })).toBeVisible()
+  })
+
+  it.each([
+    '/training/history',
+    '/training/progress/records',
+    '/training/templates/old/edit',
+  ])('replaces obsolete training route %s with the dashboard', async (path) => {
+    renderRoute(path)
+
+    expect(await screen.findByRole('heading', { name: 'Training' })).toBeVisible()
+    expect(screen.queryByRole('link', { name: 'Verlauf' })).not.toBeInTheDocument()
+  })
+
+  it('redirects progress instead of rendering an analytics screen', async () => {
+    renderRoute('/training/progress')
+
+    expect(await screen.findByRole('heading', { name: 'Training' })).toBeVisible()
+    expect(screen.queryByText('Fortschritts-Dashboard')).not.toBeInTheDocument()
   })
 })
