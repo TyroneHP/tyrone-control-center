@@ -1,8 +1,26 @@
 import { mkdirSync } from 'node:fs'
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import { installPreviewSession } from './previewSession'
 
 const screenshotDirectory = 'docs/screenshots'
+
+function trainingPath(path = '') {
+  const base =
+    process.env.E2E_PRODUCTION_PREVIEW === 'true'
+      ? '/tyrone-control-center/training'
+      : '/training'
+  return `${base}${path}`
+}
+
+async function captureTrainingScreenshot(page: Page, name: string) {
+  const directory = `${screenshotDirectory}/training-ui-foundation`
+  mkdirSync(directory, { recursive: true })
+  await page.screenshot({
+    animations: 'disabled',
+    fullPage: true,
+    path: `${directory}/${name}`,
+  })
+}
 
 function requireScreenshotCapture(projectName: string, requiredProject: string) {
   test.skip(
@@ -87,4 +105,45 @@ test('captures personal Settings with deterministic admin data', async ({
     fullPage: true,
     path: `${screenshotDirectory}/design-settings-personalization.png`,
   })
+})
+
+test('captures mobile training UI foundation states', async ({ page }, testInfo) => {
+  requireScreenshotCapture(testInfo.project.name, 'iphone-webkit')
+  await installPreviewSession(page, 'member')
+  await page.goto(trainingPath())
+  await captureTrainingScreenshot(page, 'training-dashboard-mobile.png')
+
+  await page.getByRole('link', { name: 'Pläne' }).click()
+  await captureTrainingScreenshot(page, 'training-wizard-basics-mobile.png')
+  await page.getByLabel('Planname').fill('Screenshot-Plan')
+  await page.getByRole('button', { name: 'Montag' }).click()
+  await page.getByRole('button', { name: 'Weiter zu Übungen' }).click()
+  await captureTrainingScreenshot(page, 'training-wizard-exercises-mobile.png')
+  await page
+    .getByRole('button', { exact: true, name: 'Bankdrücken auswählen' })
+    .click()
+  await page.getByRole('button', { name: 'Weiter zu Anpassen' }).click()
+  await captureTrainingScreenshot(page, 'training-wizard-customize-mobile.png')
+  await page.getByRole('button', { name: 'Weiter zu Vorschau' }).click()
+  await captureTrainingScreenshot(page, 'training-wizard-preview-mobile.png')
+  await page.getByRole('button', { name: 'Plan speichern' }).click()
+  await page
+    .getByRole('button', { name: 'Plan öffnen: Screenshot-Plan' })
+    .click()
+  await captureTrainingScreenshot(page, 'training-plan-detail-mobile.png')
+
+  await page.goto(trainingPath('/library'))
+  await captureTrainingScreenshot(page, 'training-library-mobile.png')
+  await page.getByRole('button', { name: 'Filter öffnen' }).click()
+  await captureTrainingScreenshot(page, 'training-library-filter-mobile.png')
+
+  await page.goto(trainingPath('/active'))
+  await captureTrainingScreenshot(page, 'training-active-session-mobile.png')
+})
+
+test('captures the desktop training dashboard', async ({ page }, testInfo) => {
+  requireScreenshotCapture(testInfo.project.name, 'desktop-chromium')
+  await installPreviewSession(page, 'member')
+  await page.goto(trainingPath())
+  await captureTrainingScreenshot(page, 'training-dashboard-desktop.png')
 })
