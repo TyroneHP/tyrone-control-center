@@ -93,7 +93,7 @@ export function TrainingPlanWizardPage() {
         <label>Übungen suchen<input aria-label="Übungen suchen" onChange={(event) => setSearch(event.target.value)} role="searchbox" type="search" value={search} /></label>
         <button aria-pressed={filters.favoritesOnly} onClick={() => setFilters((current) => ({ ...current, favoritesOnly: !current.favoritesOnly }))} type="button">Favoriten filtern</button>
         <button onClick={() => setFiltersOpen(true)} type="button">Weitere Filter öffnen</button>
-        <ul className="training-list">{visibleExercises.map((exercise) => {
+        <ul className="training-list training-plan-wizard__exercise-list">{visibleExercises.map((exercise) => {
           const selected = state.wizard.selectedExerciseIds.includes(exercise.id)
           return <li key={exercise.id}><button aria-label={`${exercise.name} ${selected ? 'abwählen' : 'auswählen'}`} aria-pressed={selected} onClick={() => { dispatch({ type: 'wizard/toggle-exercise', exerciseId: exercise.id }); updateDirty() }} type="button">{exercise.name}<span>{exercise.muscle} · {exercise.equipment}</span></button></li>
         })}</ul>

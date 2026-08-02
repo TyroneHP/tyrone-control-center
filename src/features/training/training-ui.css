@@ -102,6 +102,7 @@
 .training-chip,
 .training-fab,
 .compact-exercise-row > button,
+.training-plan-wizard__exercise-list > li > button,
 .training-sheet__actions :is(button, input, textarea, [role='button']),
 .training-sheet__content :is(button, input, textarea, [role='button']) {
   min-block-size: 44px;

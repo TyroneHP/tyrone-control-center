@@ -9,19 +9,18 @@ function trainingPath(path = '') {
   return `${base}${path}`
 }
 
-async function expectMinimumTouchTargets(page: Page, selector: string) {
+async function expectMinimumTouchTargets(targets: Locator) {
+  await expect(targets.first()).toBeVisible()
   await expect
     .poll(() =>
-      page.evaluate(
-        (targetSelector) =>
-          Array.from(document.querySelectorAll(targetSelector))
-            .filter((element) => element.getClientRects().length > 0)
-            .map((element) => {
-              const rect = element.getBoundingClientRect()
-              return { height: rect.height, width: rect.width }
-            })
-            .filter(({ height, width }) => height < 44 || width < 44),
-        selector,
+      targets.evaluateAll((elements) =>
+        elements
+          .filter((element) => element.getClientRects().length > 0)
+          .map((element) => {
+            const rect = element.getBoundingClientRect()
+            return { height: rect.height, width: rect.width }
+          })
+          .filter(({ height, width }) => height < 44 || width < 44),
       ),
     )
     .toEqual([])
@@ -48,7 +47,8 @@ async function expectAboveMobileNavigation(page: Page, floating: Locator) {
 
   expect(floatingBox).not.toBeNull()
   expect(navigationBox).not.toBeNull()
-  expect(floatingBox?.y ?? Infinity).toBeLessThanOrEqual(navigationBox?.y ?? 0)
+  expect((floatingBox?.y ?? Infinity) + (floatingBox?.height ?? Infinity))
+    .toBeLessThanOrEqual(navigationBox?.y ?? 0)
 }
 
 test('creates a mock plan, starts it, edits a set and finishes on iPhone WebKit', async ({ page }, testInfo) => {
@@ -61,7 +61,7 @@ test('creates a mock plan, starts it, edits a set and finishes on iPhone WebKit'
   await installPreviewSession(page, 'member')
   await page.goto(trainingPath())
   await expectNoHorizontalOverflow(page)
-  await expectMinimumTouchTargets(page, '.training-fab')
+  await expectMinimumTouchTargets(page.locator('.training-fab'))
   await expectAboveMobileNavigation(
     page,
     page.getByRole('button', { name: 'Schnellstart Training' }),
@@ -79,11 +79,16 @@ test('creates a mock plan, starts it, edits a set and finishes on iPhone WebKit'
   await page.getByLabel('Planname').fill('Mobil-Test')
   await page.getByRole('button', { name: 'Montag' }).click()
   await page.getByRole('button', { name: 'Weiter zu Übungen' }).click()
-  await page
-    .getByRole('button', { exact: true, name: 'Bankdrücken auswählen' })
-    .click()
+  const selectBenchPress = page.getByRole('button', {
+    exact: true,
+    name: 'Bankdrücken auswählen',
+  })
+  await expectMinimumTouchTargets(selectBenchPress)
+  await selectBenchPress.click()
   await expectNoHorizontalOverflow(page)
-  await expectMinimumTouchTargets(page, '.training-sticky-action button')
+  await expectMinimumTouchTargets(
+    page.locator('.training-sticky-action button'),
+  )
   await expectAboveMobileNavigation(
     page,
     page.getByRole('button', { name: 'Weiter zu Anpassen' }),
@@ -102,8 +107,7 @@ test('creates a mock plan, starts it, edits a set and finishes on iPhone WebKit'
   )
   await expectNoHorizontalOverflow(page)
   await expectMinimumTouchTargets(
-    page,
-    '.training-set-row input, .training-set-row__completion',
+    page.locator('.training-set-row input, .training-set-row__completion'),
   )
   await page.getByRole('button', { name: 'Training abschließen' }).click()
   await page
