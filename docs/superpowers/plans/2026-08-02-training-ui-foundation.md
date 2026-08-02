@@ -58,7 +58,7 @@ Keep the existing provider, IndexedDB repository, analytics and historic pages o
 
 **Interfaces:** consumes `STANDARD_EXERCISES` as a read-only source. Produces `TrainingDemoState`, `TrainingDemoPlan`, `TrainingDemoSession`, `createInitialTrainingDemoState()` and `useTrainingDemo()`.
 
-- [ ] **Step 1: Write RED reducer tests**
+- [x] **Step 1: Write RED reducer tests**
 
 ```ts
 it('exposes all 50 local exercises', () => {
@@ -95,13 +95,13 @@ it('removes the one active session only after explicit discard', () => {
 })
 ```
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
 Run: `npx vitest run src/features/training/demo/trainingDemoReducer.test.ts src/features/training/demo/TrainingDemoProvider.test.tsx`
 
 Expected: FAIL because demo modules do not exist.
 
-- [ ] **Step 3: Implement the small domain boundary**
+- [x] **Step 3: Implement the small domain boundary**
 
 ```ts
 export interface TrainingDemoExercise {
@@ -134,7 +134,7 @@ export function createInitialTrainingDemoState(): TrainingDemoState {
 
 Implement immutable actions for favorite toggling, wizard choice/order/value edits, plan create/duplicate/delete, session start, set change/add/remove, active-exercise navigation, finish and discard. Provider mounts a fresh initial state once and never imports the old provider, `idb` or any repository.
 
-- [ ] **Step 4: Add provider reset proof and confirm GREEN**
+- [x] **Step 4: Add provider reset proof and confirm GREEN**
 
 ```tsx
 it('resets deterministic demo data after remount', async () => {
@@ -150,7 +150,7 @@ Run: `npx vitest run src/features/training/demo/trainingDemoReducer.test.ts src/
 
 Expected: PASS; 50 entries, defaults, one active session and reset-on-remount are proven.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/features/training/demo
@@ -176,7 +176,7 @@ git commit -m "feat(training): add demo state foundation"
 
 **Interfaces:** consumes `ResponsiveDialog` focus/keyboard/pointer-cancel support and CoreGrid tokens. Produces presentation-only primitives with explicit props.
 
-- [ ] **Step 1: Write RED accessibility tests**
+- [x] **Step 1: Write RED accessibility tests**
 
 ```tsx
 it('returns focus to its opener after a dismissible sheet closes', async () => {
@@ -194,13 +194,13 @@ it('labels numeric fields and exposes completed state without color alone', () =
 })
 ```
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
 Run: `npx vitest run src/features/training/components/ui/TrainingBottomSheet.test.tsx src/features/training/components/ui/TrainingSetRow.test.tsx`
 
 Expected: FAIL because primitives are absent.
 
-- [ ] **Step 3: Implement components and scoped CSS**
+- [x] **Step 3: Implement components and scoped CSS**
 
 ```tsx
 export function TrainingBottomSheet({ children, open, onClose, title }: Props) {
@@ -233,13 +233,13 @@ export function TrainingBottomSheet({ children, open, onClose, title }: Props) {
 
 Use semantic buttons for chips/toggles, labeled numeric inputs, 44px targets, orange actions/blue FAB, glass separators and readable status text. Do not use global selectors, visible native select/checkbox controls or old training cards/forms.
 
-- [ ] **Step 4: Confirm GREEN**
+- [x] **Step 4: Confirm GREEN**
 
 Run: `npx vitest run src/features/training/components/ui/TrainingBottomSheet.test.tsx src/features/training/components/ui/TrainingSetRow.test.tsx`
 
 Expected: PASS; Escape restores focus and set controls are screen-reader and mobile-keyboard safe.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/features/training/components/ui src/features/training/training-ui.css
@@ -262,7 +262,7 @@ git commit -m "feat(training): add iOS training primitives"
 
 **Interfaces:** consumes `TrainingDemoProvider`, `Outlet` and `Navigate`. Produces only `/training`, `/training/plans/new`, `/training/plans/:planId`, `/training/library` and `/training/active` plus a catch-all redirect.
 
-- [ ] **Step 1: Write RED route tests**
+- [x] **Step 1: Write RED route tests**
 
 ```tsx
 it.each([
@@ -284,13 +284,13 @@ it('shows only Dashboard, Pläne and Bibliothek internally', () => {
 })
 ```
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
 Run: `npx vitest run src/routes/router.test.tsx src/features/training/components/TrainingDemoLayout.test.tsx`
 
 Expected: FAIL because legacy pages still render.
 
-- [ ] **Step 3: Implement new training routes**
+- [x] **Step 3: Implement new training routes**
 
 ```tsx
 {
@@ -309,7 +309,7 @@ Expected: FAIL because legacy pages still render.
 
 Layout wraps the outlet in `TrainingDemoProvider`, imports `training-ui.css` and renders exactly three German internal links. Remove `TrainingProvider` and `TrainingRecoveryDialog` from `ProtectedShell` but do not delete their sources or data.
 
-- [ ] **Step 4: Confirm GREEN**
+- [x] **Step 4: Confirm GREEN**
 
 Run: `npx vitest run src/routes/router.test.tsx src/features/training/components/TrainingDemoLayout.test.tsx`
 
@@ -317,7 +317,7 @@ Run: `rg -n "TrainingProvider|TrainingRecoveryDialog|useTraining\\(" src/routes 
 
 Expected: tests PASS and no old provider/recovery import appears in the new runtime boundary.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/routes/router.tsx src/routes/router.test.tsx src/routes/ProtectedShell.tsx src/features/training/components/TrainingDemoLayout.tsx src/features/training/components/TrainingDemoLayout.test.tsx src/features/training/pages/TrainingDashboardPage.tsx src/features/training/pages/TrainingPlanDetailPage.tsx src/features/training/pages/TrainingPlanWizardPage.tsx src/features/training/pages/TrainingExerciseLibraryPage.tsx src/features/training/pages/TrainingActiveSessionPage.tsx
@@ -336,7 +336,7 @@ git commit -m "feat(training): replace visible training routes"
 
 **Interfaces:** consumes `useTrainingDemo()` and Task 2 primitives. Produces dashboard navigation only to new approved routes and mock session actions.
 
-- [ ] **Step 1: Write RED page tests**
+- [x] **Step 1: Write RED page tests**
 
 ```tsx
 it('continues one active session rather than creating another', async () => {
@@ -363,13 +363,13 @@ it('requires a second confirmation before plan deletion', async () => {
 })
 ```
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
 Run: `npx vitest run src/features/training/pages/TrainingDashboardPage.test.tsx src/features/training/pages/TrainingPlanDetailPage.test.tsx src/features/training/components/StartTrainingSheet.test.tsx`
 
 Expected: FAIL because the compact UI behavior is missing.
 
-- [ ] **Step 3: Implement page behavior**
+- [x] **Step 3: Implement page behavior**
 
 ```tsx
 <TrainingList aria-label="Weitere Trainingspläne">
@@ -386,13 +386,13 @@ Expected: FAIL because the compact UI behavior is missing.
 
 Dashboard order is active compact row, large weekday-assigned plan, additional plan rows, free workout, library row and safe-area blue FAB. Start sheet omits today-plan choice if no plan applies. Detail shows back action, weekdays, count, duration, compact exercises and action sheet with edit/duplicate/double-confirm delete. All changes call reducer actions only.
 
-- [ ] **Step 4: Confirm GREEN**
+- [x] **Step 4: Confirm GREEN**
 
 Run: `npx vitest run src/features/training/pages/TrainingDashboardPage.test.tsx src/features/training/pages/TrainingPlanDetailPage.test.tsx src/features/training/components/StartTrainingSheet.test.tsx`
 
 Expected: PASS; active conflict, no-today state, actions and deletion confirmation are covered.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/features/training/pages/TrainingDashboardPage.tsx src/features/training/pages/TrainingDashboardPage.test.tsx src/features/training/pages/TrainingPlanDetailPage.tsx src/features/training/pages/TrainingPlanDetailPage.test.tsx src/features/training/components/StartTrainingSheet.tsx src/features/training/components/StartTrainingSheet.test.tsx
@@ -411,9 +411,9 @@ git commit -m "feat(training): add dashboard and plan details"
 - Create: `src/features/training/components/PlanExerciseEditorRow.tsx`
 - Create: `src/features/training/components/PlanExerciseEditorRow.test.tsx`
 
-**Interfaces:** consumes `toggleWizardExercise`, `moveWizardExercise`, `updateWizardExercise`, `saveWizardPlan` and `toggleFavorite`. Produces four accessible steps and a library with all 50 exercises.
+**Interfaces:** consumes `toggleWizardExercise`, `moveWizardExercise`, `updateWizardExercise`, `saveWizardPlan`, `replacePlan` and `toggleFavorite`. Produces four accessible steps and a library with all 50 exercises. When the existing approved URL `/training/plans/new?edit=<planId>` is used, it loads that mock plan into the wizard and `replacePlan` updates the matching plan instead of creating a duplicate.
 
-- [ ] **Step 1: Write RED wizard/library tests**
+- [x] **Step 1: Write RED wizard/library tests**
 
 ```tsx
 it('keeps Bankdrücken selected while switching to Favorites', async () => {
@@ -438,15 +438,22 @@ it('moves a selected exercise up through its accessible action', async () => {
   )
   expect(screen.getAllByTestId('plan-exercise-row').first()).toHaveTextContent('Latziehen zur Brust')
 })
+
+it('loads the matching plan for the approved edit query and replaces it on save', async () => {
+  renderWizard('/training/plans/new?edit=upper-body')
+  expect(screen.getByLabelText('Planname')).toHaveValue('Oberkörper')
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Plan speichern' }))
+  expect(readDemoState().plans.filter((plan) => plan.id === 'upper-body')).toHaveLength(1)
+})
 ```
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
 Run: `npx vitest run src/features/training/pages/TrainingPlanWizardPage.test.tsx src/features/training/pages/TrainingExerciseLibraryPage.test.tsx src/features/training/components/ExerciseFilterSheet.test.tsx src/features/training/components/PlanExerciseEditorRow.test.tsx`
 
 Expected: FAIL because new wizard/filter/list components are absent.
 
-- [ ] **Step 3: Implement all four steps**
+- [x] **Step 3: Implement all four steps**
 
 ```tsx
 const steps = ['Grundlagen', 'Übungen', 'Anpassen', 'Vorschau'] as const
@@ -459,15 +466,15 @@ const steps = ['Grundlagen', 'Übungen', 'Anpassen', 'Vorschau'] as const
 <TrainingStickyActionBar primaryAction={nextOrSaveAction} secondaryAction={backAction} />
 ```
 
-Step 1 validates non-empty plan name and weekday chips. Step 2 has search and muscle/equipment/favorites sheet; filter changes do not erase IDs. Step 3 uses existing `@dnd-kit` only for pointer sorting plus permanent accessible up/down buttons and controls for sets, rep min/max, optional start weight, grip and remove. Step 4 previews the exact plan. Dirty close prompts to discard. Library shares this catalog/filter model, local illustration and favorite/details sheet; no visible native select or checkbox.
+Step 1 validates non-empty plan name and weekday chips. When `edit` is present in the search parameters, initialize the draft and selected IDs from the matching plan; an unknown plan ID returns to `/training` with no mutation. Step 2 has search and muscle/equipment/favorites sheet; filter changes do not erase IDs. Step 3 uses existing `@dnd-kit` only for pointer sorting plus permanent accessible up/down buttons and controls for sets, rep min/max, optional start weight, grip and remove. Step 4 previews the exact plan. On save, `edit` replaces the matching mock plan and no `edit` creates a new one. Dirty close prompts to discard. Library shares this catalog/filter model, local illustration and favorite/details sheet; no visible native select or checkbox.
 
-- [ ] **Step 4: Confirm GREEN**
+- [x] **Step 4: Confirm GREEN**
 
 Run: `npx vitest run src/features/training/pages/TrainingPlanWizardPage.test.tsx src/features/training/pages/TrainingExerciseLibraryPage.test.tsx src/features/training/components/ExerciseFilterSheet.test.tsx src/features/training/components/PlanExerciseEditorRow.test.tsx`
 
 Expected: PASS; full catalog, independent favorites, retained selection, 3 × 8–12 and accessible sorting are proven.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/features/training/pages/TrainingPlanWizardPage.tsx src/features/training/pages/TrainingPlanWizardPage.test.tsx src/features/training/pages/TrainingExerciseLibraryPage.tsx src/features/training/pages/TrainingExerciseLibraryPage.test.tsx src/features/training/components/ExerciseFilterSheet.tsx src/features/training/components/ExerciseFilterSheet.test.tsx src/features/training/components/PlanExerciseEditorRow.tsx src/features/training/components/PlanExerciseEditorRow.test.tsx
@@ -487,7 +494,7 @@ git commit -m "feat(training): add plan wizard and exercise library"
 
 **Interfaces:** consumes `updateActiveSet`, `addActiveSet`, `removeActiveSet`, `setCurrentExercise`, `finishSession` and `discardSession`. Produces controlled one-exercise state with no persistence side effect.
 
-- [ ] **Step 1: Write RED active-session tests**
+- [x] **Step 1: Write RED active-session tests**
 
 ```tsx
 it('changes only the current in-memory set', async () => {
@@ -519,13 +526,13 @@ it('requires confirmation before discard', async () => {
 })
 ```
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
 Run: `npx vitest run src/features/training/pages/TrainingActiveSessionPage.test.tsx src/features/training/components/ActiveExerciseNavigator.test.tsx src/features/training/components/FinishDiscardSheet.test.tsx`
 
 Expected: FAIL because focused active session is absent.
 
-- [ ] **Step 3: Implement session view and gesture boundary**
+- [x] **Step 3: Implement session view and gesture boundary**
 
 ```tsx
 function isEditableTarget(target: EventTarget | null) {
@@ -543,13 +550,13 @@ function onPointerUp(event: React.PointerEvent<HTMLElement>) {
 
 Render header/duration/progress, local SVG, muscle/goal/last values, grip sheet, mock note and compact set rows. Support value/rating/completion/add/delete and visible previous/next buttons. Finish/discard have German confirmation sheets, clear only mock `activeSession` and go to `/training`; never create history.
 
-- [ ] **Step 4: Confirm GREEN**
+- [x] **Step 4: Confirm GREEN**
 
 Run: `npx vitest run src/features/training/pages/TrainingActiveSessionPage.test.tsx src/features/training/components/ActiveExerciseNavigator.test.tsx src/features/training/components/FinishDiscardSheet.test.tsx`
 
 Expected: PASS; controlled values, safe swipe, keyboard controls and finish/discard confirmation are covered.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/features/training/pages/TrainingActiveSessionPage.tsx src/features/training/pages/TrainingActiveSessionPage.test.tsx src/features/training/components/ActiveExerciseNavigator.tsx src/features/training/components/ActiveExerciseNavigator.test.tsx src/features/training/components/FinishDiscardSheet.tsx src/features/training/components/FinishDiscardSheet.test.tsx src/features/training/components/ui/TrainingSetRow.tsx
@@ -567,7 +574,7 @@ git commit -m "feat(training): add focused active workout flow"
 
 **Interfaces:** consumes `installPreviewSession`, new German labels and new routes. Produces iPhone WebKit/Desktop Chromium acceptance evidence.
 
-- [ ] **Step 1: Write RED E2E flow and redirect tests**
+- [x] **Step 1: Write RED E2E flow and redirect tests**
 
 ```ts
 test('creates a mock plan, starts it, edits a set and finishes on iPhone WebKit', async ({ page }, testInfo) => {
@@ -596,13 +603,13 @@ test.each(['/training/history', '/training/progress', '/training/progress/bodywe
 )
 ```
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
 Run: `npx playwright test tests/e2e/training-ui-foundation.spec.ts --project=iphone-webkit`
 
 Expected: FAIL until routes, labels and mock flow exist.
 
-- [ ] **Step 3: Add responsive assertions and screenshots**
+- [x] **Step 3: Add responsive assertions and screenshots**
 
 Assert tap targets at least 44px, `documentElement.scrollWidth <= innerWidth` on iPhone, FAB/sticky actions above `.mobile-navigation` and `.desktop-sidebar` visible on desktop. Use the existing screenshot environment gate:
 
@@ -614,13 +621,13 @@ await expect(page).toHaveScreenshot('training-library-mobile.png', { fullPage: t
 
 Capture active dashboard, plan detail, four wizard steps, library, filter sheet, active session and desktop dashboard. Retain non-training auth/navigation/PWA checks.
 
-- [ ] **Step 4: Confirm GREEN on both projects**
+- [x] **Step 4: Confirm GREEN on both projects**
 
 Run: `npx playwright test tests/e2e/training-ui-foundation.spec.ts`
 
 Expected: PASS for desktop Chromium and iPhone WebKit; environment-gated screenshot skips are reported.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add tests/e2e/training-ui-foundation.spec.ts tests/e2e/training.spec.ts tests/e2e/training-analytics.spec.ts tests/e2e/screenshots.spec.ts docs/screenshots/training-ui-foundation
@@ -637,7 +644,7 @@ git commit -m "test(training): cover responsive demo flows"
 
 **Interfaces:** consumes complete feature branch and existing scripts. Produces evidence-backed documentation and a draft PR; never deploys or merges.
 
-- [ ] **Step 1: Keep the redirect contract in a test**
+- [x] **Step 1: Keep the redirect contract in a test**
 
 ```tsx
 it('redirects progress instead of rendering an analytics screen', async () => {
@@ -647,17 +654,17 @@ it('redirects progress instead of rendering an analytics screen', async () => {
 })
 ```
 
-- [ ] **Step 2: Verify this test before docs**
+- [x] **Step 2: Verify this test before docs**
 
 Run: `npx vitest run src/routes/router.test.tsx`
 
 Expected: PASS after Task 3; repair routing before docs if it fails.
 
-- [ ] **Step 3: Write only truthful existing-doc corrections**
+- [x] **Step 3: Write only truthful existing-doc corrections**
 
 Document where a Training section already exists: UI state resets after reload; existing IndexedDB data is preserved but unused; only Dashboard/Pläne/Bibliothek and active training are visible; deep routes redirect to `/training`; no Supabase synchronization exists. Do not create a second guide when no existing text requires correction.
 
-- [ ] **Step 4: Run every mandatory command separately**
+- [x] **Step 4: Run every mandatory command separately**
 
 ```bash
 npm ci
@@ -673,7 +680,7 @@ git status --short
 
 Expected: lint, typecheck, Vitest, build/PWA, security scan and runnable Playwright checks pass. Record exact totals and expected E2E skips. Do not run `npm audit fix`, Supabase, Graphify or deployment commands.
 
-- [ ] **Step 5: Commit docs only if changed**
+- [x] **Step 5: Commit docs only if changed**
 
 ```bash
 git add README.md docs/training.md docs/superpowers/plans/2026-08-02-training-ui-foundation.md src/routes/router.test.tsx
@@ -682,7 +689,7 @@ git commit -m "docs(training): clarify UI foundation limits"
 
 If no README/docs change is needed, stage only completed plan items and route-contract test with `docs(training): record UI foundation validation`.
 
-- [ ] **Step 6: Push and create the requested Draft PR**
+- [x] **Step 6: Push and create the requested Draft PR**
 
 ```bash
 git push -u origin redesign/training-ui-foundation

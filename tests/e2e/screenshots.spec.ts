@@ -12,12 +12,16 @@ function trainingPath(path = '') {
   return `${base}${path}`
 }
 
-async function captureTrainingScreenshot(page: Page, name: string) {
+async function captureTrainingScreenshot(
+  page: Page,
+  name: string,
+  fullPage = true,
+) {
   const directory = `${screenshotDirectory}/training-ui-foundation`
   mkdirSync(directory, { recursive: true })
   await page.screenshot({
     animations: 'disabled',
-    fullPage: true,
+    fullPage,
     path: `${directory}/${name}`,
   })
 }
@@ -135,7 +139,12 @@ test('captures mobile training UI foundation states', async ({ page }, testInfo)
   await page.goto(trainingPath('/library'))
   await captureTrainingScreenshot(page, 'training-library-mobile.png')
   await page.getByRole('button', { name: 'Filter öffnen' }).click()
-  await captureTrainingScreenshot(page, 'training-library-filter-mobile.png')
+  await expect(page.getByRole('dialog', { name: 'Übungen filtern' })).toBeVisible()
+  await captureTrainingScreenshot(
+    page,
+    'training-library-filter-mobile.png',
+    false,
+  )
 
   await page.goto(trainingPath('/active'))
   await captureTrainingScreenshot(page, 'training-active-session-mobile.png')
