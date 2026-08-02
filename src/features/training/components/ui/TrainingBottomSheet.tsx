@@ -20,7 +20,7 @@ export function TrainingBottomSheet({
 }: TrainingBottomSheetProps) {
   return (
     <ResponsiveDialog
-      actions={actions}
+      actions={actions ? <div className="training-sheet__actions">{actions}</div> : undefined}
       dismissible={dismissible}
       onClose={onClose}
       open={open}

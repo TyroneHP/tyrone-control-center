@@ -7,11 +7,6 @@
   padding: 1rem 1rem calc(6.5rem + env(safe-area-inset-bottom));
 }
 
-.training-demo button,
-.training-demo input {
-  min-height: 44px;
-}
-
 .training-screen-header,
 .training-screen-header__leading,
 .training-screen-header__actions,
@@ -53,7 +48,7 @@
 
 .training-screen-header__back,
 .training-wizard-header > button,
-.training-demo__sticky-action > button,
+.training-sticky-action > button,
 .training-empty-state button,
 .training-set-row__delete {
   border: 1px solid var(--color-border);
@@ -96,6 +91,23 @@
   cursor: pointer;
 }
 
+.training-screen-header__back,
+.training-screen-header__actions button,
+.training-wizard-header > button,
+.training-sticky-action > button,
+.training-empty-state button,
+.training-set-row__field input,
+.training-set-row__completion,
+.training-set-row__delete,
+.training-chip,
+.training-fab,
+.compact-exercise-row > button,
+.training-sheet__actions :is(button, input, textarea, [role='button']),
+.training-sheet__content :is(button, input, textarea, [role='button']) {
+  min-block-size: 44px;
+  min-inline-size: 44px;
+}
+
 .compact-exercise-row__illustration {
   display: grid;
   width: 2.75rem;
@@ -125,9 +137,10 @@
 
 .training-chip[data-selected] {
   border-color: var(--training-accent);
-  background: color-mix(in srgb, var(--training-accent) 20%, var(--color-glass));
+  background: color-mix(in srgb, var(--training-accent, #ff7a45) 20%, var(--color-glass));
 }
 
+.training-fab,
 .training-demo__fab {
   position: fixed;
   right: max(1rem, env(safe-area-inset-right));
@@ -138,11 +151,12 @@
   place-items: center;
   border: 0;
   border-radius: 50%;
-  background: var(--training-fab);
+  background: var(--training-fab, #326ac1);
   box-shadow: var(--shadow-overlay);
   color: var(--color-on-primary);
 }
 
+.training-sticky-action,
 .training-demo__sticky-action {
   position: sticky;
   bottom: calc(5rem + env(safe-area-inset-bottom));
@@ -157,8 +171,8 @@
 
 .training-sticky-action__primary,
 .training-empty-state button {
-  border-color: var(--training-accent);
-  background: var(--training-accent);
+  border-color: var(--training-accent, #ff7a45);
+  background: var(--training-accent, #ff7a45);
   color: #1f120d;
 }
 

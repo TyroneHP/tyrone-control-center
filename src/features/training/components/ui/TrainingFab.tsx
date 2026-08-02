@@ -8,7 +8,7 @@ export interface TrainingFabProps {
 
 export function TrainingFab({ children = '+', label, onClick }: TrainingFabProps) {
   return (
-    <button aria-label={label} className="training-demo__fab" onClick={onClick} type="button">
+    <button aria-label={label} className="training-fab training-demo__fab" onClick={onClick} type="button">
       {children}
     </button>
   )

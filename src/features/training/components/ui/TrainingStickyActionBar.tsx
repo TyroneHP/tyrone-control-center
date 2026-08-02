@@ -14,7 +14,7 @@ export function TrainingStickyActionBar({
   secondaryAction,
 }: TrainingStickyActionBarProps) {
   return (
-    <div className="training-demo__sticky-action">
+    <div className="training-sticky-action training-demo__sticky-action">
       {secondaryAction ? (
         <button disabled={secondaryAction.disabled} onClick={secondaryAction.onClick} type="button">
           {secondaryAction.label}
