@@ -29,6 +29,30 @@ describe('trainingDemoReducer', () => {
     expect(next.wizard.selectedExerciseIds).toContain('bench-press')
   })
 
+  it('replaces an existing plan immutably instead of adding a duplicate', () => {
+    const initial = createInitialTrainingDemoState()
+    const withEditedDraft = trainingDemoReducer(initial, {
+      type: 'wizard/load-plan',
+      planId: 'upper-body',
+    })
+    const namedDraft = trainingDemoReducer(withEditedDraft, {
+      type: 'wizard/set-name',
+      name: 'Oberkörper aktualisiert',
+    })
+    const replaced = trainingDemoReducer(namedDraft, {
+      type: 'plan/replace',
+      planId: 'upper-body',
+    })
+
+    expect(replaced).not.toBe(namedDraft)
+    expect(replaced.plans).toHaveLength(1)
+    expect(replaced.plans[0]).toMatchObject({
+      id: 'upper-body',
+      name: 'Oberkörper aktualisiert',
+    })
+    expect(namedDraft.plans[0]).toMatchObject({ name: 'Oberkörper' })
+  })
+
   it('removes the one active session only after explicit discard', () => {
     const active = trainingDemoReducer(createInitialTrainingDemoState(), {
       type: 'session/start',

@@ -162,6 +162,22 @@ export function trainingDemoReducer(
       }
     }
 
+    case 'wizard/load-plan': {
+      const plan = state.plans.find(({ id }) => id === action.planId)
+      if (!plan) return state
+      return {
+        ...state,
+        wizard: {
+          selectedExerciseIds: plan.exercises.map(({ exerciseId }) => exerciseId),
+          draft: {
+            name: plan.name,
+            weekdays: [...plan.weekdays],
+            exercises: plan.exercises.map((exercise) => ({ ...exercise })),
+          },
+        },
+      }
+    }
+
     case 'wizard/update-exercise':
       return updateWizardExercises(
         state,
@@ -205,6 +221,27 @@ export function trainingDemoReducer(
       return {
         ...state,
         plans: [...state.plans, plan],
+        wizard: createEmptyWizardState(),
+      }
+    }
+
+    case 'plan/replace': {
+      if (!state.plans.some((plan) => plan.id === action.planId)) return state
+
+      const replacePlan = (plan: TrainingDemoPlan): TrainingDemoPlan =>
+        plan.id === action.planId
+          ? {
+              ...plan,
+              name: state.wizard.draft.name,
+              weekdays: [...state.wizard.draft.weekdays],
+              exercises: state.wizard.draft.exercises.map((exercise) => ({ ...exercise })),
+              updatedAt: DEMO_TIMESTAMP,
+            }
+          : plan
+
+      return {
+        ...state,
+        plans: state.plans.map(replacePlan),
         wizard: createEmptyWizardState(),
       }
     }

@@ -14,6 +14,8 @@ export interface TrainingDemoPlanExercise {
   targetSets: number
   repMin: number
   repMax: number
+  startWeightKg?: number
+  grip?: string
 }
 
 export interface TrainingDemoPlan {
@@ -73,19 +75,21 @@ export type TrainingDemoAction =
   | { type: 'wizard/toggle-exercise'; exerciseId: string }
   | { type: 'wizard/set-name'; name: string }
   | { type: 'wizard/toggle-weekday'; weekday: number }
+  | { type: 'wizard/load-plan'; planId: string }
   | {
       type: 'wizard/update-exercise'
       exerciseId: string
       changes: Partial<
-        Pick<
-          TrainingDemoPlanExercise,
-          'targetSets' | 'repMin' | 'repMax'
+      Pick<
+        TrainingDemoPlanExercise,
+          'targetSets' | 'repMin' | 'repMax' | 'startWeightKg' | 'grip'
         >
       >
     }
   | { type: 'wizard/reorder-exercise'; exerciseId: string; toIndex: number }
   | { type: 'wizard/reset' }
   | { type: 'plan/create' }
+  | { type: 'plan/replace'; planId: string }
   | { type: 'plan/duplicate'; planId: string }
   | { type: 'plan/delete'; planId: string }
   | { type: 'session/start'; planId: string }
