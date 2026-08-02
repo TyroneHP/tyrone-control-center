@@ -9,11 +9,16 @@ import { trainingDemoReducer } from '../demo/trainingDemoReducer'
 import type { TrainingDemoState } from '../demo/trainingDemoTypes'
 import { TrainingPlanDetailPage } from './TrainingPlanDetailPage'
 
-function DemoHarness({ children }: { children: ReactNode }) {
+function DemoHarness({
+  children,
+  initialState = createInitialTrainingDemoState(),
+}: {
+  children: ReactNode
+  initialState?: TrainingDemoState
+}) {
   const [state, dispatch] = useReducer(
     trainingDemoReducer,
-    undefined,
-    createInitialTrainingDemoState,
+    initialState,
   )
 
   return (
@@ -45,11 +50,14 @@ function LocationMarker() {
   return <output aria-label="Aktueller Pfad">{location.pathname}{location.search}</output>
 }
 
-function renderPlanDetail(planId = 'upper-body') {
-  let demoState = createInitialTrainingDemoState()
+function renderPlanDetail(
+  planId = 'upper-body',
+  initialState = createInitialTrainingDemoState(),
+) {
+  let demoState = initialState
   render(
     <MemoryRouter initialEntries={[`/training/plans/${planId}`]}>
-      <DemoHarness>
+      <DemoHarness initialState={initialState}>
         <Routes>
           <Route path="/training" element={<p>Training</p>} />
           <Route path="/training/plans/new" element={<p>Planassistent</p>} />
@@ -120,5 +128,29 @@ describe('TrainingPlanDetailPage', () => {
     expect(screen.getByLabelText('Aktueller Pfad')).toHaveTextContent(
       '/training/plans/new?edit=upper-body',
     )
+  })
+
+  it('starts this exact plan when no session is active', async () => {
+    const { readDemoState } = renderPlanDetail('upper-body', {
+      ...createInitialTrainingDemoState(),
+      activeSession: undefined,
+    })
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Training starten' }))
+
+    expect(readDemoState().activeSession).toMatchObject({ planId: 'upper-body' })
+    expect(screen.getByLabelText('Aktueller Pfad')).toHaveTextContent('/training/active')
+  })
+
+  it('continues the existing session instead of starting the displayed plan', async () => {
+    const activeSession = createInitialTrainingDemoState().activeSession
+    const { readDemoState } = renderPlanDetail()
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Training fortsetzen' }))
+
+    expect(readDemoState().activeSession).toEqual(activeSession)
+    expect(screen.getByLabelText('Aktueller Pfad')).toHaveTextContent('/training/active')
   })
 })

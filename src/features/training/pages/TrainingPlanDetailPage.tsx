@@ -57,6 +57,13 @@ export function TrainingPlanDetailPage() {
     navigate(`/training/plans/new?edit=${encodeURIComponent(plan.id)}`)
   }
 
+  const startPlan = () => {
+    if (!state.activeSession) {
+      dispatch({ type: 'session/start', planId: plan.id })
+    }
+    navigate('/training/active')
+  }
+
   const deletePlan = () => {
     dispatch({ type: 'plan/delete', planId: plan.id })
     setDeleteConfirmOpen(false)
@@ -68,13 +75,18 @@ export function TrainingPlanDetailPage() {
     <main aria-label="Trainingsplan">
       <TrainingScreenHeader
         actions={
-          <button
-            aria-label="Planaktionen öffnen"
-            onClick={() => setActionsOpen(true)}
-            type="button"
-          >
-            Aktionen
-          </button>
+          <>
+            <button onClick={startPlan} type="button">
+              {state.activeSession ? 'Training fortsetzen' : 'Training starten'}
+            </button>
+            <button
+              aria-label="Planaktionen öffnen"
+              onClick={() => setActionsOpen(true)}
+              type="button"
+            >
+              Aktionen
+            </button>
+          </>
         }
         onBack={() => navigate('/training')}
         subtitle={`${plan.exercises.length} Übungen · ca. ${planDuration(plan)} Min.`}
