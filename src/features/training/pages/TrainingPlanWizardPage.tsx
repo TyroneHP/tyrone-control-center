@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- sortable event normalization is tested separately. */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -7,10 +8,24 @@ import { PlanExerciseEditorRow } from '../components/PlanExerciseEditorRow'
 import { TrainingChip } from '../components/ui/TrainingChip'
 import { TrainingStickyActionBar } from '../components/ui/TrainingStickyActionBar'
 import { TrainingWizardHeader } from '../components/ui/TrainingWizardHeader'
+import type { TrainingDemoAction, TrainingDemoPlanExercise } from '../demo/trainingDemoTypes'
 import { useTrainingDemo } from '../demo/useTrainingDemo'
 
 const steps = ['Grundlagen', 'Übungen', 'Anpassen', 'Vorschau'] as const
 const weekdays = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag']
+
+export function createSortableMoveAction(
+  exercises: readonly TrainingDemoPlanExercise[],
+  activeSortableId: string,
+  overSortableId: string | null,
+): Extract<TrainingDemoAction, { type: 'wizard/reorder-exercise' }> | undefined {
+  if (!overSortableId || activeSortableId === overSortableId) return undefined
+  const exercise = exercises.find(({ id }) => id === activeSortableId)
+  const toIndex = exercises.findIndex(({ id }) => id === overSortableId)
+  return exercise && toIndex >= 0
+    ? { type: 'wizard/reorder-exercise', exerciseId: exercise.exerciseId, toIndex }
+    : undefined
+}
 
 export function TrainingPlanWizardPage() {
   const { dispatch, state } = useTrainingDemo()
@@ -44,6 +59,7 @@ export function TrainingPlanWizardPage() {
   const basicsValid = draft.name.trim().length > 0 && draft.weekdays.length > 0
   const updateDirty = () => setDirty(true)
   const save = () => {
+    if (!basicsValid) return
     dispatch(editId ? { type: 'plan/replace', planId: editId } : { type: 'plan/create' })
     navigate('/training')
   }
@@ -56,10 +72,9 @@ export function TrainingPlanWizardPage() {
     else setStep((current) => current + 1)
   }
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
-    if (!over || active.id === over.id) return
-    const toIndex = draft.exercises.findIndex((entry) => entry.id === over.id)
-    if (toIndex >= 0) {
-      dispatch({ type: 'wizard/reorder-exercise', exerciseId: String(active.id).replace(/^draft-/, ''), toIndex })
+    const action = createSortableMoveAction(draft.exercises, String(active.id), over ? String(over.id) : null)
+    if (action) {
+      dispatch(action)
       updateDirty()
     }
   }
@@ -72,7 +87,7 @@ export function TrainingPlanWizardPage() {
         <label>Planname<input aria-label="Planname" onChange={(event) => { dispatch({ type: 'wizard/set-name', name: event.target.value }); updateDirty() }} value={draft.name} /></label>
         <fieldset><legend>Trainingstage</legend>{weekdays.map((weekday, index) => <TrainingChip key={weekday} onClick={() => { dispatch({ type: 'wizard/toggle-weekday', weekday: index + 1 }); updateDirty() }} selected={draft.weekdays.includes(index + 1)}>{weekday}</TrainingChip>)}</fieldset>
         {!basicsValid ? <p role="alert">Bitte Planname und mindestens einen Trainingstag angeben.</p> : null}
-        {editId ? <button onClick={save} type="button">Plan speichern</button> : null}
+        {editId ? <button disabled={!basicsValid} onClick={save} type="button">Plan speichern</button> : null}
       </section> : null}
       {step === 2 ? <section aria-label="Übungen auswählen">
         <label>Übungen suchen<input aria-label="Übungen suchen" onChange={(event) => setSearch(event.target.value)} role="searchbox" type="search" value={search} /></label>
@@ -94,7 +109,7 @@ export function TrainingPlanWizardPage() {
           </SortableContext>
         </DndContext>
       </section> : null}
-      {step === 4 ? <section aria-label="Planvorschau"><h2>{draft.name}</h2><p>{draft.weekdays.map((day) => weekdays[day - 1]).join(', ')}</p><ol>{draft.exercises.map((entry) => <li key={entry.id}>{state.exercises.find((exercise) => exercise.id === entry.exerciseId)?.name} · {entry.targetSets} × {entry.repMin}–{entry.repMax}</li>)}</ol></section> : null}
+      {step === 4 ? <section aria-label="Planvorschau"><h2>{draft.name}</h2><p>{draft.weekdays.map((day) => weekdays[day - 1]).join(', ')}</p><ol>{draft.exercises.map((entry) => <li key={entry.id}>{[state.exercises.find((exercise) => exercise.id === entry.exerciseId)?.name, `${entry.targetSets} × ${entry.repMin}–${entry.repMax}`, entry.startWeightKg === undefined ? null : `${entry.startWeightKg} kg`, entry.grip].filter(Boolean).join(' · ')}</li>)}</ol></section> : null}
       <TrainingStickyActionBar primaryAction={{ disabled: step === 1 && !basicsValid, label: step === 4 ? 'Plan speichern' : `Weiter zu ${steps[step]}`, onClick: next }} secondaryAction={step > 1 ? { label: 'Zurück', onClick: () => setStep((current) => current - 1) } : undefined} />
     </main>
   )

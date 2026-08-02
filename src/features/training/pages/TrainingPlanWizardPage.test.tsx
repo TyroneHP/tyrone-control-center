@@ -7,7 +7,7 @@ import { TrainingDemoContext, useTrainingDemo } from '../demo/useTrainingDemo'
 import { createInitialTrainingDemoState } from '../demo/mockTrainingData'
 import { trainingDemoReducer } from '../demo/trainingDemoReducer'
 import type { TrainingDemoState } from '../demo/trainingDemoTypes'
-import { TrainingPlanWizardPage } from './TrainingPlanWizardPage'
+import { createSortableMoveAction, TrainingPlanWizardPage } from './TrainingPlanWizardPage'
 
 function DemoHarness({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(trainingDemoReducer, undefined, createInitialTrainingDemoState)
@@ -87,8 +87,49 @@ describe('TrainingPlanWizardPage', () => {
   it('loads the matching plan for the approved edit query and replaces it on save', async () => {
     const { readDemoState } = renderWizard('/training/plans/new?edit=upper-body')
     expect(screen.getByLabelText('Planname')).toHaveValue('Oberkörper')
+    await userEvent.setup().clear(screen.getByLabelText('Planname'))
+    await userEvent.setup().type(screen.getByLabelText('Planname'), 'Oberkörper bearbeitet')
     await userEvent.setup().click(screen.getByRole('button', { name: 'Plan speichern' }))
-    expect(readDemoState().plans.filter((plan) => plan.id === 'upper-body')).toHaveLength(1)
+    expect(readDemoState().plans.filter((plan) => plan.id === 'upper-body')).toEqual([
+      expect.objectContaining({ name: 'Oberkörper bearbeitet' }),
+    ])
+  })
+
+  it('does not replace the edited plan while required basics are invalid', async () => {
+    const { readDemoState } = renderWizard('/training/plans/new?edit=upper-body')
+    const user = userEvent.setup()
+    await user.clear(screen.getByLabelText('Planname'))
+    await user.click(screen.getByRole('button', { name: 'Montag' }))
+    await user.click(screen.getByRole('button', { name: 'Donnerstag' }))
+
+    expect(screen.getByRole('button', { name: 'Plan speichern' })).toBeDisabled()
+    expect(readDemoState().plans).toEqual([
+      expect.objectContaining({ id: 'upper-body', name: 'Oberkörper', weekdays: [1, 4] }),
+    ])
+  })
+
+  it('maps edit-plan sortable entry IDs to their exercise ID before reordering', () => {
+    const state = createInitialTrainingDemoState()
+    const draft = trainingDemoReducer(state, { type: 'wizard/load-plan', planId: 'upper-body' }).wizard.draft
+    const action = createSortableMoveAction(draft.exercises, 'upper-body-lat-pulldown', 'upper-body-bench-press')
+    const moved = action ? trainingDemoReducer({ ...state, wizard: { selectedExerciseIds: draft.exercises.map(({ exerciseId }) => exerciseId), draft } }, action) : state
+
+    expect(action).toEqual({ type: 'wizard/reorder-exercise', exerciseId: 'lat-pulldown', toIndex: 0 })
+    expect(moved.wizard.draft.exercises[0]).toMatchObject({ exerciseId: 'lat-pulldown' })
+  })
+
+  it('shows edited optional start weight and grip exactly in preview', async () => {
+    renderWizard('/training/plans/new?edit=upper-body')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Weiter zu Übungen' }))
+    await user.click(screen.getByRole('button', { name: 'Weiter zu Anpassen' }))
+    await user.clear(screen.getByLabelText('Startgewicht für Latziehen zur Brust'))
+    await user.type(screen.getByLabelText('Startgewicht für Latziehen zur Brust'), '60')
+    await user.type(screen.getByLabelText('Griff für Latziehen zur Brust'), 'Neutral')
+    await user.click(screen.getByRole('button', { name: 'Weiter zu Vorschau' }))
+
+    expect(screen.getByRole('region', { name: 'Planvorschau' })).toHaveTextContent('60 kg')
+    expect(screen.getByRole('region', { name: 'Planvorschau' })).toHaveTextContent('Neutral')
   })
 
   it('returns to training without mutating plans for an unknown edit query', async () => {
