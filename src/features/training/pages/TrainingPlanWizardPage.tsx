@@ -64,7 +64,10 @@ export function TrainingPlanWizardPage() {
     navigate('/training')
   }
   const requestClose = () => {
-    if (!dirty || window.confirm('Änderungen verwerfen?')) navigate('/training')
+    if (!dirty || window.confirm('Änderungen verwerfen?')) {
+      dispatch({ type: 'wizard/reset' })
+      navigate('/training')
+    }
   }
   const next = () => {
     if (step === 1 && !basicsValid) return
@@ -85,6 +88,7 @@ export function TrainingPlanWizardPage() {
       <TrainingWizardHeader currentStep={step} onClose={requestClose} steps={steps} />
       {step === 1 ? <section aria-label="Grundlagen">
         <label>Planname<input aria-label="Planname" onChange={(event) => { dispatch({ type: 'wizard/set-name', name: event.target.value }); updateDirty() }} value={draft.name} /></label>
+        <label>Beschreibung<textarea aria-label="Beschreibung" onChange={(event) => { dispatch({ type: 'wizard/set-description', description: event.target.value }); updateDirty() }} placeholder="Optional" value={draft.description} /></label>
         <fieldset><legend>Trainingstage</legend>{weekdays.map((weekday, index) => <TrainingChip key={weekday} onClick={() => { dispatch({ type: 'wizard/toggle-weekday', weekday: index + 1 }); updateDirty() }} selected={draft.weekdays.includes(index + 1)}>{weekday}</TrainingChip>)}</fieldset>
         {!basicsValid ? <p role="alert">Bitte Planname und mindestens einen Trainingstag angeben.</p> : null}
         {editId ? <button disabled={!basicsValid} onClick={save} type="button">Plan speichern</button> : null}
@@ -97,7 +101,7 @@ export function TrainingPlanWizardPage() {
           const selected = state.wizard.selectedExerciseIds.includes(exercise.id)
           return <li key={exercise.id}><button aria-label={`${exercise.name} ${selected ? 'abwählen' : 'auswählen'}`} aria-pressed={selected} onClick={() => { dispatch({ type: 'wizard/toggle-exercise', exerciseId: exercise.id }); updateDirty() }} type="button">{exercise.name}<span>{exercise.muscle} · {exercise.equipment}</span></button></li>
         })}</ul>
-        <ExerciseFilterSheet filters={filters} onChange={setFilters} onClose={() => setFiltersOpen(false)} open={filtersOpen} />
+        <ExerciseFilterSheet exercises={state.exercises} filters={filters} onChange={setFilters} onClose={() => setFiltersOpen(false)} open={filtersOpen} />
       </section> : null}
       {step === 3 ? <section aria-label="Übungen anpassen">
         <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd} sensors={sensors}>
@@ -109,7 +113,7 @@ export function TrainingPlanWizardPage() {
           </SortableContext>
         </DndContext>
       </section> : null}
-      {step === 4 ? <section aria-label="Planvorschau"><h2>{draft.name}</h2><p>{draft.weekdays.map((day) => weekdays[day - 1]).join(', ')}</p><ol>{draft.exercises.map((entry) => <li key={entry.id}>{[state.exercises.find((exercise) => exercise.id === entry.exerciseId)?.name, `${entry.targetSets} × ${entry.repMin}–${entry.repMax}`, entry.startWeightKg === undefined ? null : `${entry.startWeightKg} kg`, entry.grip].filter(Boolean).join(' · ')}</li>)}</ol></section> : null}
+      {step === 4 ? <section aria-label="Planvorschau"><h2>{draft.name}</h2>{draft.description ? <p>{draft.description}</p> : null}<p>{draft.weekdays.map((day) => weekdays[day - 1]).join(', ')}</p><ol>{draft.exercises.map((entry) => <li key={entry.id}>{[state.exercises.find((exercise) => exercise.id === entry.exerciseId)?.name, `${entry.targetSets} × ${entry.repMin}–${entry.repMax}`, entry.startWeightKg === undefined ? null : `${entry.startWeightKg} kg`, entry.grip].filter(Boolean).join(' · ')}</li>)}</ol></section> : null}
       <TrainingStickyActionBar primaryAction={{ disabled: step === 1 && !basicsValid, label: step === 4 ? 'Plan speichern' : `Weiter zu ${steps[step]}`, onClick: next }} secondaryAction={step > 1 ? { label: 'Zurück', onClick: () => setStep((current) => current - 1) } : undefined} />
     </main>
   )

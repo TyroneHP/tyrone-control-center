@@ -94,6 +94,7 @@ export function TrainingPlanDetailPage() {
       />
 
       <Card aria-label="Planinformationen">
+        {plan.description ? <p>{plan.description}</p> : null}
         <p>Trainingstage: {formatWeekdays(plan.weekdays)}</p>
         <p>{plan.exercises.length} Übungen</p>
         <p>Geschätzte Dauer: ca. {planDuration(plan)} Min.</p>

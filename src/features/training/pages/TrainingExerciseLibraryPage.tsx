@@ -25,14 +25,14 @@ export function TrainingExerciseLibraryPage() {
           const favorite = state.favoriteExerciseIds.includes(exercise.id)
           return <li className="compact-exercise-row" key={exercise.id}>
             <button aria-label={`Übung öffnen: ${exercise.name}`} onClick={() => setSelectedId(exercise.id)} type="button">
-              <img alt="" aria-hidden="true" src={`${import.meta.env.BASE_URL}${exercise.illustrationPath}`} />
+              <img alt="" aria-hidden="true" className="compact-exercise-row__illustration" src={`${import.meta.env.BASE_URL}${exercise.illustrationPath}`} />
               <span><strong>{exercise.name}</strong><small>{exercise.muscle} · {exercise.equipment}</small></span>
             </button>
             <button aria-label={`${exercise.name} ${favorite ? 'aus Favoriten entfernen' : 'zu Favoriten hinzufügen'}`} onClick={() => toggleFavoriteExercise(exercise.id)} type="button">{favorite ? '★' : '☆'}</button>
           </li>
         })}
       </ul>
-      <ExerciseFilterSheet filters={filters} onChange={setFilters} onClose={() => setFiltersOpen(false)} open={filtersOpen} />
+      <ExerciseFilterSheet exercises={state.exercises} filters={filters} onChange={setFilters} onClose={() => setFiltersOpen(false)} open={filtersOpen} />
       <TrainingBottomSheet onClose={() => setSelectedId(null)} open={Boolean(selected)} title={selected?.name ?? 'Übung'}>
         {selected ? <><img alt={`Technische Darstellung: ${selected.name}`} src={`${import.meta.env.BASE_URL}${selected.illustrationPath}`} /><p>{selected.muscle} · {selected.equipment}</p></> : null}
       </TrainingBottomSheet>

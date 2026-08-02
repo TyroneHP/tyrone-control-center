@@ -6,7 +6,7 @@ import { TrainingFab } from '../components/ui/TrainingFab'
 import { TrainingList } from '../components/ui/TrainingList'
 import { TrainingScreenHeader } from '../components/ui/TrainingScreenHeader'
 import { useTrainingDemo } from '../demo/useTrainingDemo'
-import type { TrainingDemoPlan } from '../demo/trainingDemoTypes'
+import type { TrainingDemoPlan, TrainingDemoSession } from '../demo/trainingDemoTypes'
 
 const WEEKDAY_NAMES = [
   'Montag',
@@ -27,6 +27,19 @@ function planDetail(plan: TrainingDemoPlan) {
   return `${plan.exercises.length} Übungen · ca. ${minutes} Min.`
 }
 
+function activeSessionSummary(session: TrainingDemoSession) {
+  const durationMinutes = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(session.startedAt).getTime()) / 60_000),
+  )
+  const sets = session.exercises.flatMap((exercise) => exercise.sets)
+  return {
+    completedSets: sets.filter(({ completed }) => completed).length,
+    durationMinutes,
+    totalSets: sets.length,
+  }
+}
+
 export function TrainingDashboardPage() {
   const { dispatch, startFreeSession, state } = useTrainingDemo()
   const navigate = useNavigate()
@@ -34,6 +47,7 @@ export function TrainingDashboardPage() {
   const [weekday] = useState(currentIsoWeekday)
   const todayPlan = state.plans.find((plan) => plan.weekdays.includes(weekday))
   const additionalPlans = state.plans.filter((plan) => plan.id !== todayPlan?.id)
+  const activeSummary = state.activeSession ? activeSessionSummary(state.activeSession) : undefined
 
   const continueTraining = () => navigate('/training/active')
   const startPlan = (planId: string) => {
@@ -69,6 +83,13 @@ export function TrainingDashboardPage() {
           <Card>
             <p>Aktives Training</p>
             <h2>{state.activeSession.name}</h2>
+            <p>Dauer: {activeSummary?.durationMinutes} Min.</p>
+            <p>{activeSummary?.completedSets} von {activeSummary?.totalSets} Sätzen abgeschlossen</p>
+            <progress
+              aria-label="Trainingsfortschritt"
+              max={Math.max(1, activeSummary?.totalSets ?? 0)}
+              value={activeSummary?.completedSets ?? 0}
+            />
             <button onClick={continueTraining} type="button">
               Training fortsetzen
             </button>

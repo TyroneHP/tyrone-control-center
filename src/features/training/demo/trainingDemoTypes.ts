@@ -21,6 +21,7 @@ export interface TrainingDemoPlanExercise {
 export interface TrainingDemoPlan {
   id: string
   name: string
+  description: string
   weekdays: readonly number[]
   exercises: readonly TrainingDemoPlanExercise[]
   createdAt: string
@@ -32,12 +33,15 @@ export interface TrainingDemoSet {
   weightKg: number
   repetitions: number
   completed: boolean
+  rating?: number | null
 }
 
 export interface TrainingDemoSessionExercise {
   id: string
   exerciseId: string
   order: number
+  grip?: string
+  note: string
   sets: readonly TrainingDemoSet[]
 }
 
@@ -53,6 +57,7 @@ export interface TrainingDemoSession {
 
 export interface TrainingDemoPlanDraft {
   name: string
+  description: string
   weekdays: readonly number[]
   exercises: readonly TrainingDemoPlanExercise[]
 }
@@ -68,12 +73,14 @@ export interface TrainingDemoState {
   plans: readonly TrainingDemoPlan[]
   activeSession?: TrainingDemoSession
   wizard: TrainingDemoWizardState
+  nextPlanSequence: number
 }
 
 export type TrainingDemoAction =
   | { type: 'favorite/toggle'; exerciseId: string }
   | { type: 'wizard/toggle-exercise'; exerciseId: string }
   | { type: 'wizard/set-name'; name: string }
+  | { type: 'wizard/set-description'; description: string }
   | { type: 'wizard/toggle-weekday'; weekday: number }
   | { type: 'wizard/load-plan'; planId: string }
   | {
@@ -94,11 +101,18 @@ export type TrainingDemoAction =
   | { type: 'plan/delete'; planId: string }
   | { type: 'session/start'; planId: string }
   | { type: 'session/start-free' }
+  | { type: 'session/add-exercise'; exerciseId: string }
+  | { type: 'session/remove-exercise'; exerciseId: string }
+  | {
+      type: 'session/update-exercise'
+      exerciseId: string
+      changes: Partial<Pick<TrainingDemoSessionExercise, 'grip' | 'note'>>
+    }
   | {
       type: 'session/update-set'
       exerciseId: string
       setId: string
-      changes: Partial<Pick<TrainingDemoSet, 'weightKg' | 'repetitions' | 'completed'>>
+      changes: Partial<Pick<TrainingDemoSet, 'weightKg' | 'repetitions' | 'completed' | 'rating'>>
     }
   | { type: 'session/add-set'; exerciseId: string }
   | { type: 'session/remove-set'; exerciseId: string; setId: string }

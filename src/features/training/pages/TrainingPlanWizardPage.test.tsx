@@ -1,7 +1,7 @@
 import { useEffect, useReducer, type ReactNode } from 'react'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TrainingDemoContext, useTrainingDemo } from '../demo/useTrainingDemo'
 import { createInitialTrainingDemoState } from '../demo/mockTrainingData'
@@ -35,7 +35,7 @@ function renderWizard(path = '/training/plans/new') {
     <MemoryRouter initialEntries={[path]}>
       <DemoHarness>
         <Routes>
-          <Route path="/training" element={<p>Training</p>} />
+          <Route path="/training" element={<Link to="/training/plans/new">Pläne wieder öffnen</Link>} />
           <Route path="/training/plans/new" element={<TrainingPlanWizardPage />} />
         </Routes>
         <StateReader onChange={(state) => { demoState = state }} />
@@ -134,8 +134,43 @@ describe('TrainingPlanWizardPage', () => {
 
   it('returns to training without mutating plans for an unknown edit query', async () => {
     const { readDemoState } = renderWizard('/training/plans/new?edit=does-not-exist')
-    expect(await screen.findByText('Training')).toBeVisible()
+    expect(await screen.findByRole('link', { name: 'Pläne wieder öffnen' })).toBeVisible()
     expect(readDemoState().plans).toHaveLength(1)
     expect(readDemoState().plans[0]).toMatchObject({ id: 'upper-body', name: 'Oberkörper' })
+  })
+  it('resets all wizard changes after confirmed discard', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const { readDemoState } = renderWizard()
+    const user = userEvent.setup()
+
+    await user.clear(screen.getByLabelText('Planname'))
+    await user.type(screen.getByLabelText('Planname'), 'Nicht speichern')
+    await user.type(screen.getByLabelText('Beschreibung'), 'Temporärer Entwurf')
+    await user.click(screen.getByRole('button', { name: 'Montag' }))
+    await user.click(screen.getByRole('button', { name: 'Weiter zu Übungen' }))
+    await user.click(screen.getByRole('button', { name: 'Bankdrücken auswählen' }))
+    await user.click(screen.getByRole('button', { name: 'Assistent schließen' }))
+    await user.click(screen.getByRole('link', { name: 'Pläne wieder öffnen' }))
+
+    expect(confirm).toHaveBeenCalledWith('Änderungen verwerfen?')
+    expect(screen.getByLabelText('Planname')).toHaveValue('Neuer Trainingsplan')
+    expect(screen.getByLabelText('Beschreibung')).toHaveValue('')
+    expect(readDemoState().wizard.selectedExerciseIds).toEqual([])
+    expect(readDemoState().wizard.draft.weekdays).toEqual([])
+  })
+
+  it('enters and previews the optional plan description', async () => {
+    renderWizard()
+    const user = userEvent.setup()
+
+    await user.type(screen.getByLabelText('Beschreibung'), 'Fokus auf kontrollierte Wiederholungen.')
+    await user.click(screen.getByRole('button', { name: 'Montag' }))
+    await user.click(screen.getByRole('button', { name: 'Weiter zu Übungen' }))
+    await user.click(screen.getByRole('button', { name: 'Weiter zu Anpassen' }))
+    await user.click(screen.getByRole('button', { name: 'Weiter zu Vorschau' }))
+
+    expect(screen.getByRole('region', { name: 'Planvorschau' })).toHaveTextContent(
+      'Fokus auf kontrollierte Wiederholungen.',
+    )
   })
 })

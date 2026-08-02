@@ -26,6 +26,12 @@ async function expectMinimumTouchTargets(targets: Locator) {
     .toEqual([])
 }
 
+async function expectAllVisibleTrainingControlsMeetTouchTargetContract(page: Page) {
+  await expectMinimumTouchTargets(
+    page.locator('.training-demo :is(a, button, input, textarea, [role="button"]), .responsive-dialog :is(a, button, input, textarea, [role="button"])'),
+  )
+}
+
 async function expectNoHorizontalOverflow(page: Page) {
   await expect
     .poll(() =>
@@ -61,11 +67,20 @@ test('creates a mock plan, starts it, edits a set and finishes on iPhone WebKit'
   await installPreviewSession(page, 'member')
   await page.goto(trainingPath())
   await expectNoHorizontalOverflow(page)
-  await expectMinimumTouchTargets(page.locator('.training-fab'))
+  await expectAllVisibleTrainingControlsMeetTouchTargetContract(page)
   await expectAboveMobileNavigation(
     page,
     page.getByRole('button', { name: 'Schnellstart Training' }),
   )
+  await page.getByRole('button', { name: 'Schnellstart Training' }).click()
+  await expectAllVisibleTrainingControlsMeetTouchTargetContract(page)
+  await page.getByRole('button', { name: 'Dialog schließen' }).click()
+  await page.getByRole('link', { name: 'Bibliothek' }).click()
+  await expectAllVisibleTrainingControlsMeetTouchTargetContract(page)
+  await page.getByRole('button', { name: 'Filter öffnen' }).click()
+  await expectAllVisibleTrainingControlsMeetTouchTargetContract(page)
+  await page.getByRole('button', { name: 'Dialog schließen' }).click()
+  await page.getByRole('link', { name: 'Dashboard' }).click()
 
   await page.getByRole('button', { name: 'Training fortsetzen' }).click()
   await page.getByRole('button', { name: 'Training verwerfen' }).click()
@@ -75,10 +90,25 @@ test('creates a mock plan, starts it, edits a set and finishes on iPhone WebKit'
     .click()
   await expect(page).toHaveURL(new RegExp(`${trainingPath()}$`))
 
+  await page.getByRole('button', { name: /Freies Training/ }).click()
+  await page.getByRole('button', { name: 'Übung hinzufügen' }).click()
+  await page.getByRole('button', { exact: true, name: 'Bankdrücken hinzufügen' }).click()
+  await page.getByLabel('Satz 1 Gewicht').fill('50')
+  await page.getByLabel('Satz 1 Wiederholungen').fill('10')
+  await page.getByLabel('Satz 1 abgeschlossen').click()
+  await expectAllVisibleTrainingControlsMeetTouchTargetContract(page)
+  await page.getByRole('button', { name: 'Training verwerfen' }).click()
+  await page
+    .getByRole('dialog', { name: 'Training wirklich verwerfen?' })
+    .getByRole('button', { name: 'Endgültig verwerfen' })
+    .click()
+
   await page.getByRole('link', { name: 'Pläne' }).click()
+  await expectAllVisibleTrainingControlsMeetTouchTargetContract(page)
   await page.getByLabel('Planname').fill('Mobil-Test')
   await page.getByRole('button', { name: 'Montag' }).click()
   await page.getByRole('button', { name: 'Weiter zu Übungen' }).click()
+  await expectAllVisibleTrainingControlsMeetTouchTargetContract(page)
   const selectBenchPress = page.getByRole('button', {
     exact: true,
     name: 'Bankdrücken auswählen',
@@ -94,9 +124,15 @@ test('creates a mock plan, starts it, edits a set and finishes on iPhone WebKit'
     page.getByRole('button', { name: 'Weiter zu Anpassen' }),
   )
   await page.getByRole('button', { name: 'Weiter zu Anpassen' }).click()
+  await expectAllVisibleTrainingControlsMeetTouchTargetContract(page)
   await page.getByRole('button', { name: 'Weiter zu Vorschau' }).click()
+  await expectAllVisibleTrainingControlsMeetTouchTargetContract(page)
   await page.getByRole('button', { name: 'Plan speichern' }).click()
   await page.getByRole('button', { name: 'Plan öffnen: Mobil-Test' }).click()
+  await expectAllVisibleTrainingControlsMeetTouchTargetContract(page)
+  await page.getByRole('button', { name: 'Planaktionen öffnen' }).click()
+  await expectAllVisibleTrainingControlsMeetTouchTargetContract(page)
+  await page.getByRole('button', { name: 'Dialog schließen' }).click()
   await page.getByRole('button', { name: 'Training starten' }).click()
   await expect(page.getByRole('heading', { name: 'Mobil-Test' })).toBeVisible()
   await page.getByLabel('Satz 1 Gewicht').fill('60')
@@ -108,6 +144,11 @@ test('creates a mock plan, starts it, edits a set and finishes on iPhone WebKit'
   await expectNoHorizontalOverflow(page)
   await expectMinimumTouchTargets(
     page.locator('.training-set-row input, .training-set-row__completion'),
+  )
+  await expectAllVisibleTrainingControlsMeetTouchTargetContract(page)
+  await expectAboveMobileNavigation(
+    page,
+    page.getByRole('button', { name: 'Training abschließen' }),
   )
   await page.getByRole('button', { name: 'Training abschließen' }).click()
   await page

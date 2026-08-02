@@ -15,6 +15,17 @@ const DEFAULT_TARGET_SETS = 3
 const DEFAULT_REP_MIN = 8
 const DEFAULT_REP_MAX = 12
 
+function createPlanExercises(
+  planId: string,
+  exercises: readonly TrainingDemoPlanExercise[],
+): readonly TrainingDemoPlanExercise[] {
+  return exercises.map((exercise, order) => ({
+    ...exercise,
+    id: `${planId}-exercise-${order + 1}`,
+    order,
+  }))
+}
+
 function updateWizardExercises(
   state: TrainingDemoState,
   exercises: readonly TrainingDemoPlanExercise[],
@@ -45,6 +56,8 @@ function createSessionFromPlan(plan: TrainingDemoPlan): TrainingDemoSession {
       id: `session-${exercise.id}`,
       exerciseId: exercise.exerciseId,
       order: exercise.order,
+      grip: exercise.grip,
+      note: '',
       sets: Array.from({ length: exercise.targetSets }, (_, index) => ({
         id: `session-${exercise.id}-set-${index + 1}`,
         weightKg: 0,
@@ -148,6 +161,15 @@ export function trainingDemoReducer(
         },
       }
 
+    case 'wizard/set-description':
+      return {
+        ...state,
+        wizard: {
+          ...state.wizard,
+          draft: { ...state.wizard.draft, description: action.description },
+        },
+      }
+
     case 'wizard/toggle-weekday': {
       const isSelected = state.wizard.draft.weekdays.includes(action.weekday)
       const weekdays = isSelected
@@ -171,6 +193,7 @@ export function trainingDemoReducer(
           selectedExerciseIds: plan.exercises.map(({ exerciseId }) => exerciseId),
           draft: {
             name: plan.name,
+            description: plan.description,
             weekdays: [...plan.weekdays],
             exercises: plan.exercises.map((exercise) => ({ ...exercise })),
           },
@@ -209,12 +232,13 @@ export function trainingDemoReducer(
       return { ...state, wizard: createEmptyWizardState() }
 
     case 'plan/create': {
-      const id = `plan-${state.plans.length + 1}`
+      const id = `plan-${state.nextPlanSequence}`
       const plan: TrainingDemoPlan = {
         id,
         name: state.wizard.draft.name,
+        description: state.wizard.draft.description,
         weekdays: [...state.wizard.draft.weekdays],
-        exercises: state.wizard.draft.exercises.map((exercise) => ({ ...exercise })),
+        exercises: createPlanExercises(id, state.wizard.draft.exercises),
         createdAt: DEMO_TIMESTAMP,
         updatedAt: DEMO_TIMESTAMP,
       }
@@ -222,6 +246,7 @@ export function trainingDemoReducer(
         ...state,
         plans: [...state.plans, plan],
         wizard: createEmptyWizardState(),
+        nextPlanSequence: state.nextPlanSequence + 1,
       }
     }
 
@@ -233,8 +258,9 @@ export function trainingDemoReducer(
           ? {
               ...plan,
               name: state.wizard.draft.name,
+              description: state.wizard.draft.description,
               weekdays: [...state.wizard.draft.weekdays],
-              exercises: state.wizard.draft.exercises.map((exercise) => ({ ...exercise })),
+              exercises: createPlanExercises(plan.id, state.wizard.draft.exercises),
               updatedAt: DEMO_TIMESTAMP,
             }
           : plan
@@ -250,7 +276,7 @@ export function trainingDemoReducer(
       const plan = state.plans.find(({ id }) => id === action.planId)
       if (!plan) return state
 
-      const id = `${plan.id}-copy-${state.plans.length}`
+      const id = `plan-${state.nextPlanSequence}`
       return {
         ...state,
         plans: [
@@ -259,14 +285,12 @@ export function trainingDemoReducer(
             ...plan,
             id,
             name: `${plan.name} Kopie`,
-            exercises: plan.exercises.map((exercise) => ({
-              ...exercise,
-              id: `${id}-${exercise.exerciseId}`,
-            })),
+            exercises: createPlanExercises(id, plan.exercises),
             createdAt: DEMO_TIMESTAMP,
             updatedAt: DEMO_TIMESTAMP,
           },
         ],
+        nextPlanSequence: state.nextPlanSequence + 1,
       }
     }
 
@@ -289,6 +313,64 @@ export function trainingDemoReducer(
       return state.activeSession
         ? state
         : { ...state, activeSession: createFreeSession() }
+
+    case 'session/add-exercise':
+      return updateActiveSession(state, (session) => {
+        if (
+          session.planId !== 'free-training' ||
+          session.exercises.some(({ exerciseId }) => exerciseId === action.exerciseId) ||
+          !state.exercises.some(({ id }) => id === action.exerciseId)
+        ) {
+          return session
+        }
+
+        const id = `${session.id}-exercise-${action.exerciseId}`
+        return {
+          ...session,
+          activeExerciseIndex: session.exercises.length,
+          updatedAt: DEMO_TIMESTAMP,
+          exercises: [
+            ...session.exercises,
+            {
+              id,
+              exerciseId: action.exerciseId,
+              order: session.exercises.length,
+              note: '',
+              sets: Array.from({ length: DEFAULT_TARGET_SETS }, (_, index) => ({
+                id: `${id}-set-${index + 1}`,
+                weightKg: 0,
+                repetitions: 0,
+                completed: false,
+              })),
+            },
+          ],
+        }
+      })
+
+    case 'session/remove-exercise':
+      return updateActiveSession(state, (session) => {
+        if (session.planId !== 'free-training') return session
+        const exercises = session.exercises
+          .filter(({ exerciseId }) => exerciseId !== action.exerciseId)
+          .map((exercise, order) => ({ ...exercise, order }))
+        return {
+          ...session,
+          activeExerciseIndex: Math.max(0, Math.min(session.activeExerciseIndex, exercises.length - 1)),
+          updatedAt: DEMO_TIMESTAMP,
+          exercises,
+        }
+      })
+
+    case 'session/update-exercise':
+      return updateActiveSession(state, (session) => ({
+        ...session,
+        updatedAt: DEMO_TIMESTAMP,
+        exercises: session.exercises.map((exercise) =>
+          exercise.exerciseId === action.exerciseId
+            ? { ...exercise, ...action.changes }
+            : exercise,
+        ),
+      }))
 
     case 'session/update-set':
       return updateActiveSession(state, (session) => ({

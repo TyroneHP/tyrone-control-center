@@ -107,6 +107,17 @@ describe('TrainingDashboardPage', () => {
     )
   })
 
+  it('shows active duration and completed-set progress with a labelled progress bar', () => {
+    const initial = createInitialTrainingDemoState()
+    initial.activeSession!.exercises[0].sets[0].completed = true
+    renderDashboard(initial)
+
+    expect(screen.getByText('Dauer: 1440 Min.')).toBeVisible()
+    expect(screen.getByText('1 von 6 Sätzen abgeschlossen')).toBeVisible()
+    expect(screen.getByRole('progressbar', { name: 'Trainingsfortschritt' })).toHaveAttribute('value', '1')
+    expect(screen.getByRole('progressbar', { name: 'Trainingsfortschritt' })).toHaveAttribute('max', '6')
+  })
+
   it('shows no today-plan choice when no plan matches the current weekday', async () => {
     vi.setSystemTime(new Date('2026-08-04T09:00:00.000Z'))
     renderDashboard({ ...createInitialTrainingDemoState(), activeSession: undefined })

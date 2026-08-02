@@ -85,6 +85,109 @@ describe('trainingDemoReducer', () => {
     )
   })
 
+  it('adds and removes catalog exercises in a free session', () => {
+    const initial = {
+      ...createInitialTrainingDemoState(),
+      activeSession: undefined,
+    }
+    const started = trainingDemoReducer(initial, { type: 'session/start-free' })
+    const added = trainingDemoReducer(started, {
+      type: 'session/add-exercise',
+      exerciseId: 'bench-press',
+    })
+    const duplicateAttempt = trainingDemoReducer(added, {
+      type: 'session/add-exercise',
+      exerciseId: 'bench-press',
+    })
+    const removed = trainingDemoReducer(duplicateAttempt, {
+      type: 'session/remove-exercise',
+      exerciseId: 'bench-press',
+    })
+
+    expect(added.activeSession?.exercises).toEqual([
+      expect.objectContaining({
+        exerciseId: 'bench-press',
+        sets: expect.arrayContaining([
+          expect.objectContaining({ weightKg: 0, repetitions: 0, completed: false }),
+        ]),
+      }),
+    ])
+    expect(duplicateAttempt.activeSession?.exercises).toHaveLength(1)
+    expect(removed.activeSession?.exercises).toEqual([])
+  })
+
+  it('stores grip, note and rating in the active session state', () => {
+    const initial = createInitialTrainingDemoState()
+    const exerciseId = initial.activeSession!.exercises[1].exerciseId
+    const setId = initial.activeSession!.exercises[1].sets[0].id
+    const withExerciseDetails = trainingDemoReducer(initial, {
+      type: 'session/update-exercise',
+      exerciseId,
+      changes: { grip: 'Neutral', note: 'Ellbogen eng halten' },
+    })
+    const withRating = trainingDemoReducer(withExerciseDetails, {
+      type: 'session/update-set',
+      exerciseId,
+      setId,
+      changes: { rating: 8 },
+    })
+
+    expect(withRating.activeSession?.exercises[1]).toMatchObject({
+      grip: 'Neutral',
+      note: 'Ellbogen eng halten',
+    })
+    expect(withRating.activeSession?.exercises[1].sets[0]).toMatchObject({ rating: 8 })
+  })
+
+  it('keeps plan and nested exercise IDs unique across create-delete-create', () => {
+    const selectBench = (state: ReturnType<typeof createInitialTrainingDemoState>) =>
+      trainingDemoReducer(state, { type: 'wizard/toggle-exercise', exerciseId: 'bench-press' })
+    const first = trainingDemoReducer(selectBench(createInitialTrainingDemoState()), { type: 'plan/create' })
+    const second = trainingDemoReducer(selectBench(first), { type: 'plan/create' })
+    const afterDelete = trainingDemoReducer(second, { type: 'plan/delete', planId: first.plans[1].id })
+    const third = trainingDemoReducer(selectBench(afterDelete), { type: 'plan/create' })
+    const ids = third.plans.flatMap((plan) => [plan.id, ...plan.exercises.map((exercise) => exercise.id)])
+
+    expect(new Set(ids)).toHaveLength(ids.length)
+  })
+
+  it('keeps plan and nested exercise IDs unique across duplicate-delete-duplicate', () => {
+    const first = trainingDemoReducer(createInitialTrainingDemoState(), {
+      type: 'plan/duplicate',
+      planId: 'upper-body',
+    })
+    const duplicateId = first.plans.at(-1)!.id
+    const afterDelete = trainingDemoReducer(first, { type: 'plan/delete', planId: duplicateId })
+    const second = trainingDemoReducer(afterDelete, {
+      type: 'plan/duplicate',
+      planId: 'upper-body',
+    })
+    const ids = second.plans.flatMap((plan) => [plan.id, ...plan.exercises.map((exercise) => exercise.id)])
+
+    expect(second.plans.at(-1)!.id).not.toBe(duplicateId)
+    expect(new Set(ids)).toHaveLength(ids.length)
+  })
+
+  it('preserves an optional description through create, edit and duplicate', () => {
+    const described = trainingDemoReducer(createInitialTrainingDemoState(), {
+      type: 'wizard/set-description',
+      description: 'Kurze Einheit für den Montag.',
+    })
+    const created = trainingDemoReducer(described, { type: 'plan/create' })
+    const createdPlan = created.plans.at(-1)!
+    const loaded = trainingDemoReducer(created, { type: 'wizard/load-plan', planId: createdPlan.id })
+    const editedDraft = trainingDemoReducer(loaded, {
+      type: 'wizard/set-description',
+      description: 'Aktualisierte Beschreibung.',
+    })
+    const replaced = trainingDemoReducer(editedDraft, { type: 'plan/replace', planId: createdPlan.id })
+    const duplicated = trainingDemoReducer(replaced, { type: 'plan/duplicate', planId: createdPlan.id })
+
+    expect(loaded.wizard.draft.description).toBe('Kurze Einheit für den Montag.')
+    expect(replaced.plans.find(({ id }) => id === createdPlan.id)?.description).toBe('Aktualisierte Beschreibung.')
+    expect(duplicated.plans.at(-1)?.description).toBe('Aktualisierte Beschreibung.')
+  })
+
   it('creates a distinct replacement set ID and updates only that new set after a removal', () => {
     const started = trainingDemoReducer(createInitialTrainingDemoState(), {
       type: 'session/start',

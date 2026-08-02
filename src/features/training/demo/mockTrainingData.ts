@@ -49,6 +49,7 @@ export function createDemoPlans(): readonly TrainingDemoPlan[] {
     {
       id: 'upper-body',
       name: 'Oberkörper',
+      description: 'Kompakter Oberkörperplan.',
       weekdays: [1, 4],
       exercises: UPPER_BODY_EXERCISES.map((exercise) => ({ ...exercise })),
       createdAt: DEMO_TIMESTAMP,
@@ -62,6 +63,8 @@ function createDemoSessionExercises(): readonly TrainingDemoSessionExercise[] {
     id: `session-${exercise.id}`,
     exerciseId: exercise.exerciseId,
     order: exercise.order,
+    grip: exercise.grip,
+    note: '',
     sets: Array.from({ length: exercise.targetSets }, (_, index) => ({
       id: `session-${exercise.id}-set-${index + 1}`,
       weightKg: 0,
@@ -88,6 +91,7 @@ export function createEmptyWizardState(): TrainingDemoWizardState {
     selectedExerciseIds: [],
     draft: {
       name: 'Neuer Trainingsplan',
+      description: '',
       weekdays: [],
       exercises: [],
     },
@@ -101,5 +105,6 @@ export function createInitialTrainingDemoState(): TrainingDemoState {
     plans: createDemoPlans(),
     activeSession: createDemoActiveSession(),
     wizard: createEmptyWizardState(),
+    nextPlanSequence: 1,
   }
 }

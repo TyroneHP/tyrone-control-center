@@ -8,6 +8,7 @@ import { trainingDemoReducer } from '../demo/trainingDemoReducer'
 import type { TrainingDemoState } from '../demo/trainingDemoTypes'
 import { TrainingDemoContext, useTrainingDemo } from '../demo/useTrainingDemo'
 import { TrainingActiveSessionPage } from './TrainingActiveSessionPage'
+import { TrainingDashboardPage } from './TrainingDashboardPage'
 
 function DemoHarness({ children, initialState }: {
   children: ReactNode
@@ -53,6 +54,7 @@ function createThreeExerciseState(): TrainingDemoState {
           id: 'session-extra-exercise',
           exerciseId: 'barbell-row',
           order: 2,
+          note: '',
           sets: [{ id: 'session-extra-exercise-set-1', weightKg: 0, repetitions: 0, completed: false }],
         },
       ],
@@ -66,7 +68,7 @@ function renderActiveSession(initialState = createThreeExerciseState()) {
     <MemoryRouter initialEntries={['/training/active']}>
       <DemoHarness initialState={initialState}>
         <Routes>
-          <Route path="/training" element={<p>Training</p>} />
+          <Route path="/training" element={<TrainingDashboardPage />} />
           <Route path="/training/active" element={<TrainingActiveSessionPage />} />
         </Routes>
         <DemoStateReader onStateChange={(state) => { demoState = state }} />
@@ -183,5 +185,46 @@ describe('TrainingActiveSessionPage', () => {
 
     expect(screen.getByRole('heading', { name: 'Noch keine Übungen' })).toBeVisible()
     expect(screen.getByText('Füge im freien Training zuerst Übungen hinzu.')).toBeVisible()
+  })
+
+  it('adds, edits and removes a catalog exercise in a free session', async () => {
+    const state = createInitialTrainingDemoState()
+    state.activeSession = {
+      id: 'free-session',
+      planId: 'free-training',
+      name: 'Freies Training',
+      startedAt: '2026-08-02T09:00:00.000Z',
+      updatedAt: '2026-08-02T09:00:00.000Z',
+      activeExerciseIndex: 0,
+      exercises: [],
+    }
+    const { readDemoState } = renderActiveSession(state)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Übung hinzufügen' }))
+    await user.click(screen.getByRole('button', { name: 'Bankdrücken hinzufügen' }))
+    await user.clear(screen.getByLabelText('Satz 1 Gewicht'))
+    await user.type(screen.getByLabelText('Satz 1 Gewicht'), '55')
+    await user.click(screen.getByRole('button', { name: 'Bankdrücken entfernen' }))
+
+    expect(readDemoState().activeSession?.exercises).toEqual([])
+  })
+
+  it('keeps grip, note and rating while leaving and continuing the active route', async () => {
+    renderActiveSession()
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Nächste Übung' }))
+    await user.click(screen.getByRole('button', { name: 'Griff wählen' }))
+    await user.click(within(screen.getByRole('dialog', { name: 'Griff wählen' })).getByRole('button', { name: 'Neutral' }))
+    await user.type(screen.getByLabelText('Notiz für Latziehen zur Brust'), 'Langsam ablassen')
+    await user.clear(screen.getByLabelText('Satz 1 Bewertung'))
+    await user.type(screen.getByLabelText('Satz 1 Bewertung'), '8')
+    await user.click(screen.getByRole('button', { name: 'Zurück' }))
+    await user.click(screen.getByRole('button', { name: 'Training fortsetzen' }))
+
+    expect(screen.getByText('Griff: Neutral')).toBeVisible()
+    expect(screen.getByLabelText('Notiz für Latziehen zur Brust')).toHaveValue('Langsam ablassen')
+    expect(screen.getByLabelText('Satz 1 Bewertung')).toHaveValue(8)
   })
 })

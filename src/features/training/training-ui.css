@@ -7,6 +7,20 @@
   padding: 1rem 1rem calc(6.5rem + env(safe-area-inset-bottom));
 }
 
+.training-demo > nav {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.training-demo > nav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-control);
+  padding-inline: 0.75rem;
+}
+
 .training-screen-header,
 .training-screen-header__leading,
 .training-screen-header__actions,
@@ -91,20 +105,9 @@
   cursor: pointer;
 }
 
-.training-screen-header__back,
-.training-screen-header__actions button,
-.training-wizard-header > button,
-.training-sticky-action > button,
-.training-empty-state button,
-.training-set-row__field input,
-.training-set-row__completion,
-.training-set-row__delete,
-.training-chip,
-.training-fab,
-.compact-exercise-row > button,
-.training-plan-wizard__exercise-list > li > button,
-.training-sheet__actions :is(button, input, textarea, [role='button']),
-.training-sheet__content :is(button, input, textarea, [role='button']) {
+.training-demo :is(a, button, input, textarea, [role='button']),
+.training-sheet__actions :is(a, button, input, textarea, [role='button']),
+.training-sheet__content :is(a, button, input, textarea, [role='button']) {
   min-block-size: 44px;
   min-inline-size: 44px;
 }

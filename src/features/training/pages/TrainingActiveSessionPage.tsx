@@ -5,6 +5,7 @@ import { FinishDiscardSheet } from '../components/FinishDiscardSheet'
 import { TrainingBottomSheet } from '../components/ui/TrainingBottomSheet'
 import { TrainingEmptyState } from '../components/ui/TrainingEmptyState'
 import { TrainingScreenHeader } from '../components/ui/TrainingScreenHeader'
+import { TrainingStickyActionBar } from '../components/ui/TrainingStickyActionBar'
 import {
   TrainingSetRow,
   type TrainingSetValue,
@@ -21,9 +22,7 @@ export function TrainingActiveSessionPage() {
   const navigate = useNavigate()
   const [sheetAction, setSheetAction] = useState<'discard' | 'finish'>()
   const [gripExerciseId, setGripExerciseId] = useState<string>()
-  const [grips, setGrips] = useState<Record<string, string>>({})
-  const [notes, setNotes] = useState<Record<string, string>>({})
-  const [ratings, setRatings] = useState<Record<string, number | null>>({})
+  const [exercisePickerOpen, setExercisePickerOpen] = useState(false)
   const session = state.activeSession
 
   if (!session) {
@@ -47,7 +46,8 @@ export function TrainingActiveSessionPage() {
   const planExercise = state.plans
     .find(({ id }) => id === session.planId)
     ?.exercises.find(({ exerciseId }) => exerciseId === currentSessionExercise?.exerciseId)
-  const selectedGrip = currentSessionExercise ? grips[currentSessionExercise.id] : undefined
+  const selectedGrip = currentSessionExercise?.grip
+  const selectedExerciseIds = new Set(session.exercises.map(({ exerciseId }) => exerciseId))
 
   const resolveSession = (action: 'discard' | 'finish') => {
     dispatch({ type: action === 'finish' ? 'session/finish' : 'session/discard' })
@@ -94,18 +94,19 @@ export function TrainingActiveSessionPage() {
               Notiz
               <textarea
                 aria-label={`Notiz für ${currentExercise.name}`}
-                onChange={(event) => setNotes((current) => ({
-                  ...current,
-                  [currentSessionExercise.id]: event.target.value,
-                }))}
-                value={notes[currentSessionExercise.id] ?? ''}
+                onChange={(event) => dispatch({
+                  type: 'session/update-exercise',
+                  exerciseId: currentSessionExercise.exerciseId,
+                  changes: { note: event.target.value },
+                })}
+                value={currentSessionExercise.note ?? ''}
               />
             </label>
             <ol aria-label={`Sätze für ${currentExercise.name}`}>
               {currentSessionExercise.sets.map((set, index) => {
                 const value: TrainingSetValue = {
                   completed: set.completed,
-                  rating: ratings[set.id] ?? null,
+                  rating: set.rating ?? null,
                   reps: set.repetitions,
                   weight: set.weightKg,
                 }
@@ -114,10 +115,8 @@ export function TrainingActiveSessionPage() {
                   <TrainingSetRow
                     key={set.id}
                     onChange={(changes) => {
-                      if ('rating' in changes) {
-                        setRatings((current) => ({ ...current, [set.id]: changes.rating ?? null }))
-                      }
-                      const setChanges: { completed?: boolean; repetitions?: number; weightKg?: number } = {}
+                      const setChanges: { completed?: boolean; rating?: number | null; repetitions?: number; weightKg?: number } = {}
+                      if ('rating' in changes) setChanges.rating = changes.rating ?? null
                       if ('completed' in changes) setChanges.completed = changes.completed
                       if ('reps' in changes) setChanges.repetitions = changes.reps ?? 0
                       if ('weight' in changes) setChanges.weightKg = changes.weight ?? 0
@@ -152,31 +151,70 @@ export function TrainingActiveSessionPage() {
             >
               Satz hinzufügen
             </button>
+            {session.planId === 'free-training' ? (
+              <button
+                aria-label={`${currentExercise.name} entfernen`}
+                onClick={() => dispatch({ type: 'session/remove-exercise', exerciseId: currentExercise.id })}
+                type="button"
+              >
+                Übung entfernen
+              </button>
+            ) : null}
           </article>
         </ActiveExerciseNavigator>
       ) : (
         <TrainingEmptyState
+          action={{ label: 'Übung hinzufügen', onClick: () => setExercisePickerOpen(true) }}
           description="Füge im freien Training zuerst Übungen hinzu."
           title="Noch keine Übungen"
         />
       )}
 
-      <footer className="training-active-session__actions">
-        <button onClick={() => setSheetAction('discard')} type="button">Training verwerfen</button>
-        <button onClick={() => setSheetAction('finish')} type="button">Training abschließen</button>
-      </footer>
+      {session.planId === 'free-training' && currentSessionExercise ? (
+        <button onClick={() => setExercisePickerOpen(true)} type="button">Übung hinzufügen</button>
+      ) : null}
+
+      <TrainingStickyActionBar
+        primaryAction={{ label: 'Training abschließen', onClick: () => setSheetAction('finish') }}
+        secondaryAction={{ label: 'Training verwerfen', onClick: () => setSheetAction('discard') }}
+      />
+
+      <TrainingBottomSheet
+        onClose={() => setExercisePickerOpen(false)}
+        open={exercisePickerOpen}
+        title="Übung hinzufügen"
+      >
+        {state.exercises
+          .filter(({ id }) => !selectedExerciseIds.has(id))
+          .map((exercise) => (
+            <button
+              key={exercise.id}
+              onClick={() => {
+                dispatch({ type: 'session/add-exercise', exerciseId: exercise.id })
+                setExercisePickerOpen(false)
+              }}
+              type="button"
+            >
+              {exercise.name} hinzufügen
+            </button>
+          ))}
+      </TrainingBottomSheet>
 
       <TrainingBottomSheet
         onClose={() => setGripExerciseId(undefined)}
-        open={gripExerciseId === currentSessionExercise?.id}
+        open={Boolean(currentSessionExercise && gripExerciseId === currentSessionExercise.id)}
         title="Griff wählen"
       >
         {currentSessionExercise && currentExercise?.gripOptions.map((grip) => (
           <button
-            aria-pressed={grips[currentSessionExercise.id] === grip}
+            aria-pressed={currentSessionExercise.grip === grip}
             key={grip}
             onClick={() => {
-              setGrips((current) => ({ ...current, [currentSessionExercise.id]: grip }))
+              dispatch({
+                type: 'session/update-exercise',
+                exerciseId: currentSessionExercise.exerciseId,
+                changes: { grip },
+              })
               setGripExerciseId(undefined)
             }}
             type="button"
