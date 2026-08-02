@@ -1,4 +1,4 @@
-import { createBrowserRouter, type RouteObject } from 'react-router-dom'
+import { Navigate, createBrowserRouter, type RouteObject } from 'react-router-dom'
 import {
   ForgotPasswordPage,
   LoginPage,
@@ -8,19 +8,12 @@ import {
 } from '../features/auth'
 import { CalendarPage } from '../features/calendar/CalendarPage'
 import { SettingsPage } from '../features/settings/SettingsPage'
-import { ActiveWorkoutPage } from '../features/training/pages/ActiveWorkoutPage'
-import { BodyWeightPage } from '../features/training/pages/BodyWeightPage'
-import { CompletedWorkoutPage } from '../features/training/pages/CompletedWorkoutPage'
-import { ExerciseAnalyticsPage } from '../features/training/pages/ExerciseAnalyticsPage'
-import { ExerciseLibraryPage } from '../features/training/pages/ExerciseLibraryPage'
-import { MuscleGroupAnalyticsPage } from '../features/training/pages/MuscleGroupAnalyticsPage'
-import { ProgressDashboardPage } from '../features/training/pages/ProgressDashboardPage'
-import { RecordAnalyticsPage } from '../features/training/pages/RecordAnalyticsPage'
-import { TrainingHomePage } from '../features/training/pages/TrainingHomePage'
-import { WorkoutHistoryPage } from '../features/training/pages/WorkoutHistoryPage'
-import { WorkoutTemplateEditorPage } from '../features/training/pages/WorkoutTemplateEditorPage'
-import { ProgressLayout } from '../features/training/components/ProgressNavigation'
-import { TrainingLayout } from '../features/training/components/TrainingNavigation'
+import { TrainingDemoLayout } from '../features/training/components/TrainingDemoLayout'
+import { TrainingActiveSessionPage } from '../features/training/pages/TrainingActiveSessionPage'
+import { TrainingDashboardPage } from '../features/training/pages/TrainingDashboardPage'
+import { TrainingExerciseLibraryPage } from '../features/training/pages/TrainingExerciseLibraryPage'
+import { TrainingPlanDetailPage } from '../features/training/pages/TrainingPlanDetailPage'
+import { TrainingPlanWizardPage } from '../features/training/pages/TrainingPlanWizardPage'
 import { PlaceholderPage } from './PlaceholderPage'
 import { ProtectedShell } from './ProtectedShell'
 
@@ -45,35 +38,14 @@ export const appRoutes: RouteObject[] = [
           { path: 'school', element: <PlaceholderPage title="Schule" /> },
           {
             path: 'training',
-            element: <TrainingLayout />,
+            element: <TrainingDemoLayout />,
             children: [
-              { index: true, element: <TrainingHomePage /> },
-              { path: 'library', element: <ExerciseLibraryPage /> },
-              {
-                path: 'templates/new',
-                element: <WorkoutTemplateEditorPage />,
-              },
-              {
-                path: 'templates/:templateId/edit',
-                element: <WorkoutTemplateEditorPage />,
-              },
-              { path: 'active', element: <ActiveWorkoutPage /> },
-              { path: 'history', element: <WorkoutHistoryPage /> },
-              {
-                path: 'history/:workoutId',
-                element: <CompletedWorkoutPage />,
-              },
-              {
-                path: 'progress',
-                element: <ProgressLayout />,
-                children: [
-                  { index: true, element: <ProgressDashboardPage /> },
-                  { path: 'exercises', element: <ExerciseAnalyticsPage /> },
-                  { path: 'records', element: <RecordAnalyticsPage /> },
-                  { path: 'muscles', element: <MuscleGroupAnalyticsPage /> },
-                  { path: 'bodyweight', element: <BodyWeightPage /> },
-                ],
-              },
+              { index: true, element: <TrainingDashboardPage /> },
+              { path: 'plans/new', element: <TrainingPlanWizardPage /> },
+              { path: 'plans/:planId', element: <TrainingPlanDetailPage /> },
+              { path: 'library', element: <TrainingExerciseLibraryPage /> },
+              { path: 'active', element: <TrainingActiveSessionPage /> },
+              { path: '*', element: <Navigate replace to="/training" /> },
             ],
           },
           { path: 'nutrition', element: <PlaceholderPage title="Ernährung" /> },

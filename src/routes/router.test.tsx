@@ -77,7 +77,7 @@ function activeClient() {
   } as unknown as SupabaseClient<Database>
 }
 
-function renderRoute(path: string, client: SupabaseClient<Database>) {
+function renderRoute(path: string, client = activeClient()) {
   installWideMatchMedia()
   const router = createMemoryRouter(appRoutes, { initialEntries: [path] })
   render(
@@ -121,24 +121,14 @@ describe('application routing', () => {
   })
 
   it.each([
-    ['/training', 'Training'],
-    ['/training/library', 'Übungsbibliothek'],
-    ['/training/templates/new', 'Trainingsplan erstellen'],
-    ['/training/templates/template-upper/edit', 'Trainingsplan nicht gefunden'],
-    ['/training/active', 'Kein aktives Training'],
-    ['/training/history', 'Trainingsverlauf'],
-    ['/training/history/workout-1', 'Abgeschlossenes Training'],
-    ['/training/progress', 'Fortschritt'],
-    ['/training/progress/exercises', 'Übungsfortschritt'],
-    ['/training/progress/records', 'Persönliche Rekorde'],
-    ['/training/progress/muscles', 'Muskelgruppen'],
-    ['/training/progress/bodyweight', 'Körpergewicht'],
-  ])('renders the training route %s', async (path, heading) => {
-    renderRoute(path, activeClient())
+    '/training/history',
+    '/training/progress',
+    '/training/progress/records',
+    '/training/templates/old/edit',
+  ])('replaces obsolete training route %s with the dashboard', async (path) => {
+    renderRoute(path)
 
-    expect(
-      await screen.findByRole('heading', { name: heading }),
-    ).toBeInTheDocument()
-    expect(screen.queryByText('Bereich vorbereitet')).not.toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Training' })).toBeVisible()
+    expect(screen.queryByRole('link', { name: 'Verlauf' })).not.toBeInTheDocument()
   })
 })
