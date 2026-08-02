@@ -7,7 +7,6 @@ import {
   UpdatePasswordPage,
 } from '../features/auth'
 import { CalendarPage } from '../features/calendar/CalendarPage'
-import { SettingsPage } from '../features/settings/SettingsPage'
 import { TrainingDemoLayout } from '../features/training/components/TrainingDemoLayout'
 import { TrainingActiveSessionPage } from '../features/training/pages/TrainingActiveSessionPage'
 import { TrainingDashboardPage } from '../features/training/pages/TrainingDashboardPage'
@@ -16,6 +15,7 @@ import { TrainingPlanDetailPage } from '../features/training/pages/TrainingPlanD
 import { TrainingPlanWizardPage } from '../features/training/pages/TrainingPlanWizardPage'
 import { PlaceholderPage } from './PlaceholderPage'
 import { ProtectedShell } from './ProtectedShell'
+import { SettingsRoute } from './SettingsRoute'
 
 export const appRoutes: RouteObject[] = [
   { path: '/login', element: <LoginPage /> },
@@ -53,7 +53,7 @@ export const appRoutes: RouteObject[] = [
           { path: 'ai', element: <PlaceholderPage title="KI-Chat" /> },
           {
             path: 'settings',
-            element: <SettingsPage />,
+            element: <SettingsRoute />,
           },
         ],
       },
