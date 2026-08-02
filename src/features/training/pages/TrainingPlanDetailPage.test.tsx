@@ -144,13 +144,23 @@ describe('TrainingPlanDetailPage', () => {
   })
 
   it('continues the existing session instead of starting the displayed plan', async () => {
-    const activeSession = createInitialTrainingDemoState().activeSession
-    const { readDemoState } = renderPlanDetail()
+    const initialState = createInitialTrainingDemoState()
+    const activeSession = {
+      ...initialState.activeSession!,
+      id: 'session-existing-detail-conflict',
+      name: 'Bestehendes Training',
+      startedAt: '2026-07-31T08:00:00.000Z',
+      updatedAt: '2026-07-31T08:15:00.000Z',
+    }
+    const { readDemoState } = renderPlanDetail('upper-body', {
+      ...initialState,
+      activeSession,
+    })
     const user = userEvent.setup()
 
     await user.click(screen.getByRole('button', { name: 'Training fortsetzen' }))
 
-    expect(readDemoState().activeSession).toEqual(activeSession)
+    expect(readDemoState().activeSession).toBe(activeSession)
     expect(screen.getByLabelText('Aktueller Pfad')).toHaveTextContent('/training/active')
   })
 })
