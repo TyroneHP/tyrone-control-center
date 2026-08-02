@@ -19,6 +19,27 @@ function Probe() {
   )
 }
 
+function FreeSessionProbe() {
+  const { dispatch, startFreeSession, state } = useTrainingDemo()
+
+  return (
+    <>
+      <button
+        onClick={() => dispatch({ type: 'session/discard' })}
+        type="button"
+      >
+        Aktives Training verwerfen
+      </button>
+      <button onClick={startFreeSession} type="button">
+        Freies Training starten
+      </button>
+      <output aria-label="Aktive Trainingseinheit">
+        {state.activeSession?.name ?? 'Kein aktives Training'}
+      </output>
+    </>
+  )
+}
+
 describe('TrainingDemoProvider', () => {
   it('resets deterministic demo data after remount', async () => {
     const user = userEvent.setup()
@@ -44,5 +65,21 @@ describe('TrainingDemoProvider', () => {
         name: 'Bankdrücken als Favorit entfernen',
       }),
     ).toBeVisible()
+  })
+
+  it('exposes the typed action for starting a free demo session', async () => {
+    const user = userEvent.setup()
+    render(
+      <TrainingDemoProvider>
+        <FreeSessionProbe />
+      </TrainingDemoProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Aktives Training verwerfen' }))
+    await user.click(screen.getByRole('button', { name: 'Freies Training starten' }))
+
+    expect(screen.getByLabelText('Aktive Trainingseinheit')).toHaveTextContent(
+      'Freies Training',
+    )
   })
 })

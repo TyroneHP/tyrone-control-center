@@ -41,6 +41,26 @@ describe('trainingDemoReducer', () => {
     ).toBeUndefined()
   })
 
+  it('starts one free session and preserves it when a second free start is requested', () => {
+    const noActiveSession = {
+      ...createInitialTrainingDemoState(),
+      activeSession: undefined,
+    }
+    const started = trainingDemoReducer(noActiveSession, {
+      type: 'session/start-free',
+    })
+
+    expect(started.activeSession).toMatchObject({
+      id: 'session-free-training',
+      name: 'Freies Training',
+      planId: 'free-training',
+    })
+    expect(started.activeSession?.exercises).toEqual([])
+    expect(trainingDemoReducer(started, { type: 'session/start-free' })).toBe(
+      started,
+    )
+  })
+
   it('creates a distinct replacement set ID and updates only that new set after a removal', () => {
     const started = trainingDemoReducer(createInitialTrainingDemoState(), {
       type: 'session/start',

@@ -25,6 +25,7 @@ describe('StartTrainingSheet', () => {
         activeSession={undefined}
         onClose={vi.fn()}
         onContinue={vi.fn()}
+        onStartFreeSession={vi.fn()}
         onStartPlan={vi.fn()}
         open
         plans={[PLAN]}
@@ -39,6 +40,7 @@ describe('StartTrainingSheet', () => {
 
   it('continues an active session instead of starting a selected plan', async () => {
     const onContinue = vi.fn()
+    const onStartFreeSession = vi.fn()
     const onStartPlan = vi.fn()
     const user = userEvent.setup()
     render(
@@ -46,6 +48,7 @@ describe('StartTrainingSheet', () => {
         activeSession={createDemoActiveSession()}
         onClose={vi.fn()}
         onContinue={onContinue}
+        onStartFreeSession={onStartFreeSession}
         onStartPlan={onStartPlan}
         open
         plans={[PLAN]}
@@ -57,5 +60,51 @@ describe('StartTrainingSheet', () => {
 
     expect(onContinue).toHaveBeenCalledOnce()
     expect(onStartPlan).not.toHaveBeenCalled()
+  })
+
+  it('starts free training when no session is active', async () => {
+    const onStartFreeSession = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <StartTrainingSheet
+        activeSession={undefined}
+        onClose={vi.fn()}
+        onContinue={vi.fn()}
+        onStartFreeSession={onStartFreeSession}
+        onStartPlan={vi.fn()}
+        open
+        plans={[PLAN]}
+        todayPlan={PLAN}
+      />,
+    )
+
+    const freeTraining = screen.getByRole('button', { name: 'Freies Training' })
+    expect(freeTraining).toBeEnabled()
+    await user.click(freeTraining)
+
+    expect(onStartFreeSession).toHaveBeenCalledOnce()
+  })
+
+  it('continues an active session instead of starting free training', async () => {
+    const onContinue = vi.fn()
+    const onStartFreeSession = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <StartTrainingSheet
+        activeSession={createDemoActiveSession()}
+        onClose={vi.fn()}
+        onContinue={onContinue}
+        onStartFreeSession={onStartFreeSession}
+        onStartPlan={vi.fn()}
+        open
+        plans={[PLAN]}
+        todayPlan={PLAN}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Freies Training' }))
+
+    expect(onContinue).toHaveBeenCalledOnce()
+    expect(onStartFreeSession).not.toHaveBeenCalled()
   })
 })

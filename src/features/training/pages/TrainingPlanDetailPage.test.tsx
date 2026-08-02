@@ -18,7 +18,12 @@ function DemoHarness({ children }: { children: ReactNode }) {
 
   return (
     <TrainingDemoContext.Provider
-      value={{ state, dispatch, toggleFavoriteExercise: (exerciseId) => dispatch({ type: 'favorite/toggle', exerciseId }) }}
+      value={{
+        state,
+        dispatch,
+        startFreeSession: () => dispatch({ type: 'session/start-free' }),
+        toggleFavoriteExercise: (exerciseId) => dispatch({ type: 'favorite/toggle', exerciseId }),
+      }}
     >
       {children}
     </TrainingDemoContext.Provider>
@@ -36,7 +41,8 @@ function DemoStateReader({ onStateChange }: {
 }
 
 function LocationMarker() {
-  return <output aria-label="Aktueller Pfad">{useLocation().pathname}</output>
+  const location = useLocation()
+  return <output aria-label="Aktueller Pfad">{location.pathname}{location.search}</output>
 }
 
 function renderPlanDetail(planId = 'upper-body') {
@@ -46,6 +52,7 @@ function renderPlanDetail(planId = 'upper-body') {
       <DemoHarness>
         <Routes>
           <Route path="/training" element={<p>Training</p>} />
+          <Route path="/training/plans/new" element={<p>Planassistent</p>} />
           <Route path="/training/plans/:planId" element={<TrainingPlanDetailPage />} />
         </Routes>
         <DemoStateReader onStateChange={(state) => { demoState = state }} />
@@ -101,5 +108,17 @@ describe('TrainingPlanDetailPage', () => {
 
     expect(readDemoState().plans).toHaveLength(0)
     expect(screen.getByLabelText('Aktueller Pfad')).toHaveTextContent('/training')
+  })
+
+  it('opens the approved plan-wizard edit URL', async () => {
+    renderPlanDetail()
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Planaktionen \u00f6ffnen' }))
+    await user.click(screen.getByRole('button', { name: 'Plan bearbeiten' }))
+
+    expect(screen.getByLabelText('Aktueller Pfad')).toHaveTextContent(
+      '/training/plans/new?edit=upper-body',
+    )
   })
 })

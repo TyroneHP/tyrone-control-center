@@ -55,6 +55,18 @@ function createSessionFromPlan(plan: TrainingDemoPlan): TrainingDemoSession {
   }
 }
 
+function createFreeSession(): TrainingDemoSession {
+  return {
+    id: 'session-free-training',
+    planId: 'free-training',
+    name: 'Freies Training',
+    startedAt: DEMO_TIMESTAMP,
+    updatedAt: DEMO_TIMESTAMP,
+    activeExerciseIndex: 0,
+    exercises: [],
+  }
+}
+
 function updateActiveSession(
   state: TrainingDemoState,
   update: (session: TrainingDemoSession) => TrainingDemoSession,
@@ -235,6 +247,11 @@ export function trainingDemoReducer(
       const plan = state.plans.find(({ id }) => id === action.planId)
       return plan ? { ...state, activeSession: createSessionFromPlan(plan) } : state
     }
+
+    case 'session/start-free':
+      return state.activeSession
+        ? state
+        : { ...state, activeSession: createFreeSession() }
 
     case 'session/update-set':
       return updateActiveSession(state, (session) => ({

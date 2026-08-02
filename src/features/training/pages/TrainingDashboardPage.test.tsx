@@ -20,7 +20,12 @@ function DemoHarness({ children, initialState }: {
 
   return (
     <TrainingDemoContext.Provider
-      value={{ state, dispatch, toggleFavoriteExercise: (exerciseId) => dispatch({ type: 'favorite/toggle', exerciseId }) }}
+      value={{
+        state,
+        dispatch,
+        startFreeSession: () => dispatch({ type: 'session/start-free' }),
+        toggleFavoriteExercise: (exerciseId) => dispatch({ type: 'favorite/toggle', exerciseId }),
+      }}
     >
       {children}
     </TrainingDemoContext.Provider>
@@ -114,5 +119,22 @@ describe('TrainingDashboardPage', () => {
     expect(screen.getByRole('dialog', { name: 'Training starten' })).not.toHaveTextContent(
       'Heutigen Plan',
     )
+  })
+
+  it('starts a free session from the dashboard row when none is active', async () => {
+    const { readDemoState } = renderDashboard({
+      ...createInitialTrainingDemoState(),
+      activeSession: undefined,
+    })
+    vi.useRealTimers()
+
+    await userEvent.setup().click(
+      screen.getByRole('button', { name: /Freies Training/ }),
+    )
+
+    expect(readDemoState().activeSession).toMatchObject({
+      name: 'Freies Training',
+    })
+    expect(screen.getByLabelText('Aktueller Pfad')).toHaveTextContent('/training/active')
   })
 })

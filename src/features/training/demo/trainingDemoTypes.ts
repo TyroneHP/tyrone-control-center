@@ -89,6 +89,7 @@ export type TrainingDemoAction =
   | { type: 'plan/duplicate'; planId: string }
   | { type: 'plan/delete'; planId: string }
   | { type: 'session/start'; planId: string }
+  | { type: 'session/start-free' }
   | {
       type: 'session/update-set'
       exerciseId: string

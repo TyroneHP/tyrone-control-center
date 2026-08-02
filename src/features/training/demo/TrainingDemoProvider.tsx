@@ -13,6 +13,7 @@ import { TrainingDemoContext } from './useTrainingDemo'
 export interface TrainingDemoContextValue {
   state: TrainingDemoState
   dispatch: Dispatch<TrainingDemoAction>
+  startFreeSession: () => void
   toggleFavoriteExercise: (exerciseId: string) => void
 }
 
@@ -25,9 +26,12 @@ export function TrainingDemoProvider({ children }: { children: ReactNode }) {
   const toggleFavoriteExercise = useCallback((exerciseId: string) => {
     dispatch({ type: 'favorite/toggle', exerciseId })
   }, [])
+  const startFreeSession = useCallback(() => {
+    dispatch({ type: 'session/start-free' })
+  }, [])
   const value = useMemo(
-    () => ({ state, dispatch, toggleFavoriteExercise }),
-    [state, toggleFavoriteExercise],
+    () => ({ state, dispatch, startFreeSession, toggleFavoriteExercise }),
+    [state, startFreeSession, toggleFavoriteExercise],
   )
 
   return (

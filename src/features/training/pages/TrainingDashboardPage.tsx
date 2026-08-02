@@ -28,7 +28,7 @@ function planDetail(plan: TrainingDemoPlan) {
 }
 
 export function TrainingDashboardPage() {
-  const { dispatch, state } = useTrainingDemo()
+  const { dispatch, startFreeSession, state } = useTrainingDemo()
   const navigate = useNavigate()
   const [startSheetOpen, setStartSheetOpen] = useState(false)
   const [weekday] = useState(currentIsoWeekday)
@@ -43,6 +43,16 @@ export function TrainingDashboardPage() {
     }
 
     dispatch({ type: 'session/start', planId })
+    setStartSheetOpen(false)
+    navigate('/training/active')
+  }
+  const startFreeTraining = () => {
+    if (state.activeSession) {
+      continueTraining()
+      return
+    }
+
+    startFreeSession()
     setStartSheetOpen(false)
     navigate('/training/active')
   }
@@ -109,7 +119,7 @@ export function TrainingDashboardPage() {
 
       <TrainingList aria-label="Schnellzugriffe">
         <li className="compact-exercise-row">
-          <button onClick={() => setStartSheetOpen(true)} type="button">
+          <button onClick={startFreeTraining} type="button">
             <span className="compact-exercise-row__copy">
               <strong>Freies Training</strong>
               <span>Starte ohne Tagesplan.</span>
@@ -134,6 +144,7 @@ export function TrainingDashboardPage() {
         activeSession={state.activeSession}
         onClose={() => setStartSheetOpen(false)}
         onContinue={continueTraining}
+        onStartFreeSession={startFreeTraining}
         onStartPlan={startPlan}
         open={startSheetOpen}
         plans={state.plans}

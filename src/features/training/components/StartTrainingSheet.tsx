@@ -8,6 +8,7 @@ export interface StartTrainingSheetProps {
   activeSession?: TrainingDemoSession
   onClose: () => void
   onContinue: () => void
+  onStartFreeSession: () => void
   onStartPlan: (planId: string) => void
   open: boolean
   plans: readonly TrainingDemoPlan[]
@@ -18,6 +19,7 @@ export function StartTrainingSheet({
   activeSession,
   onClose,
   onContinue,
+  onStartFreeSession,
   onStartPlan,
   open,
   plans,
@@ -34,6 +36,15 @@ export function StartTrainingSheet({
     onStartPlan(planId)
   }
 
+  const startFreeTraining = () => {
+    if (activeSession) {
+      onContinue()
+      return
+    }
+
+    onStartFreeSession()
+  }
+
   return (
     <TrainingBottomSheet onClose={onClose} open={open} title="Training starten">
       {todayPlan ? (
@@ -48,7 +59,7 @@ export function StartTrainingSheet({
       >
         Anderen Plan
       </button>
-      <button disabled type="button">
+      <button onClick={startFreeTraining} type="button">
         Freies Training
       </button>
       {activeSession ? (

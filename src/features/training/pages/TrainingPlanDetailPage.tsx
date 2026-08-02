@@ -52,6 +52,11 @@ export function TrainingPlanDetailPage() {
     setActionsOpen(false)
   }
 
+  const editPlan = () => {
+    setActionsOpen(false)
+    navigate(`/training/plans/new?edit=${encodeURIComponent(plan.id)}`)
+  }
+
   const deletePlan = () => {
     dispatch({ type: 'plan/delete', planId: plan.id })
     setDeleteConfirmOpen(false)
@@ -106,7 +111,7 @@ export function TrainingPlanDetailPage() {
         open={actionsOpen}
         title="Planaktionen"
       >
-        <button disabled type="button">
+        <button onClick={editPlan} type="button">
           Plan bearbeiten
         </button>
         <button onClick={duplicatePlan} type="button">
