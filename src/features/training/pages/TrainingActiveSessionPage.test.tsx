@@ -1,5 +1,5 @@
 import { useEffect, useReducer, type ReactNode } from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -117,6 +117,17 @@ describe('TrainingActiveSessionPage', () => {
     expect(screen.getByText('2 von 3 Übungen')).toBeVisible()
   })
 
+  it('does not begin a content swipe from a weight input', () => {
+    renderActiveSession()
+    const input = screen.getByLabelText('Satz 1 Gewicht')
+    const content = screen.getByTestId('active-exercise-content')
+
+    fireEvent.pointerDown(input, { pointerId: 3, clientX: 280, clientY: 100 })
+    fireEvent.pointerUp(content, { pointerId: 3, clientX: 80, clientY: 100 })
+
+    expect(screen.getByText('1 von 3 Übungen')).toBeVisible()
+  })
+
   it('requires confirmation before discard', async () => {
     renderActiveSession()
     const user = userEvent.setup()
@@ -124,6 +135,36 @@ describe('TrainingActiveSessionPage', () => {
     await user.click(screen.getByRole('button', { name: 'Training verwerfen' }))
 
     expect(screen.getByRole('dialog', { name: 'Training wirklich verwerfen?' })).toBeVisible()
+  })
+
+  it('discards only the active session after confirmation and returns to training', async () => {
+    const { readDemoState } = renderActiveSession()
+    const plans = readDemoState().plans
+    const exercises = readDemoState().exercises
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Training verwerfen' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Endgültig verwerfen' }))
+
+    expect(readDemoState().activeSession).toBeUndefined()
+    expect(readDemoState().plans).toBe(plans)
+    expect(readDemoState().exercises).toBe(exercises)
+    expect(screen.getByLabelText('Aktueller Pfad')).toHaveTextContent('/training')
+  })
+
+  it('finishes only the active session after confirmation and returns to training', async () => {
+    const { readDemoState } = renderActiveSession()
+    const plans = readDemoState().plans
+    const exercises = readDemoState().exercises
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Training abschließen' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Training abschließen' }))
+
+    expect(readDemoState().activeSession).toBeUndefined()
+    expect(readDemoState().plans).toBe(plans)
+    expect(readDemoState().exercises).toBe(exercises)
+    expect(screen.getByLabelText('Aktueller Pfad')).toHaveTextContent('/training')
   })
 
   it('shows a German empty state for a free session without exercises', () => {

@@ -36,6 +36,11 @@ export function ActiveExerciseNavigator({
   }
 
   const onPointerDown = (event: PointerEvent<HTMLElement>) => {
+    if (isEditableTarget(event.target)) {
+      swipeStart.current = undefined
+      return
+    }
+
     swipeStart.current = {
       pointerId: event.pointerId,
       x: event.clientX,
