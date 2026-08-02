@@ -6,6 +6,7 @@ import type {
   TrainingDemoPlan,
   TrainingDemoPlanExercise,
   TrainingDemoSession,
+  TrainingDemoSessionExercise,
   TrainingDemoState,
 } from './trainingDemoTypes'
 
@@ -61,6 +62,19 @@ function updateActiveSession(
   if (!state.activeSession) return state
 
   return { ...state, activeSession: update(state.activeSession) }
+}
+
+function createNextSetId(exercise: TrainingDemoSessionExercise): string {
+  const existingSetIds = new Set(exercise.sets.map(({ id }) => id))
+  let setNumber = exercise.sets.length + 1
+  let setId = `${exercise.id}-set-${setNumber}`
+
+  while (existingSetIds.has(setId)) {
+    setNumber += 1
+    setId = `${exercise.id}-set-${setNumber}`
+  }
+
+  return setId
 }
 
 export function trainingDemoReducer(
@@ -249,7 +263,7 @@ export function trainingDemoReducer(
                 sets: [
                   ...exercise.sets,
                   {
-                    id: `${exercise.id}-set-${exercise.sets.length + 1}`,
+                    id: createNextSetId(exercise),
                     weightKg: 0,
                     repetitions: 0,
                     completed: false,

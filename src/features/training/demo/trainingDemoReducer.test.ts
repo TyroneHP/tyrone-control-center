@@ -40,4 +40,55 @@ describe('trainingDemoReducer', () => {
       trainingDemoReducer(active, { type: 'session/discard' }).activeSession,
     ).toBeUndefined()
   })
+
+  it('creates a distinct replacement set ID and updates only that new set after a removal', () => {
+    const started = trainingDemoReducer(createInitialTrainingDemoState(), {
+      type: 'session/start',
+      planId: 'upper-body',
+    })
+    const firstSetId = started.activeSession!.exercises[0].sets[0].id
+    const afterRemoval = trainingDemoReducer(started, {
+      type: 'session/remove-set',
+      exerciseId: 'bench-press',
+      setId: firstSetId,
+    })
+    const afterAddition = trainingDemoReducer(afterRemoval, {
+      type: 'session/add-set',
+      exerciseId: 'bench-press',
+    })
+    const addedSet = afterAddition.activeSession!.exercises[0].sets.at(-1)!
+    const updated = trainingDemoReducer(afterAddition, {
+      type: 'session/update-set',
+      exerciseId: 'bench-press',
+      setId: addedSet.id,
+      changes: { weightKg: 42, repetitions: 9, completed: true },
+    })
+    const updatedSets = updated.activeSession!.exercises[0].sets
+
+    expect(
+      updatedSets.filter(({ weightKg }) => weightKg === 42),
+    ).toHaveLength(1)
+    expect(new Set(updatedSets.map(({ id }) => id))).toHaveLength(
+      updatedSets.length,
+    )
+    expect(updatedSets.find(({ id }) => id === addedSet.id)).toMatchObject({
+      weightKg: 42,
+      repetitions: 9,
+      completed: true,
+    })
+    expect(updatedSets.filter(({ id }) => id !== addedSet.id)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          weightKg: 0,
+          repetitions: 0,
+          completed: false,
+        }),
+        expect.objectContaining({
+          weightKg: 0,
+          repetitions: 0,
+          completed: false,
+        }),
+      ]),
+    )
+  })
 })
